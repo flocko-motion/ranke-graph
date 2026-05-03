@@ -278,7 +278,7 @@ The structure so far gives us a Merkle DAG of content-addressed nodes — useful
 
 The mechanism is a usage pattern over the basic primitives, supported by one optional named field on edges:
 
-+ *Relations are reified as nodes.* A semantic relation is never a single edge between two nodes; it is always a _relation node_ together with the set of semantic edges (`class = semantic`) that connect it to its participants. The relation's type lives on the relation node's `type` and `content`; participants are referenced by the targets of the relation node's semantic edges.
++ *Relations are reified as nodes.* (Reification — making a relationship a first-class addressable object, as in RDF 1.0's `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] for statements about statements — is a known technique.) A semantic relation in the Ranke-Graph is never a single edge between two nodes; it is always a _relation node_ together with the set of semantic edges (`class = semantic`) that connect it to its participants. The relation's type lives on the relation node's `type` and `content`; participants are referenced by the targets of the relation node's semantic edges.
 
 + *The `semantic_direction` field tags each participant's role in the reading.* Carried on each semantic edge, with values
   $ "semantic_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
@@ -289,34 +289,37 @@ $ ("from_nodes", "relationship", "to_nodes"), $
 where each `semantic_direction = from`-tagged edge contributes a `from_node`, each `to`-tagged edge contributes a `to_node`, and the relation node itself supplies the relationship. Edges tagged `peer` express symmetric participation — a participant on equal footing with no asymmetric role to record. @fig:relation illustrates the binary case under entity-resolution ambiguity.
 
 #figure(
-  diagram(
-    spacing: (3em, 1.5em),
+  pad(x: -2.5cm, align(center, diagram(
+    spacing: (4em, 1.2em),
     node-stroke: 0.5pt,
+    node-shape: rect,
 
-    // Provenance sources (top)
+    // Left column: all referenced (older) nodes.
+    // Provenance sources at top.
     node((0, 0), [Contributor]),
-    node((3, 0), [Email\ source]),
+    node((0, 1), [Source]),
 
-    // Relation node (centre)
-    node((1.5, 1.2), [`is_brother_of`\ #text(size: 0.8em)[(relation node)]], stroke: 0.8pt + black),
+    // Visual gap, then participants below.
+    node((0, 3), [Bob 1]),
+    node((0, 4), [Bob 2]),
+    node((0, 5), [Alice]),
 
-    // Participants (bottom)
-    node((0, 2.4), [Bob 1]),
-    node((1.5, 2.4), [Bob 2]),
-    node((3, 2.4), [Alice]),
+    // Right: the relation node (newer; references everything on the left).
+    // Bolder stroke distinguishes it visually; the relation type sits in its label.
+    node((5, 2.5), [`is_brother_of`], stroke: 0.8pt + black),
 
-    // Provenance: source → derivation (always ≥ 2 inputs).
-    edge((0, 0), (1.5, 1.2), "->", [#text(size: 0.75em)[prov]]),
-    edge((3, 0), (1.5, 1.2), "->", [#text(size: 0.75em)[prov]]),
+    // Edges from Contributor and Source carry no extra fields — the
+    // existence of the reference IS the provenance fact (§5.2 / §6.1).
+    edge((0, 0), (5, 2.5), "->"),
+    edge((0, 1), (5, 2.5), "->"),
 
-    // Semantic: all arrows flow into the relation node (the universal
-    // structural convention from §5.2). Labels show the semantic_direction
-    // field value and the conviction field value.
-    edge((0, 2.4), (1.5, 1.2), "->", [#text(size: 0.75em)[`semantic_direction`: from \ `conviction`: +0.7]]),
-    edge((1.5, 2.4), (1.5, 1.2), "->", [#text(size: 0.75em)[`semantic_direction`: from \ `conviction`: −0.4]]),
-    edge((3, 2.4), (1.5, 1.2), "->", [#text(size: 0.75em)[`semantic_direction`: to \ `conviction`: +1.0]]),
-  ),
-  caption: [Binary relation under entity-resolution ambiguity. The plaintext "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both are linked to the same `is_brother_of` relation node with `semantic_direction = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `semantic_direction = to`, conviction $+1.0$. All edges — provenance and semantic alike — point into the newer (relation) node, the universal structural convention from @sec:edges.],
+    // Semantic: all flow into the relation node (universal convention, §5.2).
+    // Labels: sdir = semantic_direction, conv = conviction.
+    edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: +0.7`]]),
+    edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: −0.4`]]),
+    edge((0, 5), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: to`, `conv: +1.0`]]),
+  ))),
+  caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `sdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `sdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `sdir` = `semantic_direction`, `conv` = `conviction`.],
 ) <fig:relation>
 
 The same pattern scales to $n$-ary relations without any change to the edge schema: more participants simply mean more semantic edges from the relation node, each carrying its own role tag.
@@ -403,14 +406,16 @@ Since node id $=$ node hash, identical nodes are the same node.
 Writes are idempotent by construction.
 Deduplication is free.
 
+#todo[Add a "Backup from a Hash Root" sub-property: a single root hash plus access to the content store reconstitutes the entire graph and proves its integrity. State as a corollary of Merkle integrity. Lands right after Idempotency while the structure is fresh.]
+
 #dref[D3, this section]
 
-== Snapshots and Hashchains
+== Anchoring
 
-Snapshots are special nodes whose inputs are all current heads (nodes with no children in $G_p$) plus the previous snapshot:
+Snapshots are special nodes whose inputs are all current heads (nodes with no children in $G$) plus the previous snapshot:
 $
-  s_0 &= H(op("heads")(G_p, t_0)) \
-  s_n &= H(op("heads")(G_p, t_n) || s_(n-1))
+  s_0 &= H(op("heads")(G, t_0)) \
+  s_n &= H(op("heads")(G, t_n) || s_(n-1))
 $
 
 The snapshot sequence $(s_0, s_1, dots.h.c, s_n)$ is a hashchain.
@@ -419,17 +424,38 @@ Manipulation of any $s_i$ invalidates all $s_j$ for $j > i$.
 
 Snapshot hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
 
+#todo[Add the *anchoring composition theorem*: publishing a single snapshot hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that snapshot but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (§5.2). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
+
+#todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
+
 #dref[D4, this section]
 
-== Forking, Merging, and the CRDT Property <sec:crdt>
+== Boolean Composability <sec:crdt>
+
+#todo[Section opener (1–2 sentences): the graph admits a full set algebra over its node-id sets — $union$, $inter$, $\\$, $triangle.stroked.small$ — all conflict-free by construction.]
+
+=== Set Algebra Theorem
+
+#todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
+
+Proof sketch composes three structural facts:
+(1) content-addressed ids (§4.4) make node identity decidable by hash equality (O(1));
+(2) immutability (D3, §4.3) means a given id corresponds to one fixed record — no version disagreement is possible;
+(3) DAG-by-construction (§5.1) means any subset of $V$ closed under the edge-target relation is itself a DAG; closure costs O(|E|).
+
+Each set op produces a node-id subset; closing under target-references yields a well-formed instance.]
 
 === Cheap Forks
 
-#todo[Content-addressed storage means two graph instances can share a single content pool. Forks copy only the graph metadata, not the content.]
+#todo[Corollary: forking is divergence in the node-id set; content blobs are shared via the addressed pool. Storage cost of $N$ forks of a graph $G$ is $O(|V_G|)$ in metadata plus $O(1)$ in the content pool.]
 
 === Coordination-Free Merge
 
-#todo[An add-only monotonic DAG is provably a CRDT. Independent forks can be merged into a consistent state without coordination — formal sketch. Reference @shapiro2011crdt for the CRDT definition; argue that the Ranke-Graph satisfies the join-semilattice condition trivially because addition is the only operation and node ids are content-addressed (so merge is set union).]
+#todo[Corollary: convergence is $union$. The Ranke-Graph satisfies the join-semilattice condition for CRDTs (@shapiro2011crdt). No coordination protocol, no conflict resolution, no merge algorithm beyond hash-set union.]
+
+=== Operational Reading
+
+#todo[Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur.]
 
 #dref[D6, this section]
 
