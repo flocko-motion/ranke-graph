@@ -12,7 +12,7 @@ python3 - <<'PY'
 import re
 from pathlib import Path
 
-bib_text = Path("sources.bib").read_text()
+bib_text = Path("../shared/sources.bib").read_text()
 out_path = Path("sources.gen.md")
 
 # Match @type{key, ...body... } with one level of brace nesting inside fields.
