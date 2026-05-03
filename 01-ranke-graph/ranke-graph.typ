@@ -196,19 +196,8 @@ Two nodes with identical content but different provenance — different edges, d
 
 - `type` is a plain string; the ADT prescribes no vocabulary.
 - `content` is opaque bytes. Interpretation is the concern of contributors, not the ADT.
+- `contributor_id` is itself a node id; a contributor's identity is a node in the graph like any other.
 - `fields_0..n` is a placeholder for any number of additional fields. Its purpose is expository: by including a generic extension placeholder in the basic definition, we avoid restating the definition every time a new field is introduced, and every proof about node identity (@sec:merkle and onward) applies uniformly to all fields, named or not. The same mechanism happens to allow downstream refinements — a reference implementation that adds `content_hash`, `encoding`, or domain-specific timestamps — to extend the schema without violating any structural invariant proved against the ADT.
-
-=== The Root Contributor
-
-The `contributor_id` field is itself a node id: a contributor's identity is a node in the graph, with its own type, content, and provenance.
-This raises a bootstrap question — how is the very first node attributed, when no contributor yet exists?
-
-The Ranke-Graph resolves the question by convention rather than by structure.
-A single distinguished _root contributor_ — typically the human operator of the graph — is assumed, and the very first node ever created in the graph is the identity of that root contributor, assigned a reserved fundamental id (e.g.\ `1`).
-Every subsequent contributor identity is itself a node attributed either to the root or to another already-attested contributor; the graph thus bootstraps from a single self-attested root.
-
-The precise convention by which the root identity self-attests — a sentinel `contributor_id`, a designated genesis content type, or another implementation-specific signal — is left to the implementation.
-The ADT requires only that some such convention be fixed and that all subsequent attributions chain back to it.
 
 == Edges <sec:edges>
 
