@@ -208,3 +208,27 @@ MIME-style: `text/eml`, `image/png`, `audio/wav`, `application/pdf`.
 | **P2** | Workers | Pipeline, dispatch, reactive/analytical, claim decomposition |
 | **P3** | Retrieval | Memory agents, verification gate, conviction, user confirmation |
 | **P4** | Chat Frontend | Stacker, multi-agent coordination, user interface |
+
+---
+
+## Part I voice pass — deferred
+
+Direction (2026-05-03): philosophy in Part I should *carry, not bore — a ride, not a dusty lecture*. Apply once Parts II and III are stable. Voice tactics live in `~/.claude/projects/-Users-flo-Developer-ranke-ranke-graph/memory/feedback_part1_voice.md`.
+
+**Already carries — preserve the rhythm:**
+
+- §1 (three statements) — the model.
+- §3.1 *"Provenance is not an annotation on the knowledge — it _is_ the knowledge."*
+- §3.2 *"Contradiction is not a bug to resolve, it is a fact about the evidence base. Resolving it destroys information."*
+- §3.5 Thesis line.
+
+**Currently lectures — passages to revise, in order of payoff:**
+
+1. **§2.4 Convergence** — three sentences of transition prose with no image and no claim that hasn't been made. Either cut, or rewrite as a punchline closing §2 and let §2.3 hand off straight to §3.
+2. **§2.2 The CS Priority That Was Never Operationalised** — currently a literature dump of "system X does A but not B" clauses. Convert to one rhetorical paragraph (name the pattern, deliver the killer line) and migrate the named-systems list to §10 (Related Work) where it belongs anyway.
+3. **§2.3 The Rupture** — opens with "Knowledge management systems face a fundamental tension" (textbook). Lead with the rupture itself: machines reading and writing at human scale, the systems we built were sized for a reader who would never see most of the data. Then the existing LLM/PROV-DM material follows with momentum.
+4. **§3.1 first paragraph** — long bullets explaining "everything is knowledge" before the killer line. Reorder so the killer line *leads*, bullets become illustration.
+5. **§2.1 Archival Tradition** — solid; small trim only. Remove "rightly" from "rightly criticised" — sounds like hedging.
+
+**Pieces to leave alone:** §2.1 (apart from the trim), §3.3 / §3.4 (still `#todo[]` bullets — write fresh in the new voice when we get there).
+
