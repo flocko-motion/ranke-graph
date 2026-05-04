@@ -145,9 +145,9 @@ The Ranke-Graph is built for a future in which a model able to traverse the full
 
 = Desiderata <sec:desiderata>
 
-We state the obligations the data structure of @sec:structure is required to satisfy. The list is intended to be minimal in the sense that no item is implied by the others under the structure to follow; consequences that #emph[do] follow — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — are deferred to Part III, where each is derived in turn.
+We state the obligations the data structure of @sec:structure is required to satisfy. The list is intended to be minimal in the sense that no item is implied by the others under the structure to follow; consequences that #emph[do] follow — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — are deferred to @sec:emerges, where each is derived in turn.
 
-The desiderata are stated without reference to any implementation, and without prejudice as to how a system might satisfy them. Each is discharged by an identified section in Part III; cross-references appear at the end of the corresponding section rather than here.
+The desiderata are stated without reference to any implementation, and without prejudice as to how a system might satisfy them. Each is discharged by an identified section in @sec:emerges; cross-references appear at the end of the corresponding section rather than here.
 
 *D1. Provenance.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
 
@@ -167,7 +167,9 @@ The remainder of the paper presents a single data structure (@sec:structure) and
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (§5.1) and a single edge type (§5.2) — acyclic by the atomic creation rule (§5.3), Merkle by content-addressed hashing (§5.4), semantic by the direction tag on edges (§5.5). From this definition, properties D1–D7 follow (Part III).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-direction). From this definition, properties D1–D7 follow (@sec:emerges).
+
+Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
 == Nodes <sec:nodes>
 
@@ -182,24 +184,20 @@ node = {
 }
 ```
 
-A node's identity is the cryptographic hash of its record:
+Identity:
 
-$ op("id")(v) := H(op("type")(v) || op("content")(v)
-  || op("id")(e_1) || dots.h.c || op("id")(e_n) \
-  || op("created_at")(v) || op("contributor_id")(v)
-  || op("fields")_0 (v) || dots.h.c || op("fields")_n (v)) $
+$ op("id")(v) := H(S(v)) $
 
-where $e_1, dots.h.c, e_n$ are the edges created with $v$ (@sec:edges).
-Two nodes with identical content but different provenance — different edges, different contributor, or different extension fields — produce different ids and are therefore distinct nodes.
+where $S$ is the canonical serialization (@sec:structure) and $H$ the cryptographic hash. Two nodes with identical content but different provenance — different edges, different contributor, or different extension fields — produce different ids.
 
 - `type` is a plain string; the ADT prescribes no vocabulary.
-- `content` is opaque bytes. Interpretation is the concern of contributors, not the ADT.
-- `contributor_id` is itself a node id; a contributor's identity is a node in the graph like any other.
-- `fields_0..n` is a placeholder for any number of additional fields. Its purpose is expository: by including a generic extension placeholder in the basic definition, we avoid restating the definition every time a new field is introduced, and every proof about node identity (@sec:merkle and onward) applies uniformly to all fields, named or not. The same mechanism happens to allow downstream refinements — a reference implementation that adds `content_hash`, `encoding`, or domain-specific timestamps — to extend the schema without violating any structural invariant proved against the ADT.
+- `content` is opaque bytes; interpretation is unspecified.
+- `contributor_id` is itself a node id.
+- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to refinements that add named fields (e.g. a `content_hash` or `encoding` in a reference implementation).
 
 == Edges <sec:edges>
 
-An edge belongs to exactly one node: the node that contains its id in its `edges` set. We call that node the edge's _parent_; the parent is recoverable by traversal, not stored in the edge itself.
+An edge belongs to one node — its _parent_ — recoverable as the node whose `edges` set contains the edge's id.
 
 ```
 edge = {
@@ -207,30 +205,25 @@ edge = {
   class:       provenance | semantic,
   type:        kind of relation (e.g. "family", "ownership", "derivation"),
   content:     the relation itself (e.g. "is_brother_of", "are_similar"),
-  fields_0..n: extension fields (implementation-defined; may be empty)
+  ...:         additional implementation-defined fields
 }
 ```
 
-An edge's identity is the cryptographic hash of its record:
+Identity:
 
-$ op("id")(e) := H(op("target")(e) || op("class")(e) \
-  || op("type")(e) || op("content")(e) \
-  || op("fields")_0 (e) || dots.h.c || op("fields")_n (e)) $
+$ op("id")(e) := H(S(e)) $
 
-Optional named fields are covered by the `fields_0..n` placeholder; they participate in the hash like any other field when present, and contribute nothing when absent.
+Parent is implicit by necessity: if it were a field, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
 
-Omitting the parent from the record is not cosmetic: if parent were a field, $op("id")(e)$ would depend on $op("id")(v)$, which in turn depends on $op("id")(e)$ through the node's `edges` set, and no consistent identity assignment would exist.
-Keeping the parent implicit resolves the recursion.
+*Structural direction is universal.* Every edge runs from an older node (its `target`) to the newer node that owns it (its parent), since the atomic creation rule (@sec:atomic) only allows references to already-existing nodes. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
-*Structural direction is universal.* Every edge connects a newer node (its parent, which created and owns it) to an older node (its `target`, referenced by hash). The atomic creation rule (@sec:atomic) guarantees the temporal order: a new node may only reference nodes that already exist. By the classic visual convention for DAGs of this shape — build graphs, dependency graphs, pipelines — we draw arrows _into_ the newer node, in the forward-in-time direction. The convention is universal: it holds for every edge of every class. The acyclicity result (@sec:acyclicity) falls out of it directly.
-
-The split between `type` and `content` is the same as for nodes: `type` classifies (what _kind_ of relation this is), `content` carries the specific assertion.
+As for nodes, `type` classifies the relation's kind; `content` carries the specific assertion.
 
 - *Provenance edge (`class = provenance`):* the parent node was derived from the target. Every node created in the graph carries multiple provenance edges — at minimum, one to its contributor and one or more to the data inputs from which it was derived. The act of referencing a target by hash _is_ the provenance record; no further field is required.
 - *Semantic edge (`class = semantic`):* the parent is a _relation node_; the target is one of the relation's participants. The relation's reading — including how each participant's role is recorded — is the subject of @sec:semantic-direction.
 - `fields_0..n` is a placeholder for any number of additional fields the edge can carry. As for nodes, the placeholder keeps the basic definition fixed and ensures every proof about edge identity applies uniformly to all fields, named or not.
 
-A node carries the ids of its edges in its own record, which makes those ids part of the node's id (@sec:merkle); edges are therefore Merkle-secured through the parent node that created them.
+A node carries its edges' ids in its own record, so edges are Merkle-secured through the parent (@sec:merkle).
 
 The `class` field is a *projection hint*, not a partition of "edges that carry provenance vs edges that do not" — every edge carries provenance by virtue of referencing an older node (@sec:acyclicity). What `class = semantic` marks is *inclusion in the semantic view*; `class = provenance` marks edges whose role is purely to record where the new node came from. The naming is somewhat loose and may be revisited. #todo[Consider renaming `class` once the rest of Part II is settled — perhaps `role` or `view`.]
 
@@ -279,19 +272,19 @@ Reference: Haber and Stornetta (1991), _"How to Time-Stamp a Digital Document"_ 
 
 == Semantic Direction <sec:semantic-direction>
 
-The structure so far gives us a Merkle DAG of content-addressed nodes — useful for provenance and integrity, but not yet a knowledge graph: nothing in §5.1–§5.4 lets us express a claim of the form _"Bob is_brother_of Alice"_ as a single attributable unit. Discharging D2 requires one further addition.
+The structure so far is a Merkle DAG, but not yet a knowledge graph: it cannot express a claim like _"Bob is_brother_of Alice"_ as one attributable unit. Discharging D2 requires one addition.
 
-The mechanism is a usage pattern over the basic primitives, supported by one optional named field on edges:
+The addition has two parts:
 
-+ *Relations are reified as nodes.* (Reification — making a relationship a first-class addressable object, as in RDF 1.0's `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] for statements about statements — is a known technique.) A semantic relation in the Ranke-Graph is never a single edge between two nodes; it is always a _relation node_ together with the set of semantic edges (`class = semantic`) that connect it to its participants. The relation's type lives on the relation node's `type` and `content`; participants are referenced by the targets of the relation node's semantic edges.
++ *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with semantic edges (`class = semantic`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
 
 + *The `semantic_direction` field tags each participant's role in the reading.* Carried on each semantic edge, with values
   $ "semantic_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
-  The values have a dual face. The symbolic names — `from`, `peer`, `to` — are self-documenting at the use site: they map directly to slots in the natural-language reading. The numeric backing $\{+1, 0, -1\}$ stays available for any aggregation a consumer needs at scale; huge graphs invite statistics, and consistent numeric encoding makes them tractable.
+  The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
-The reading rule follows directly. To read a relation, gather the relation node and all its semantic edges, and form the generalised triple
+To read a relation, gather the relation node and all its semantic edges, forming the generalised triple
 $ ("from_nodes", "relationship", "to_nodes"), $
-where each `semantic_direction = from`-tagged edge contributes a `from_node`, each `to`-tagged edge contributes a `to_node`, and the relation node itself supplies the relationship. Edges tagged `peer` express symmetric participation — a participant on equal footing with no asymmetric role to record. @fig:relation illustrates the binary case under entity-resolution ambiguity.
+where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. `peer`-tagged edges express symmetric participation, with no asymmetric role to record. @fig:relation illustrates the binary case under entity-resolution ambiguity.
 
 #figure(
   pad(x: -2.5cm, align(center, diagram(
@@ -314,11 +307,11 @@ where each `semantic_direction = from`-tagged edge contributes a `from_node`, ea
     node((5, 2.5), [`is_brother_of`], stroke: 0.8pt + black),
 
     // Edges from Contributor and Source carry no extra fields — the
-    // existence of the reference IS the provenance fact (§5.2 / §6.1).
+    // existence of the reference IS the provenance fact (@sec:edges / @sec:acyclicity).
     edge((0, 0), (5, 2.5), "->"),
     edge((0, 1), (5, 2.5), "->"),
 
-    // Semantic: all flow into the relation node (universal convention, §5.2).
+    // Semantic: all flow into the relation node (universal convention, @sec:edges).
     // Labels: sdir = semantic_direction, conv = conviction.
     edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: +0.7`]]),
     edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: −0.4`]]),
@@ -327,8 +320,7 @@ where each `semantic_direction = from`-tagged edge contributes a `from_node`, ea
   caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `sdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `sdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `sdir` = `semantic_direction`, `conv` = `conviction`.],
 ) <fig:relation>
 
-The same pattern scales to $n$-ary relations without any change to the edge schema: more participants simply mean more semantic edges from the relation node, each carrying its own role tag.
-The ADT places no upper bound on the number of semantic edges a single relation node may carry.
+The same pattern scales to $n$-ary relations without changing the edge schema: more participants, more semantic edges, each with its own role tag.
 
 The `peer` value is more than a binary edge case. Consider a relation node of type `are_similar` with $n$ semantic edges, all tagged `semantic_direction = peer`, each carrying its own conviction.
 Such a node represents a *similarity cluster*: a set of participants asserted to be similar, with no central or distinguished member, and per-member evidence about how strongly each belongs.
