@@ -155,7 +155,7 @@ The desiderata are stated without reference to any implementation, and without p
 
 *D3. Immutability.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
 
-*D4. Verifiable History.* The state of the store at any past point in time is provable to a third party without reliance on the operator. A claim about historical state is either confirmed or refuted by inspection of the store and a small external witness.
+*D4. Verifiable History.* The state of the store at any past point in time is provable to a third party without reliance on the operator.
 
 *D5. Auth-Scoped Visibility.* Visibility of a claim to an observer is determined structurally, not by policy: an observer sees a claim only if it sees every artifact and intermediate derivation on which the claim depends. Visibility propagates from inputs to outputs without explicit administration.
 
@@ -167,11 +167,9 @@ The remainder of the paper presents a single data structure (@sec:structure) and
 
 = The Data Structure <sec:structure>
 
-We define the Ranke-Graph as a pair of records — a node (§5.1) and an edge (§5.2) — together with three foundational additions. *Atomic creation (§5.3) is what makes the graph a DAG. The cryptographic hash function (§5.4) is what makes it a Merkle DAG. Semantic direction (§5.5) is what makes it a knowledge graph.* From these five pieces, the properties D1–D7 follow (Part III).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (§5.1) and a single edge type (§5.2) — acyclic by the atomic creation rule (§5.3), Merkle by content-addressed hashing (§5.4), semantic by the direction tag on edges (§5.5). From this definition, properties D1–D7 follow (Part III).
 
 == Nodes <sec:nodes>
-
-A node is the unit of knowledge in the graph. The minimal definition:
 
 ```
 node = {
@@ -180,7 +178,7 @@ node = {
   created_at:     timestamp,
   contributor_id: identity of the contributor,
   edges:          set of edge ids created with the node,
-  fields_0..n:    extension fields (implementation-defined; may be empty)
+  ...:            additional implementation-defined fields
 }
 ```
 
