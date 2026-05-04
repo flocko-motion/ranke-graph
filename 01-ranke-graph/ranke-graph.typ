@@ -6,7 +6,7 @@
   author:   "Florian Metzger-Noel",
   date:     "2026-05-03",
   status:   "scaffold",
-  abstract: todo[One paragraph: a small data structure from which a list of properties — provenance, immutability, verifiable history, auth-scoped visibility, distributability, open-ended vocabulary — emerges as consequence rather than as feature. To be written after the body settles.],
+  abstract: todo[One paragraph: a small data structure from which a list of properties — provenance, immutability, verifiable history, auth-scoped visibility, distributability, open-ended vocabulary — emerges as consequence rather than as feature. Close with: reference implementations in Go and Python accompany the paper, with a binary conformance suite. To be written after the body settles.],
 )
 
 = Introduction
@@ -250,14 +250,32 @@ No edge can be added later.
 The node's hash covers everything it will ever have.
 This is what makes the Merkle property hold: $op("id")(v)$ is final at creation time.
 
-== Hash Function Agnosticism <sec:hash-agnosticism>
+== Hashing <sec:hash-agnosticism>
 
 This paper uses $H(x)$ to denote a cryptographic hash function, without committing to a specific algorithm.
-The ADT allows:
+What the ADT requires is that the chosen mechanism — both the byte-level encoding of records and the hash function applied to those bytes — satisfies the qualities below.
 
-- A hash-type prefix on ids: `sha256:a3f2b7c…`
-- Coexistence of different hash functions during migration
-- Future migration to post-quantum hash functions
+*Canonical encoding.* The hash function operates over a byte encoding of each record (node or edge). The encoding must be:
+
+- *Deterministic.* The same logical record produces the same bytes across implementations, runs, and platforms.
+- *Complete.* Every field of the record contributes to the bytes; no field may be silently dropped.
+- *Self-delimiting.* Parsing the bytes recovers the record exactly, with no ambiguity about field boundaries.
+
+Without these qualities, two implementations of the ADT would produce different ids for the same logical record, and the cross-implementation guarantees of @sec:crdt would not hold.
+Any encoding satisfying these qualities is acceptable; CBOR Deterministic Encoding (RFC 8949 §4.2) is one well-known example, and the reference implementations adopt it.
+
+*Hash-id mechanism.* Every id in the system is the cryptographic hash of a canonically-encoded record, formatted so that:
+
+- *Cryptographic strength.* The hash function is collision-resistant under standard cryptographic assumptions.
+- *Self-describing.* The id carries an explicit indication of which hash function produced it, so any reader can verify a node by recomputing its hash with the named function.
+
+These two qualities are required.
+Two further capabilities follow from self-describing ids and are nice-to-have rather than mandatory:
+
+- _Function pluralism._ Multiple hash functions may coexist within a single graph, with each node verifiable by the function its id names.
+- _Migration support._ New hash functions can be introduced over time without rewriting old nodes or invalidating their ids.
+
+Any mechanism satisfying the required qualities is acceptable; IPFS multihash, which prefixes each id with a function selector and supports the listed nice-to-have capabilities by design, is one well-known example. The reference implementations adopt multihash.
 
 Reference: Haber and Stornetta (1991), _"How to Time-Stamp a Digital Document"_ #todo[(add bib entry)] — the foundational paper on cryptographic timestamping. They demonstrated the concept by publishing hash digests in the New York Times.
 
@@ -442,9 +460,9 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 #todo[Corollary: convergence is $union$. The Ranke-Graph satisfies the join-semilattice condition for CRDTs (@shapiro2011crdt). No coordination protocol, no conflict resolution, no merge algorithm beyond hash-set union.]
 
-=== Operational Reading
+=== Operations and Composability
 
-#todo[Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur.]
+#todo[The Set Algebra Theorem above is the *operational definition* of the ADT's four binary operations. The proof gives the rules: each operation produces a node-id subset by hash-set algebra, then closes under target-references to form a well-formed instance. Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur. (Any read or write operation on a Ranke-Graph — whether through a library, a server, or a query layer — composes from these four; the ADT does not prescribe an interface, only the operations it must support.)]
 
 #dref[D6, this section]
 
@@ -535,6 +553,8 @@ Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
 
-#todo[A small structure, a long list of consequences. Forward pointers to P2 (the implementation), P3 (workers), P4 (retrieval), P5 (orchestration).]
+#todo[A small structure, a long list of consequences. Forward pointers to the implementation paper (working title _RankeDB_) and to subsequent work on workers, retrieval, and orchestration.]
+
+#todo[Closing paragraph: reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")

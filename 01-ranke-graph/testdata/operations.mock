@@ -1,0 +1,21 @@
+# MOCK PLACEHOLDER for the conformance operations file.
+#
+# Real operations file (format follows the reference implementation; YAML or
+# similar readable format with comments preferred) will list, for each test:
+#   - the operation (union, intersect, difference, symmetric_difference,
+#     insert, hash)
+#   - the input graph(s) by id
+#   - the expected hash of the result
+#
+# Example shape (illustrative only):
+#
+#   - op: union
+#     inputs: [g001, g002]
+#     expected_hash: <multihash-string>
+#
+#   - op: hash
+#     input: g001
+#     expected_hash: <multihash-string>
+#
+# An implementation conforms iff every operation's computed hash matches the
+# expected_hash. No partial conformance.

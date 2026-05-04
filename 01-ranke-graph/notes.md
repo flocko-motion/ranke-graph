@@ -232,3 +232,29 @@ Direction (2026-05-03): philosophy in Part I should *carry, not bore — a ride,
 
 **Pieces to leave alone:** §2.1 (apart from the trim), §3.3 / §3.4 (still `#todo[]` bullets — write fresh in the new voice when we get there).
 
+---
+
+## Repo strategy (2026-05-04)
+
+Three repos planned (URLs known):
+
+- **`ranke-go`** — reference implementation of the ADT in Go, in-memory only, no persistence. Imports nothing project-specific. → `github.com/flocko-motion/ranke-go`
+- **`ranke-py`** — reference implementation of the ADT in Python, independent of `ranke-go`. Same conformance suite, same expected hashes. → `github.com/flocko-motion/ranke-py`
+- **`ranke-db`** — persistence + query layer (subject of paper P2). Imports the ADT (from `ranke-go` or its own equivalent); exposes reads as Ranke-Graph-typed subgraphs and writes as Ranke-Graph-typed insertions. → `github.com/flocko-motion/ranke-db`
+
+Why Go and Python: Go for performance + modern build, Python for the AI/LLM toolchain ecosystem. Two languages exercise the spec from different angles; agreement on hashes between independent implementations is a strong correctness signal.
+
+Conformance test data lives in `01-ranke-graph/testdata/` in this paper repo (mock placeholders today; populated by the reference implementations once they exist). YAML for the operations file (readable, supports comments). The paper itself does not commit to a format — the `testdata/README.md` says "format follows the reference implementation."
+
+## Meta-principle: qualities, not commitments (2026-05-04)
+
+P1's role versus the reference implementations:
+
+- **P1 defines required *qualities*** — what canonical encoding must do, what a hash-id mechanism must satisfy, what the four set operations must produce. Phrased timelessly. Ages well.
+- **Reference implementations make specific *choices*** that satisfy those qualities — CBOR Deterministic for encoding, IPFS multihash for hash ids, YAML for the test format, Go and Python as the languages.
+- **The paper names the choices as "e.g." pointers, not as commitments.** "Any encoding satisfying these qualities is acceptable; CBOR Deterministic is one well-known example, and the reference implementations adopt it."
+
+Three sentences, three commitment levels: *required quality* → *example satisfier* → *reference choice*. Keep that structure whenever introducing an implementation-shaped concern in P1.
+
+When reviewing prose: every "we use X" or "we adopt Y" inside P1 should be either (a) about a structural rule that genuinely commits the ADT, or (b) reframed into the qualities-plus-example pattern. Don't let specific design choices sneak into P1 as if they were ADT requirements.
+
