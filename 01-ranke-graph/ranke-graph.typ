@@ -236,39 +236,7 @@ A node and all its edges are created in a single atomic transaction:
 - one content payload,
 - one contributor attribution.
 
-Nothing can be added to a node after creation.
-No edge can be added later.
-The node's hash covers everything it will ever have.
-This is what makes the Merkle property hold: $op("id")(v)$ is final at creation time.
-
-== Hashing <sec:hash-agnosticism>
-
-This paper uses $H(x)$ to denote a cryptographic hash function, without committing to a specific algorithm.
-What the ADT requires is that the chosen mechanism — both the byte-level encoding of records and the hash function applied to those bytes — satisfies the qualities below.
-
-*Canonical encoding.* The hash function operates over a byte encoding of each record (node or edge). The encoding must be:
-
-- *Deterministic.* The same logical record produces the same bytes across implementations, runs, and platforms.
-- *Complete.* Every field of the record contributes to the bytes; no field may be silently dropped.
-- *Self-delimiting.* Parsing the bytes recovers the record exactly, with no ambiguity about field boundaries.
-
-Without these qualities, two implementations of the ADT would produce different ids for the same logical record, and the cross-implementation guarantees of @sec:crdt would not hold.
-Any encoding satisfying these qualities is acceptable; CBOR Deterministic Encoding (RFC 8949 §4.2) is one well-known example, and the reference implementations adopt it.
-
-*Hash-id mechanism.* Every id in the system is the cryptographic hash of a canonically-encoded record, formatted so that:
-
-- *Cryptographic strength.* The hash function is collision-resistant under standard cryptographic assumptions.
-- *Self-describing.* The id carries an explicit indication of which hash function produced it, so any reader can verify a node by recomputing its hash with the named function.
-
-These two qualities are required.
-Two further capabilities follow from self-describing ids and are nice-to-have rather than mandatory:
-
-- _Function pluralism._ Multiple hash functions may coexist within a single graph, with each node verifiable by the function its id names.
-- _Migration support._ New hash functions can be introduced over time without rewriting old nodes or invalidating their ids.
-
-Any mechanism satisfying the required qualities is acceptable; IPFS multihash, which prefixes each id with a function selector and supports the listed nice-to-have capabilities by design, is one well-known example. The reference implementations adopt multihash.
-
-Reference: Haber and Stornetta (1991), _"How to Time-Stamp a Digital Document"_ #todo[(add bib entry)] — the foundational paper on cryptographic timestamping. They demonstrated the concept by publishing hash digests in the New York Times.
+Nothing can be added to a node after creation. The node's hash covers everything it will ever have, so $op("id")(v)$ is final at creation time.
 
 == Semantic Direction <sec:semantic-direction>
 
@@ -333,9 +301,7 @@ The two-sided scale matters — it separates _we don't know_ (conviction $approx
 Conviction lives on the edge, not on the node, because the uncertainty is about which participant fills which role in _this_ relation; the candidate nodes themselves are perfectly identified.
 The ADT does not define `conviction`; the example shows what kinds of expressivity the extension mechanism affords.
 
-A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges).
-This is what allows relations to *have* provenance at all — there is no provenance-of-an-edge in this ADT, only provenance-of-a-relation-node.
-$N : N$ relations are therefore natural by construction, and every relation in the graph inherits the same provenance machinery as every other node.
+A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other node.
 
 #dref[D2, this section]
 
@@ -343,12 +309,12 @@ $N : N$ relations are therefore natural by construction, and every relation in t
 
 == Acyclicity <sec:acyclicity>
 
-Let $G = (V, E)$ be the graph. Every edge $e in E$ has a target ($op("target")(e)$, the node it points at) and an implicit parent (the node whose `edges` set contains $op("id")(e)$). Edges are created atomically with their parent node (§5.3).
+Let $G = (V, E)$ be the graph. Every edge $e in E$ has a target ($op("target")(e)$, the node it points at) and an implicit parent (the node whose `edges` set contains $op("id")(e)$). Edges are created atomically with their parent node (@sec:atomic).
 
 #theorem[$G$ is acyclic.]
 
 #proof[
-  Every node $v$ has a creation time $t(v)$. By the atomic creation rule, an edge $e$ owned by $v$ may only target a node that already exists: for every edge $e$ with parent $v$, $t(op("target")(e)) < t(v)$. This establishes a strict partial order on $V$ by creation time. A strict partial order admits no cycles.
+  By the atomic creation rule (@sec:atomic), every edge $e$ owned by $v$ targets a node $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
 ]
 
 The proof makes no use of the `class` field: every edge of every class points to an node older than its parent, by the same atomic-creation rule. The whole graph $G$ — provenance edges, semantic edges, and any future class — is a DAG.
@@ -361,20 +327,7 @@ The proof makes no use of the `class` field: every edge of every class points to
 
 == Content Addressing and Merkle Integrity <sec:merkle>
 
-Every id in the system is a cryptographic hash $H$ (@sec:hash-agnosticism).
-
-Edge hash:
-$ op("id")(e) = H(op("target")(e) || op("class")(e) \
-  || op("type")(e) || op("content")(e) \
-  || op("fields")_0 (e) || dots.h.c || op("fields")_n (e)) $
-
-Node hash:
-$ op("id")(v) = H(op("type")(v) || op("content")(v) \
-  || op("id")(e_1) || dots.h.c || op("id")(e_n) \
-  || op("created_at")(v) || op("contributor_id")(v) \
-  || op("fields")_0 (v) || dots.h.c || op("fields")_n (v)) $
-
-where $e_1, dots.h.c, e_n$ are all edges (provenance- and semantic-class) created with $v$, and $op("fields")_0, dots.h.c, op("fields")_n$ are the extension fields added by any implementation that refines the ADT.
+Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for edges (@sec:structure). Every id is therefore a cryptographic hash, and a node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the targets they reference.
 
 === Tampering Detectable at the Root
 
@@ -421,7 +374,7 @@ Manipulation of any $s_i$ invalidates all $s_j$ for $j > i$.
 
 Snapshot hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
 
-#todo[Add the *anchoring composition theorem*: publishing a single snapshot hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that snapshot but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (§5.2). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
+#todo[Add the *anchoring composition theorem*: publishing a single snapshot hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that snapshot but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
 
 #todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
 
@@ -436,9 +389,9 @@ Snapshot hashes can be published to any external timestamping service — for in
 #todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
 
 Proof sketch composes three structural facts:
-(1) content-addressed ids (§4.4) make node identity decidable by hash equality (O(1));
-(2) immutability (D3, §4.3) means a given id corresponds to one fixed record — no version disagreement is possible;
-(3) DAG-by-construction (§5.1) means any subset of $V$ closed under the edge-target relation is itself a DAG; closure costs O(|E|).
+(1) content-addressed ids (@sec:structure) make node identity decidable by hash equality (O(1));
+(2) immutability (D3, @sec:atomic) means a given id corresponds to one fixed record — no version disagreement is possible;
+(3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-target relation is itself a DAG; closure costs O(|E|).
 
 Each set op produces a node-id subset; closing under target-references yields a well-formed instance.]
 
