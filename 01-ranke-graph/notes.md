@@ -7,6 +7,7 @@
 ## Scope
 
 P0 is the theoretical foundation. It defines:
+
 - The graph as an abstract data structure (nodes, edges, three regions)
 - Content type taxonomy and encoding scheme
 - Formal invariants
@@ -42,11 +43,13 @@ Output edges are not subject to this constraint — they can target any existing
 Every ID in the system is a cryptographic hash H.
 
 Edge hash:
+
 ```
 h(e) = H(parent(e) ‖ target(e) ‖ type(e) ‖ direction(e))
 ```
 
 Node hash:
+
 ```
 h(v) = H(content_hash(v) ‖ content_type(v) ‖ encoding(v) ‖ h(e₁) ‖ ... ‖ h(eₙ) ‖ created_at(v) ‖ worker_id(v))
 ```
@@ -86,49 +89,6 @@ Snapshot hashes can be published to any external timestamping service — e.g. i
 
 ---
 
-## Edge Structure
-
-Every edge belongs to exactly one node: the node that created it (its parent).
-
-```
-edge = {
-  parent:     hash_of_creating_node,
-  target:     hash_of_target_node,
-  type:       relation_type,
-  direction:  in | out
-}
-```
-
-- **Input edge (in):** parent is the new node, target is an older node that contributed to the parent's creation. Provenance direction.
-- **Output edge (out):** parent is the new node, target is an older node that the parent asserts something about. Semantic direction.
-
-The direction flag is what separates the provenance subgraph (acyclic, Merkle-secured) from the semantic layer (potentially cyclic, expressive). Both coexist in the same graph. Both are immutable once created. Both are hashed into the parent node's ID.
-
----
-
-## Node Creation is Atomic
-
-A node and all its edges are created in a single atomic transaction:
-- n input edges (provenance: sources and derivations)
-- m output edges (semantics: relations asserted)
-- 1 content blob (the payload, stored separately, referenced by content_hash)
-- 1 worker attribution
-
-Nothing can be added to a node after creation. No edge can be added later. The node's hash covers everything it will ever have. This is what makes the Merkle property hold: h(v) is final at creation time.
-
----
-
-## Hash Function Agnosticism
-
-P0 uses H(x) to denote the cryptographic hash function, not a specific algorithm. The reference implementation (P1) specifies the concrete choice (e.g. SHA-256). The architecture allows:
-- Hash type prefix on IDs: `sha256:a3f2b7c...`
-- Coexistence of different hash functions during migration
-- Future migration to post-quantum hash functions
-
-Reference: Haber & Stornetta (1991), "How to Time-Stamp a Digital Document" — the foundational paper on cryptographic timestamping. They demonstrated the concept by publishing hash digests in the New York Times.
-
----
-
 ## Auth-Scoped Visibility and Merkle Compatibility
 
 Auth-scoped visibility (a node derived from a confidential source is automatically confidential) is compatible with the Merkle-DAG.
@@ -149,52 +109,23 @@ Merkle structure is what *enables* verifiable partial views. Auth scoping and Me
 
 ---
 
-## Content Type Taxonomy
-
-(Defined in detail in the current paper 1 §2.1 and §2.2. To be moved to P0.)
-
-Three-part identifier: `content_type` + `encoding`.
-
-- `content_type` = `category/type` (RankeDB-defined categories, application-extendable types)
-- `encoding` = MIME-style `class/format` (application-defined, cache policy falls out of class prefix)
-
-### Source types (Level 0)
-- `source/conversation` — communicative act with sender/receiver
-- `source/media` — perceptual capture, content opaque until processed
-- `source/record` — machine/objective observation of world-state
-- `source/data` — structured information (defined by exclusion)
-- `source/bulk` — container of other sources
-
-### Derivation types (Level 1 — the cognitive layer)
-Every L1 node is a thought — the output of a worker interpreting the graph.
-
-**Resolved forms:** `conversation/*`, `image/*`, `video/*`
-**Cognitive derivations:** `classification/*`, `observation/*`, `summary/*`, `fact/*`
-
-### Encoding
-MIME-style: `text/eml`, `image/png`, `audio/wav`, `application/pdf`.
-- `text/*` → eligible for inline caching (P1 implementation detail)
-- Everything else → binary, stored in content-addressed blob store only
-
-### Design principle
-*Few types, many encodings.* The diversity of the world lives in encodings, not in the type system. Each encoding is a micro-project: a parser.
-
----
-
 ## Philosophical Grounding
 
 (Quotes and design notes collected in papers/01-rankedb/quotes.md. Key points for P0:)
 
 ### Provenance and consensus are orthogonal problems
+
 - **Provenance** = attribution (who said what, when, on what basis). Solvable by construction.
 - **Consensus** = social agreement on what to trust. Human process, not database architecture.
 - RankeDB handles provenance. Consensus is downstream, built by consumers on top.
 
 ### Bounded scope: personal to small-enterprise
+
 - At bounded scale, trust is pre-established, ontology is finite, adversarial resistance is simple.
 - RankeDB does not aim for Wikipedia-scale global consensus.
 
 ### Thesis
+
 **RankeDB stores attributed claims; common truth is what consumers build on top when they want it.**
 
 ---
@@ -218,7 +149,7 @@ Direction (2026-05-03): philosophy in Part I should *carry, not bore — a ride,
 **Already carries — preserve the rhythm:**
 
 - §1 (three statements) — the model.
-- §3.1 *"Provenance is not an annotation on the knowledge — it _is_ the knowledge."*
+- §3.1 *"Provenance is not an annotation on the knowledge — it *is* the knowledge."*
 - §3.2 *"Contradiction is not a bug to resolve, it is a fact about the evidence base. Resolving it destroys information."*
 - §3.5 Thesis line.
 
@@ -257,4 +188,3 @@ P1's role versus the reference implementations:
 Three sentences, three commitment levels: *required quality* → *example satisfier* → *reference choice*. Keep that structure whenever introducing an implementation-shaped concern in P1.
 
 When reviewing prose: every "we use X" or "we adopt Y" inside P1 should be either (a) about a structural rule that genuinely commits the ADT, or (b) reframed into the qualities-plus-example pattern. Don't let specific design choices sneak into P1 as if they were ADT requirements.
-
