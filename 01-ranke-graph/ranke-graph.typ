@@ -175,12 +175,12 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 
 ```
 node = {
-  type:       string (class/subtype, e.g. "source/conversation"),
-  content:    bytes,
-  encoding:   string (class/subtype, e.g. "text/eml"),
-  created_at: timestamp,
-  edges:      set of edge ids created with the node,
-  ...:        additional implementation-defined fields
+  type:         string (class/subtype, e.g. "source/conversation"),
+  content_hash: hash of the content bytes,
+  encoding:     string (class/subtype, e.g. "text/eml"),
+  created_at:   timestamp,
+  edges:        set of input edge ids,
+  ...:          additional implementation-defined fields
 }
 ```
 
@@ -191,8 +191,8 @@ $ op("id")(v) := H(S(v)) $
 where $S$ is the canonical serialization (@sec:structure) and $H$ the cryptographic hash. Two nodes with identical content but different provenance produce different ids.
 
 - `type` and `encoding` follow the `class/subtype` convention (@sec:classes): the first segment is from a fixed set, the second is open vocabulary.
-- `content` is opaque bytes; interpretation is given by `encoding`.
-- `created_at` is the timestamp the node was added to the graph — *not* the time of any external artifact the node may represent.
+- `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
+- `created_at` is the timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
 - Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
 
 == Edges <sec:edges>
@@ -201,10 +201,10 @@ An edge belongs to one node — its _parent_ — recoverable as the node whose `
 
 ```
 edge = {
-  target:      hash_of_target_node,
-  type:        kind of relation (e.g. "family", "ownership", "derivation"),
-  content:     the relation itself (e.g. "is_brother_of", "are_similar"),
-  ...:         additional implementation-defined fields
+  target:       hash_of_target_node,
+  type:         string (class/subtype, e.g. "relation/family", "evidence/chunk", "contribution/worker"),
+  content_hash: hash of the content bytes,
+  ...:          additional implementation-defined fields
 }
 ```
 
@@ -214,26 +214,22 @@ $ op("id")(e) := H(S(e)) $
 
 Parent is implicit by necessity: if it were a field, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
 
-*Structural direction is universal.* Every edge runs from an older node (its `target`) to the newer node that owns it (its parent), since the atomic creation rule (@sec:atomic) only allows references to already-existing nodes. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
+*Structural direction is universal.* Every edge runs from an older node (its `target`) to the newer node that owns it (its parent), since the atomic creation rule (@sec:atomic) only allows references to already-existing nodes. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. We call such an edge an *input edge* of its parent. Acyclicity (@sec:acyclicity) follows directly.
 
-As for nodes, `type` classifies the relation's kind; `content` carries the specific assertion.
+As for nodes, `type` follows the `class/subtype` convention (@sec:classes); `content_hash` commits to the edge's content bytes.
 
-- *Provenance edge (`class = provenance`):* the parent node was derived from the target. Every node created in the graph carries multiple provenance edges — at minimum, one to its contributor and one or more to the data inputs from which it was derived. The act of referencing a target by hash _is_ the provenance record; no further field is required.
-- *Semantic edge (`class = semantic`):* the parent is a _relation node_; the target is one of the relation's participants. The relation's reading — including how each participant's role is recorded — is the subject of @sec:semantic-direction.
-- `fields_0..n` is a placeholder for any number of additional fields the edge can carry. As for nodes, the placeholder keeps the basic definition fixed and ensures every proof about edge identity applies uniformly to all fields, named or not.
+- *Relation edge* (`relation/*`). Carries a `relation_direction` (@sec:relation-direction); connects a relation node (parent) to a participant (target).
+- *Provenance edge.* Class `contribution/*` (target is an agent or tool — every claim has at least one, to its contributor) or `evidence/*` (target is data the parent processed). The reference by hash _is_ the provenance record; no further field is required.
+- Extension fields work as for nodes (@sec:nodes).
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the parent (@sec:merkle).
 
 == Atomic Claim Creation <sec:atomic>
 
-A *claim* is a node together with all its input edges. A claim is created in a single atomic transaction:
+A *claim* is a node together with all its input edges. A claim is created in a single atomic transaction comprising:
 
-A node and all its edges are created in a single atomic transaction:
-
-- $n$ provenance-class edges (derivation from sources and prior derivations),
-- $m$ semantic-class edges (relations asserted),
-- one content payload,
-- one contributor attribution.
+- $n$ provenance edges (to sources, prior derivations, and the contributor),
+- $m$ relation edges (to relation participants, carrying `relation_direction`).
 
 Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
@@ -243,13 +239,13 @@ The structure so far is a Merkle DAG, but not yet a knowledge graph: it cannot e
 
 The addition has two parts:
 
-+ *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with semantic edges (`class = semantic`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
++ *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
 
-+ *The `relation_direction` field tags each participant's role in the reading.* Carried on each semantic edge, with values
++ *The `relation_direction` field tags each participant's role in the reading.* Carried on each relation edge, with values
   $ "relation_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
   The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
-To read a relation, gather the relation node and all its semantic edges, forming the generalised triple
+To read a relation, gather the relation node and all its relation edges, forming the generalised triple
 $ ("from_nodes", "relationship", "to_nodes"), $
 where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. `peer`-tagged edges express symmetric participation, with no asymmetric role to record. @fig:relation illustrates the binary case under entity-resolution ambiguity.
 
@@ -287,18 +283,39 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
   caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `rdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `rdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `rdir` = `relation_direction`, `conv` = `conviction`.],
 ) <fig:relation>
 
-The same pattern scales to $n$-ary relations without changing the edge schema: more participants, more semantic edges, each with its own role tag.
+The same pattern scales to $n$-ary relations without changing the edge schema: more participants, more relation edges, each with its own role tag.
 
-The `peer` value is more than a binary edge case. Consider a relation node of type `are_similar` with $n$ semantic edges, all tagged `semantic_direction = peer`, each carrying its own conviction.
-Such a node represents a *similarity cluster*: a set of participants asserted to be similar, with no central or distinguished member, and per-member evidence about how strongly each belongs.
-The cluster is one assertion with provenance — its relation node has provenance edges to the source(s) it was derived from — and it scales without restriction in $n$.
-Consumers can filter members by conviction, sort by it, weight by it; the underlying structure is unchanged from the binary case.
+A relation node of type `are_similar` with $n$ `peer`-tagged edges represents a *similarity cluster*: a set of participants asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
 
 Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
 
 A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other node.
 
 #dref[D2, this section]
+
+== Content Classes <sec:classes>
+
+What makes the graph specifically a Ranke-Graph is that it carries provenance and knowledge in the same structure. Historians don't do source criticism as decoration — they do it to build knowledge that holds up to scrutiny. The taxonomy reflects both halves: `source/*`, `contributor/*`, and `derivation/*` ground the provenance; `entity/*` and `relation/*` carry the knowledge being constructed. Five node classes and three edge classes.
+
+*Node classes.* Five classes:
+
+- *`source/*`* — externally captured artifacts (a conversation, a contact, a sensor reading).
+- *`contributor/*`* — agents that add claims to the graph (a worker, a person, an organization).
+- *`derivation/*`* — claims computed from other claims (a classification, a summary, a fact). The cognitive path leading to entities and relations.
+- *`entity/*`* — projected representations of identifiable things in the world (a person, a place, an organization, a thing).
+- *`relation/*`* — reified relations between entities (@sec:relation-direction).
+
+`entity/*` and `relation/*` together form the semantic graph; `derivation/*` records the path that led to them; `source/*` and `contributor/*` ground the provenance.
+
+*Edge classes.* Three classes:
+
+- *`relation/*`* — relation edges of a relation node, connecting it to its participants. Carry `relation_direction`.
+- *`contribution/*`* — provenance edges to agents or tools involved in the parent's creation.
+- *`evidence/*`* — provenance edges to data the parent processed.
+
+*Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
+
+*Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT (D7).
 
 = What Emerges <sec:emerges>
 
@@ -312,7 +329,7 @@ Let $G = (V, E)$ be the graph. Every edge $e in E$ has a target ($op("target")(e
   By the atomic creation rule (@sec:atomic), every edge $e$ owned by $v$ targets a node $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
 ]
 
-The proof makes no use of the `class` field: every edge of every class points to an node older than its parent, by the same atomic-creation rule. The whole graph $G$ — provenance edges, semantic edges, and any future class — is a DAG.
+The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
 
 #corollary[
   Cycles in semantic interpretation (A knows B, B knows A) appear only in the *semantic projection* of $G$, where two relation-node patterns may be collapsed into a cycle of direct labelled edges between participants. The underlying graph $G$ remains a DAG.
