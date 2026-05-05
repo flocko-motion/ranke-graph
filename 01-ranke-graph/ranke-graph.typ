@@ -161,13 +161,13 @@ The desiderata are stated without reference to any implementation, and without p
 
 *D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
-*D7. Open-Ended Vocabulary.* The structure does not enumerate, in advance, the kinds of claims it admits. Vocabulary may be extended without modification of the structure or migration of existing data.
+*D7. Open-Ended Vocabulary.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
 
 The remainder of the paper presents a single data structure (@sec:structure) and shows that D1–D7 follow from it as theorems rather than as separately engineered features.
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-direction). From this definition, properties D1–D7 follow (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, properties D1–D7 follow (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -175,12 +175,12 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 
 ```
 node = {
-  type:           string,
-  content:        bytes,
-  created_at:     timestamp,
-  contributor_id: identity of the contributor,
-  edges:          set of edge ids created with the node,
-  ...:            additional implementation-defined fields
+  type:       string (class/subtype, e.g. "source/conversation"),
+  content:    bytes,
+  encoding:   string (class/subtype, e.g. "text/eml"),
+  created_at: timestamp,
+  edges:      set of edge ids created with the node,
+  ...:        additional implementation-defined fields
 }
 ```
 
@@ -188,12 +188,12 @@ Identity:
 
 $ op("id")(v) := H(S(v)) $
 
-where $S$ is the canonical serialization (@sec:structure) and $H$ the cryptographic hash. Two nodes with identical content but different provenance — different edges, different contributor, or different extension fields — produce different ids.
+where $S$ is the canonical serialization (@sec:structure) and $H$ the cryptographic hash. Two nodes with identical content but different provenance produce different ids.
 
-- `type` is a plain string; the ADT prescribes no vocabulary.
-- `content` is opaque bytes; interpretation is unspecified.
-- `contributor_id` is itself a node id.
-- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to refinements that add named fields (e.g. a `content_hash` or `encoding` in a reference implementation).
+- `type` and `encoding` follow the `class/subtype` convention (@sec:classes): the first segment is from a fixed set, the second is open vocabulary.
+- `content` is opaque bytes; interpretation is given by `encoding`.
+- `created_at` is the timestamp the node was added to the graph — *not* the time of any external artifact the node may represent.
+- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
 
 == Edges <sec:edges>
 
@@ -202,7 +202,6 @@ An edge belongs to one node — its _parent_ — recoverable as the node whose `
 ```
 edge = {
   target:      hash_of_target_node,
-  class:       provenance | semantic,
   type:        kind of relation (e.g. "family", "ownership", "derivation"),
   content:     the relation itself (e.g. "is_brother_of", "are_similar"),
   ...:         additional implementation-defined fields
@@ -225,9 +224,9 @@ As for nodes, `type` classifies the relation's kind; `content` carries the speci
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the parent (@sec:merkle).
 
-The `class` field is a *projection hint*, not a partition of "edges that carry provenance vs edges that do not" — every edge carries provenance by virtue of referencing an older node (@sec:acyclicity). What `class = semantic` marks is *inclusion in the semantic view*; `class = provenance` marks edges whose role is purely to record where the new node came from. The naming is somewhat loose and may be revisited. #todo[Consider renaming `class` once the rest of Part II is settled — perhaps `role` or `view`.]
+== Atomic Claim Creation <sec:atomic>
 
-== Atomic Node Creation <sec:atomic>
+A *claim* is a node together with all its input edges. A claim is created in a single atomic transaction:
 
 A node and all its edges are created in a single atomic transaction:
 
@@ -236,9 +235,9 @@ A node and all its edges are created in a single atomic transaction:
 - one content payload,
 - one contributor attribution.
 
-Nothing can be added to a node after creation. The node's hash covers everything it will ever have, so $op("id")(v)$ is final at creation time.
+Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
-== Semantic Direction <sec:semantic-direction>
+== Relation Direction <sec:relation-direction>
 
 The structure so far is a Merkle DAG, but not yet a knowledge graph: it cannot express a claim like _"Bob is_brother_of Alice"_ as one attributable unit. Discharging D2 requires one addition.
 
@@ -246,8 +245,8 @@ The addition has two parts:
 
 + *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with semantic edges (`class = semantic`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
 
-+ *The `semantic_direction` field tags each participant's role in the reading.* Carried on each semantic edge, with values
-  $ "semantic_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
++ *The `relation_direction` field tags each participant's role in the reading.* Carried on each semantic edge, with values
+  $ "relation_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
   The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
 To read a relation, gather the relation node and all its semantic edges, forming the generalised triple
@@ -280,12 +279,12 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
     edge((0, 1), (5, 2.5), "->"),
 
     // Semantic: all flow into the relation node (universal convention, @sec:edges).
-    // Labels: sdir = semantic_direction, conv = conviction.
-    edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: +0.7`]]),
-    edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: from`, `conv: −0.4`]]),
-    edge((0, 5), (5, 2.5), "->", [#text(size: 0.75em)[`sdir: to`, `conv: +1.0`]]),
+    // Labels: rdir = relation_direction, conv = conviction.
+    edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: +0.7`]]),
+    edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: −0.4`]]),
+    edge((0, 5), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: to`, `conv: +1.0`]]),
   ))),
-  caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `sdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `sdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `sdir` = `semantic_direction`, `conv` = `conviction`.],
+  caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `rdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `rdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `rdir` = `relation_direction`, `conv` = `conviction`.],
 ) <fig:relation>
 
 The same pattern scales to $n$-ary relations without changing the edge schema: more participants, more semantic edges, each with its own role tag.
@@ -295,11 +294,7 @@ Such a node represents a *similarity cluster*: a set of participants asserted to
 The cluster is one assertion with provenance — its relation node has provenance edges to the source(s) it was derived from — and it scales without restriction in $n$.
 Consumers can filter members by conviction, sort by it, weight by it; the underlying structure is unchanged from the binary case.
 
-Beyond `semantic_direction`, edges can carry per-edge information through `fields_0..n` (@sec:edges).
-_Conviction_ is a useful application-layer field worth highlighting as an example: a real value in $[-1, +1]$, with the endpoints recording full positive and full negative conviction, and $0$ recording absence of evidence in either direction.
-The two-sided scale matters — it separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$), the distinction the multi-edged relation construct depends on for expressing real ambiguity.
-Conviction lives on the edge, not on the node, because the uncertainty is about which participant fills which role in _this_ relation; the candidate nodes themselves are perfectly identified.
-The ADT does not define `conviction`; the example shows what kinds of expressivity the extension mechanism affords.
+Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
 
 A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other node.
 
@@ -348,13 +343,11 @@ Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for ed
 === Idempotency
 
 #theorem[
-  Identical content with identical provenance produces identical node hashes:
-  $ forall v_1, v_2 : op("fields")(v_1) = op("fields")(v_2) arrow.r.double op("id")(v_1) = op("id")(v_2). $
+  Identical claims produce identical ids:
+  $ forall v_1, v_2 : S(v_1) = S(v_2) arrow.r.double op("id")(v_1) = op("id")(v_2). $
 ]
 
-Since node id $=$ node hash, identical nodes are the same node.
-Writes are idempotent by construction.
-Deduplication is free.
+Identical claims are the same claim — writes are idempotent, deduplication is free.
 
 #todo[Add a "Backup from a Hash Root" sub-property: a single root hash plus access to the content store reconstitutes the entire graph and proves its integrity. State as a corollary of Merkle integrity. Lands right after Idempotency while the structure is fresh.]
 
@@ -411,9 +404,9 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 == Auth-Scoped Visibility and Verifiable Partial Views
 
-Auth-scoped visibility (a node derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
+Auth-scoped visibility (a claim derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
 
-A user receives a verifiable subgraph: full nodes with content for everything in scope.
+A user receives a verifiable subgraph: full claims with content for everything in scope.
 For branches outside their scope, they see only the hash — enough to verify the integrity of their own subgraph, but no content access.
 
 ```
@@ -424,7 +417,7 @@ For branches outside their scope, they see only the hash — enough to verify th
 [full node] ← user has access
 ```
 
-The user can verify: "my subgraph is intact, it builds on a node with hash $X$ whose content I don't know."
+The user can verify: "my subgraph is intact, it builds on a claim with hash $X$ whose content I don't know."
 Integrity is provable without transparency.
 Only the server sees everything.
 
