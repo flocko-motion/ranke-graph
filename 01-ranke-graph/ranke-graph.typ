@@ -54,16 +54,6 @@ A modern interpretation treats artifacts — messages, documents, recordings —
 The Ranke-Graph supports this process: every claim has its derivation, every derivation has its sources.
 The Ranke-Graph thus stores a graph of _claims_ as defined above.
 
-== The CS Priority That Was Never Operationalised
-
-#todo[Note: compress this section]
-
-Existing systems that address this tension do so partially.
-Temporal knowledge graphs (Graphiti/Zep, @rasmussen2025graphiti) preserve _when_ facts were valid but perform destructive entity-summary updates, losing derivation history.
-Versioned knowledge bases (TerminusDB, @terminusdb) track _what_ changed across snapshots but not _why_ or _how_ knowledge was derived.
-Immutable databases (Datomic, @hickey2012datomic; Fluree, @fluree) preserve all historical states but lack a semantic knowledge layer and do not model derivation chains.
-No existing system treats the full chain of provenance — from raw source artifact through extraction, normalisation, and synthesis — as first-class, queryable knowledge.
-
 == The Rupture: Machines Reading and Writing at Scale
 
 #todo[Note: compress this section]
@@ -119,10 +109,7 @@ The Ranke-Graph is built for a future in which a model able to traverse the full
 
 == Bounded Scope
 
-#todo[Expand from the bullet sketch in #raw("notes.md"):]
-
-- At bounded scale (personal to small-enterprise), trust is pre-established, ontology is finite, adversarial resistance is simple.
-- The Ranke-Graph does not aim for Wikipedia-scale global consensus.
+Existing systems address this only partially — temporal knowledge graphs, versioned knowledge bases, and immutable databases each cover one facet without integrating provenance and semantics into one structure (@sec:related-work covers the comparison in detail). The Ranke-Graph targets the scale where integration becomes tractable: personal to small-enterprise archives, where trust is pre-established, the ontology is finite, and adversarial resistance is simple.
 
 = Desiderata <sec:desiderata>
 
@@ -454,7 +441,7 @@ Auth scoping and Merkle integrity are complementary.
 
 #dref[D7, this section]
 
-= Relation to Prior Work
+= Relation to Prior Work <sec:related-work>
 
 == Temporal Knowledge Graphs: Graphiti / Zep
 
