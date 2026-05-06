@@ -57,7 +57,7 @@ The historian Leopold von Ranke (1795–1886) insisted that every historical cla
 
 Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is not a layer above the knowledge but the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
 
-For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). A modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
+For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
 
@@ -75,6 +75,8 @@ Every claim made _about_ the graph is itself a node in the graph, with its own p
 - an alias ("this node refers to the same person as node Y"),
 - a creation record ("this node was added by contributor X with configuration Y").
 
+The first three describe meaning; the last records creation. All are claims, all are nodes, all carry their own provenance.
+
 *Provenance is not an annotation on the knowledge — it _is_ knowledge.*
 
 This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm), with the stronger commitment that provenance is stored in the same graph as content, queryable through the same interface, and subject to the same invariants.
@@ -89,7 +91,7 @@ The Ranke-Graph is append-only: claims accumulate; existing ones are never modif
 
 === Levels of Distillation
 
-This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_: summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:classes): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
 === Taxonomy
 
