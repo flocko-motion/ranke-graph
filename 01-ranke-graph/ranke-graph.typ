@@ -43,6 +43,8 @@ The guarantee is narrower than a conventional database's, and therefore keepable
 
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
+#todo[Disambiguation pending: throughout the paper, "the Ranke-Graph" is used both for *the structure* (the ADT) and for *an instance* (a hash-rooted subgraph). Once §4 introduces the substrate $cal(U)$ and the hash-rooted instance $"RG"_h$, sweep prose accordingly. Keep "the Ranke-Graph" only for the ADT itself; switch to $"RG"_h$ for instances and $cal(U)$ for the substrate.]
+
 = The Problem and the Position
 
 == Knowledge Systems: Machines Reading and Writing at Scale
@@ -120,6 +122,8 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 *D5. Auth-Scoped Visibility.* Visibility of a claim to an observer is determined structurally, not by policy: an observer sees a claim only if it sees every artifact and intermediate derivation on which the claim depends. Visibility propagates from inputs to outputs without explicit administration.
 
+#todo[D5 refinement (revised 2026-05-07): visibility propagates along edges that record *semantic dependency*. The class `relation/*`, `contribution/*`, and most `evidence/*` subtypes (e.g. `evidence/source`, `evidence/chunk`) carry semantic dependency and propagate visibility. `evidence/head` is *topological evidence* — a snapshot does not depend on its heads' content, only on their hashes for Merkle integrity — and does NOT propagate visibility. Prescriptive edges (`prune/*`) also do not propagate visibility (their targets are excluded by design). The refinement is at the subtype level for `evidence/*`, not a new class rule.]
+
 *D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
 *D7. Open-Ended Vocabulary.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
@@ -192,6 +196,12 @@ A *claim* is a node together with all its input edges. A claim is created in a s
 
 Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
+#todo[Single-head invariant via *throwaway snapshots* (revised 2026-05-07): branch advance is two structural acts — (1) append the new claim with its semantic edges only; (2) generate a fresh *snapshot claim* whose `evidence/head` edges name all currently-open heads of $cal(U)$ at that moment, including the new claim. The branch updates to point at the snapshot.
+
+The previous snapshot stays in $cal(U)$ forever (immutability) but the branch lets go of it; only the latest snapshot is the active handle. Snapshots are normal claims (no distinguished node class needed); their topological role is carried entirely by the `evidence/head` subtype. Claims themselves do not have `evidence/head` edges — they are semantic-only. Single-head invariant is preserved because branches always resolve to a snapshot hash with full closure.
+
+Implementations may handle concurrent writes via sequencing, merge-snapshots, or auto-reference at commit time — details belong to rankedb.]
+
 == Relation Direction <sec:relation-direction>
 
 The structure so far is a Merkle DAG. A semantic graph is not — it admits cycles that a DAG forbids. The semantic information is therefore embedded in the DAG: the *semantic reading* (@sec:semantic-reading) of the same $V$ and $E$ reveals it as a graph that admits cycles.
@@ -260,9 +270,33 @@ The five concepts of @sec:everything-is-knowledge are encoded as the five node c
 - *`contribution/*`* — provenance edges to contributors involved in the parent's creation.
 - *`evidence/*`* — provenance edges to data the parent processed.
 
+#todo[Update edge taxonomy to *four classes*, grouped into kinds:
+
+*Descriptive (write-side):*
+- *`relation/*`* — semantic relation edges (carry `relation_direction`).
+- *`contribution/*`* — provenance to contributors.
+- *`evidence/*`* — provenance to data inputs. Includes the topological subtype *`evidence/head`* — used by snapshots to consolidate currently-open heads. Open heads are the *evidence* a new snapshot uses to become the new head; hence the subtype reading. `evidence/head` is structurally normal evidence at the parser level; its distinct epistemic role (topology rather than semantic dependency) is captured by the subtype.
+
+*Prescriptive:*
+- *`prune/*`* — view-modifying edges. A `prune/*` edge from claim $c$ to target $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
+
+The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `evidence/head` is the standard subtype for topology; other `evidence/*` subtypes (`evidence/source`, `evidence/chunk`, etc.) carry semantic dependency.]
+
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
 *Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
+
+#todo[Add §4.6 *Instances, Substrate, and Branches*: define foundational notions at the math level.
+
+(1) $cal(U)$ — *the substrate*: the union of all claims that have ever been created. Monotone (only ever extended). Not held by any single party in the math; implementations choose where it lives.
+
+(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `contribution/*`, `evidence/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
+
+(3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$. Maintained via *throwaway snapshots* (§4.3): each branch advance generates a fresh snapshot claim whose `evidence/head` edges name all currently-open heads of $cal(U)$. Branches always resolve to a snapshot hash, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; the snapshot mechanism consolidates them. Old snapshots remain in $cal(U)$ (immutability) but the branch lets go of them — only the latest is the active handle.
+
+(4) $B_x$ — *the branch named $x$*: at any moment, $B_x$ denotes the current graph at branch $x$ — equivalently, $"RG"_h$ where $h$ is the head currently bound to $x$. So $B_x subset.eq cal(U)$ at any frozen moment; mutability lives at the *name-binding* layer (the binding $x arrow.r.bar h$ may be updated as the graph grows). The hash is internal; the user-facing handle is $B_x$. A pure-pointer abstraction at heart; how branches are stored or synchronised is implementation choice (rankedb).
+
+Subsequent sections use $"RG"_h$, $cal(U)$, and $B$ freely as defined here.]
 
 = What Emerges <sec:emerges>
 
@@ -317,7 +351,13 @@ Identical claims are the same claim — writes are idempotent, deduplication is 
 
 #dref[D3, this section]
 
-== Anchoring
+== Anchoring <sec:anchoring>
+
+#todo[Anchoring is *grounded* on the single-head invariant (revised 2026-05-07). The structural foundation is: every branch advance produces a snapshot, every snapshot is single-rooted, every snapshot's hash witnesses everything reachable from it via the closure of its `evidence/head` edges. So at any moment, a single hash anchors the entire visible state of the branch.
+
+External anchoring (publishing a hash to a tamper-evident medium for third-party proof) is unchanged — pick any snapshot hash, publish it; it anchors everything in its closure. Hashchain emerges from the snapshot sequence: snapshot $S_n$ has `evidence/head` edges to the heads it consolidates, which transitively reach $S_(n-1)$ (since $S_(n-1)$ was a head when $S_n$ was created), so $S_n$ witnesses $S_(n-1)$.
+
+Restate §5.3 around snapshots-as-handles: anchoring is not occasional, it is constant; pick any snapshot in your history and you have a tamper-evident witness of everything reachable from it.]
 
 Snapshots are special nodes whose inputs are all current heads (nodes with no children in $G$) plus the previous snapshot:
 $
@@ -343,6 +383,10 @@ Snapshot hashes can be published to any external timestamping service — for in
 
 === Set Algebra Theorem
 
+#todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (snapshot); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
+
+#todo[Result of a boolean operation is a *single hash* — a snapshot claim whose `evidence/head` edges name the heads of the operand graphs that are part of the result and whose `prune/*` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal snapshot claim under the throwaway-snapshot mechanism of §4.3. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
+
 #todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
 
 Proof sketch composes three structural facts:
@@ -367,6 +411,8 @@ Each set op produces a node-id subset; closing under target-references yields a 
 #dref[D6, this section]
 
 == The Semantic Reading <sec:semantic-reading>
+
+#todo[Disambiguate throughout: $"RG"$ here is shorthand for $"RG"_h$ (a hash-rooted instance), not for $cal(U)$. The two readings are over the $V_h$, $E_h$ of one instance. After §4.6 lands, switch notation: $"RG"_h$ and $("RG"_h)^S$.]
 
 The Ranke-Graph admits two readings of the same $V$ and $E$:
 
@@ -397,6 +443,21 @@ $ V_("SG") = {v in V : op("class")(v) in {"entity", "relation"}}, quad E_("SG") 
 $"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-participant attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
 
 == Auth-Scoped Visibility and Verifiable Partial Views
+
+#todo[Disambiguate: visibility scoping operates over $cal(U)$, returning a smaller $"RG"_h$ to the user. Every user query is $(h, sigma)$ for some scope $sigma$; the server selects $"RG"_h$ from $cal(U)$ filtered by $sigma$. Re-frame this section once §4.6 lands.]
+
+#todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible nodes; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over node fields (with access to fields of the node's input edges); concrete syntax and operator set are implementation choices (rankedb).
+
+*Definition (Pruned set).* For a hash-rooted instance $"RG"_h$, the pruned set is
+$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "target"(e) = t }. $
+
+*Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
+$ "view"(h, sigma) := big( "closure"(h, cal(U)) inter Sigma big) \\ "pruned"(h). $
+Equivalently: take the closure, keep scope-eligible nodes, subtract pruned targets.
+
+*Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a target. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
+
+*Property (Pure function).* $"view"(h, sigma)$ is a deterministic function of $(cal(U), h, sigma)$. Caches at the implementation layer are throw-awayable and reconstructible.]
 
 Auth-scoped visibility (a claim derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
 
