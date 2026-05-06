@@ -45,16 +45,7 @@ This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimu
 
 = The Problem and the Position
 
-== The Archival Tradition
-
-The Ranke-Graph is named after the historian Leopold von Ranke (1795–1886), who transformed his discipline by insisting that every historical claim must trace back to a primary source.
-Ranke's famous phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has since been criticised for assuming unmediated access to past reality.
-A modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
-
-The Ranke-Graph supports this process: every claim has its derivation, every derivation has its sources.
-The Ranke-Graph thus stores a graph of _claims_ as defined above.
-
-== The Rupture: Machines Reading and Writing at Scale
+== Knowledge Systems: Machines Reading and Writing at Scale
 
 #todo[Note: compress this section]
 
@@ -63,20 +54,27 @@ Traditional knowledge graphs optimise for the former — they store what is beli
 This design made sense in an era of expensive storage and limited query capacity.
 It makes less sense in a regime where the ability to present a model with the full derivation history of a belief — including contradictions, revisions, and competing interpretations — may support qualitatively better reasoning than presenting a single consolidated snapshot.
 
-For a rich treatment of what _provenance_ has meant across 180 years — from the archival principle of _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance).
-In this paper we use the term in a narrower, operational sense: the complete derivation chain of a piece of knowledge — the raw source artifact, every intermediate processing step, every tool and configuration involved, and every transformation applied.
-This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm) but makes a stronger commitment: in the Ranke-Graph, provenance is not metadata about knowledge — it _is_ knowledge, stored in the same graph, queryable through the same interface, subject to the same invariants.
-Each node in the graph is both a statement and the record of how that statement came to be.
-There is no separate "provenance layer" — the derivation chain is the knowledge, and the knowledge is the derivation chain.
+== Provenance: The Archival Tradition
 
-== Everything Is Knowledge <sec:everything-is-knowledge>
+The Ranke-Graph is named after the historian Leopold von Ranke (1795–1886), who transformed his discipline by insisting that every historical claim must trace back to a primary source.
+Ranke's famous phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has since been criticised for assuming unmediated access to past reality.
+For a rich treatment of what _provenance_ has meant across 180 years — from the archival principle of _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance).
+
+A modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both. The Ranke-Graph carries both as structure, in one graph.
 
-Five concepts populate the graph:
+== The Ranke Graph
+The Ranke-Graph presented in this paper tries to provide an optimal datatype for this approach. 
 
-- on the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes to the graph), and *derivations* (interpretations of existing nodes, e.g. classifications, summaries, fact extractions, entity resolutions);
-- on the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
+The Ranke-Graph supports this process: every claim has its derivation, every derivation has its sources.
+[In this paper we use the term in a narrower, operational sense: the complete derivation chain of a piece of knowledge — the raw source artifact, every intermediate processing step, every tool and configuration involved, and every transformation applied.
+]
+The Ranke-Graph thus stores a graph of _claims_ as defined above.
+
+Each node in the graph is both a statement and the record of how that statement came to be.
+
+=== Everything Is Knowledge <sec:everything-is-knowledge>
 
 The Ranke-Graph makes no distinction between data, metadata, and provenance.
 Every claim made _about_ the graph is itself a node in the graph, with its own provenance:
@@ -88,16 +86,9 @@ Every claim made _about_ the graph is itself a node in the graph, with its own p
 
 *Provenance is not an annotation on the knowledge — it _is_ the knowledge.*
 
-== Immutability and Accumulation
+This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm) but makes a stronger commitment: in the Ranke-Graph, provenance is not metadata about knowledge — it _is_ knowledge, stored in the same graph, queryable through the same interface, subject to the same invariants.
 
-*Contradiction is not a bug to resolve; it is a fact about the evidence base.
-Resolving it destroys information: the consolidated graph holds strictly less knowledge than the contradictory one it replaced.*
-
-This stance is a deliberate bet on the trajectory of language model context windows.
-Systems that destructively consolidate today — merging entity summaries, deduplicating facts, compacting histories — optimise for current retrieval efficiency at the cost of inferential depth.
-The Ranke-Graph is built for a future in which a model able to traverse the full derivation history of a belief as needed — contradictions, revisions, and competing interpretations — may produce better reasoning than one given only a consolidated summary.
-
-== Provenance Is Not Consensus
+=== Provenance Is Not Consensus
 
 #todo[Expand from the bullet sketch in #raw("notes.md") "Philosophical Grounding":]
 
@@ -106,6 +97,23 @@ The Ranke-Graph is built for a future in which a model able to traverse the full
 - The Ranke-Graph handles provenance. Consensus is downstream, built by contributors on top.
 
 *The Ranke-Graph stores attributed claims; common truth is what contributors build on top when they want it.*
+
+=== Immutability and Accumulation
+
+*Contradiction is not a bug to resolve; it is a fact about the evidence base.
+Resolving it destroys information: the consolidated graph holds strictly less knowledge than the contradictory one it replaced.*
+
+This stance is a deliberate bet on the trajectory of language model context windows.
+Systems that destructively consolidate today — merging entity summaries, deduplicating facts, compacting histories — optimise for current retrieval efficiency at the cost of inferential depth.
+The Ranke-Graph is built for a future in which a model able to traverse the full derivation history of a belief as needed — contradictions, revisions, and competing interpretations — may produce better reasoning than one given only a consolidated summary.
+
+=== Taxonomy
+
+Five concepts populate the graph:
+
+- on the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes to the graph), and *derivations* (interpretations of existing nodes, e.g. classifications, summaries, fact extractions, entity resolutions);
+- on the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
+
 
 == Bounded Scope
 
