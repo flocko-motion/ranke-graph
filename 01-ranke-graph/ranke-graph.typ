@@ -85,22 +85,22 @@ The Ranke-Graph handles provenance — who said what, when, on what basis. Conse
 
 === Immutability and Accumulation
 
-The Ranke-Graph is append-only: claims accumulate, existing ones are never modify or deleted, as they represent historical artifacts which by the nature of time don't change. A knowledge extraction system - e.g. an agent based on a LLM - thus has a richer basis, can traverse the full derivation history of a belief — contradictions, revisions, competing interpretations. This richer basis should allow for  producing better reasoning than one given only a consolidated summary lacking the providence and unvertanity. 
+The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system — for example an LLM-based agent — thus has a richer basis: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. This richer basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
 
-=== Semantics and Level Of detail
-This richness of data might overwhelm an extraction algorithm - flooding it with contradicting claims and long provenance traces. To counter that, we propose the creation of Levels-Of-Detail. Summary nodes containing short versions of complex clusters and a semantic abstraction layer to express the distilled claims extracted from the sources - always with the full provenance trace back to the source available on request. 
+=== Levels of Distillation
+
+This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_: summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
 === Taxonomy
 
-Five concepts populate the graph:
-
-- on the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes to the graph), and *derivations* (interpretations of existing nodes, e.g. classifications, summaries, fact extractions, entity resolutions);
-- on the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
+Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
 
 
-== Bounded Scope
+== A Vision
 
-Existing systems address this only partially — temporal knowledge graphs, versioned knowledge bases, and immutable databases each cover one facet without integrating provenance and semantics into one structure (@sec:related-work covers the comparison in detail). The Ranke-Graph targets the scale where integration becomes tractable: personal to small-enterprise archives, where trust is pre-established, the ontology is finite, and adversarial resistance is simple.
+The Ranke-Graph is a substrate for systems just becoming possible — AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
+
+Such systems can evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising or disproving earlier contributions. The graph accumulates; the history is complete, but filterable and queryable. Retrieval systems select what they deem most useful.
 
 = Desiderata <sec:desiderata>
 
