@@ -329,7 +329,7 @@ Let $G = (V, E)$ be the graph. Every edge $e in E$ has a target ($op("target")(e
 The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
 
 #corollary[
-  Cycles in semantic interpretation (A knows B, B knows A) appear only in the *semantic projection* of $G$, where two relation-node patterns may be collapsed into a cycle of direct labelled edges between participants. The underlying graph $G$ remains a DAG.
+  Cycles can appear under the *semantic reading* (@sec:semantic-reading), where `relation/*` edges flip direction by `relation_direction`: e.g. _"Alice knows Bob"_ together with _"Bob knows Alice"_ produce reciprocal relation nodes that close a cycle. The structural reading $G$ remains a DAG.
 ]
 
 #dref[D1, this section]
@@ -416,31 +416,35 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 #dref[D6, this section]
 
-== Semantic Graph Projection <sec:semantic-projection>
+== The Semantic Reading <sec:semantic-reading>
 
-The Ranke-Graph $RG = (V, E)$ admits a projection — the *reified semantic graph* $SG = pi(RG)$ — that materializes the embedded semantic graph as a directly traversable structure. Relation nodes from $RG$ remain as hubs in $SG$, with their participants attached through directed edges. This is the natural projection, since relations are nodes in $RG$ (@sec:relation-direction). The reified form is a common pattern (RDF reification, Wikidata statements with qualifiers) that supports $N : N$ relations, per-participant attributes, and partially-specified relations as first-class objects.
+The Ranke-Graph admits two readings of the same $V$ and $E$:
+
+- the *structural reading* $"RG" = (V, E)$ — every edge runs target $arrow.r$ parent (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
+- the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `contribution/*` and `evidence/*` are unchanged.
 
 For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, 0, -1}$ denote `relation_direction` (@sec:relation-direction).
 
-#definition[
-  The semantic graph projection $pi : RG arrow.r SG = (V_(SG), E_(SG))$:
+*Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (parent $r$, target $t$) is oriented:
 
-  $ V_(SG) = {v in V : op("class")(v) in {"entity", "relation"}}. $
+- $t arrow.r r$ if $op("rdir")(e) = +1$,
+- $r arrow.r t$ if $op("rdir")(e) = -1$,
+- ${r, t}$ (undirected) if $op("rdir")(e) = 0$.
 
-  For each $e in E$ with $op("class")(e) = "relation"$, parent $r$, target $t$, $E_(SG)$ contains:
-
-  - a directed edge $t arrow.r r$ if $op("rdir")(e) = +1$,
-  - a directed edge $r arrow.r t$ if $op("rdir")(e) = -1$,
-  - an undirected edge ${r, t}$ if $op("rdir")(e) = 0$.
-]
+All other edges are invariant.
 
 *Properties.*
 
-- $pi$ is deterministic — a pure function of $RG$.
-- $pi$ is monotone: $RG subset.eq RG'$ implies $SG subset.eq SG'$. Append-only at $RG$ entails append-only at $SG$.
-- $pi$ is computable in $O(|V| + |E|)$.
-- $SG$ may contain cycles even though $RG$ is acyclic: two reciprocal relation nodes (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_) produce a cycle in the entity sub-graph.
-- Every edge in $SG$ traces back through its relation node $r$ to $r$'s provenance in $RG$. Tampering at any $RG$ ancestor of $r$ changes $op("id")(r)$ (Merkle integrity, @sec:merkle), and thus the corresponding edge in $SG$.
+- The two readings are bijective on $V$ and $E$, and switching is computable in $O(|E|)$.
+- Provenance traversal — `contribution/*` and `evidence/*` edges — is identical in both readings; no sign logic is ever needed for it.
+- $"RG"^S$ admits cycles (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_); $"RG"$ does not.
+- The structural theorems (@sec:acyclicity, @sec:merkle, @sec:crdt) hold on the underlying $V$ and $E$; both readings inherit them.
+
+*The semantic graph as subgraph.* The semantic graph $"SG"$ — the entity-and-relation portion typically queried by knowledge-graph consumers — is the subgraph of $"RG"^S$ induced by
+
+$ V_("SG") = {v in V : op("class")(v) in {"entity", "relation"}}, quad E_("SG") = {e in E : op("class")(e) = "relation"}. $
+
+$"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-participant attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
 
 == Auth-Scoped Visibility and Verifiable Partial Views
 
