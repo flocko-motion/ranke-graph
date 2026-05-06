@@ -46,6 +46,8 @@ Derivations — extracts, summaries, conclusions — are constructed on top of t
 The Ranke-Graph is not a pure graph-theoretic construction; it is a structure shaped by a purpose.
 Without that purpose — preserving attributed claims without climbing the epistemic ladder — the features that follow would be arbitrary.
 
+The Ranke-Graph is a Merkle DAG whose semantic-graph reading is a subgraph of itself, not a derived structure — provenance and semantics encoded as classes within the same $V$ and $E$, atomic claim by atomic claim.
+
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy.
 
 = The Problem and the Position
@@ -81,10 +83,17 @@ There is no separate "provenance layer" — the derivation chain is the knowledg
 
 == Convergence: A Foundation, Not a Feature
 
-The Ranke-Graph addresses this gap through a structural inversion: the provenance DAG is the system, and everything else — including the semantic knowledge graph — is a view derived from it.
+The Ranke-Graph addresses this gap through a structural inversion: the provenance DAG is the system, and everything else — including the semantic graph — is a view derived from it.
 It is deliberately *under-prescribed* in how it should be used: the data model preserves every level of detail in parallel — from the raw source artifact up to the semantic triplet — networked by provenance, and leaves the strategy of retrieval and reasoning to the consumer.
 
-== Everything Is Knowledge
+== Everything Is Knowledge <sec:everything-is-knowledge>
+
+Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both. The Ranke-Graph carries both as structure, in one graph.
+
+Five concepts populate the graph:
+
+- on the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes to the graph), and *derivations* (interpretations of existing nodes, e.g. classifications, summaries, fact extractions, entity resolutions);
+- on the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
 
 The Ranke-Graph makes no distinction between data, metadata, and provenance.
 Every claim made _about_ the graph is itself a node in the graph, with its own provenance:
@@ -167,7 +176,7 @@ The remainder of the paper presents a single data structure (@sec:structure) and
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, properties D1–D7 follow (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -235,9 +244,9 @@ Nothing can be added to a claim after creation. The node's hash covers every edg
 
 == Relation Direction <sec:relation-direction>
 
-The structure so far is a Merkle DAG, but not yet a knowledge graph: it cannot express a claim like _"Bob is_brother_of Alice"_ as one attributable unit. Discharging D2 requires one addition.
+The structure so far is a Merkle DAG. A semantic graph is not — it admits cycles that a DAG forbids. The semantic information is therefore embedded in the DAG: the *semantic reading* (@sec:semantic-reading) of the same $V$ and $E$ reveals it as a graph that admits cycles.
 
-The addition has two parts:
+Two additions enable the semantic reading:
 
 + *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
 
@@ -291,31 +300,19 @@ Beyond `relation_direction`, edges carry per-edge information through extension 
 
 A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other node.
 
-#dref[D2, this section]
+The reading rule above is formalized in @sec:semantic-reading as the bijection between the structural and semantic readings of the same data.
 
 == Content Classes <sec:classes>
 
-What makes the graph specifically a Ranke-Graph is that it carries provenance and knowledge in the same structure. Historians don't do source criticism as decoration — they do it to build knowledge that holds up to scrutiny. The taxonomy reflects both halves: `source/*`, `contributor/*`, and `derivation/*` ground the provenance; `entity/*` and `relation/*` carry the knowledge being constructed. Five node classes and three edge classes.
+The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
 
-*Node classes.* Five classes:
-
-- *`source/*`* — externally captured artifacts (a conversation, a contact, a sensor reading).
-- *`contributor/*`* — agents that add claims to the graph (a worker, a person, an organization).
-- *`derivation/*`* — claims computed from other claims (a classification, a summary, a fact). The cognitive path leading to entities and relations.
-- *`entity/*`* — projected representations of identifiable things in the world (a person, a place, an organization, a thing).
-- *`relation/*`* — reified relations between entities (@sec:relation-direction).
-
-`entity/*` and `relation/*` together form the semantic graph; `derivation/*` records the path that led to them; `source/*` and `contributor/*` ground the provenance.
-
-*Edge classes.* Three classes:
-
-- *`relation/*`* — relation edges of a relation node, connecting it to its participants. Carry `relation_direction`.
-- *`contribution/*`* — provenance edges to agents or tools involved in the parent's creation.
+- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
+- *`contribution/*`* — provenance edges to contributors involved in the parent's creation.
 - *`evidence/*`* — provenance edges to data the parent processed.
 
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
-*Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT (D7).
+*Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
 
 = What Emerges <sec:emerges>
 
@@ -419,6 +416,32 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 #dref[D6, this section]
 
+== Semantic Graph Projection <sec:semantic-projection>
+
+The Ranke-Graph $RG = (V, E)$ admits a projection — the *reified semantic graph* $SG = pi(RG)$ — that materializes the embedded semantic graph as a directly traversable structure. Relation nodes from $RG$ remain as hubs in $SG$, with their participants attached through directed edges. This is the natural projection, since relations are nodes in $RG$ (@sec:relation-direction). The reified form is a common pattern (RDF reification, Wikidata statements with qualifiers) that supports $N : N$ relations, per-participant attributes, and partially-specified relations as first-class objects.
+
+For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, 0, -1}$ denote `relation_direction` (@sec:relation-direction).
+
+#definition[
+  The semantic graph projection $pi : RG arrow.r SG = (V_(SG), E_(SG))$:
+
+  $ V_(SG) = {v in V : op("class")(v) in {"entity", "relation"}}. $
+
+  For each $e in E$ with $op("class")(e) = "relation"$, parent $r$, target $t$, $E_(SG)$ contains:
+
+  - a directed edge $t arrow.r r$ if $op("rdir")(e) = +1$,
+  - a directed edge $r arrow.r t$ if $op("rdir")(e) = -1$,
+  - an undirected edge ${r, t}$ if $op("rdir")(e) = 0$.
+]
+
+*Properties.*
+
+- $pi$ is deterministic — a pure function of $RG$.
+- $pi$ is monotone: $RG subset.eq RG'$ implies $SG subset.eq SG'$. Append-only at $RG$ entails append-only at $SG$.
+- $pi$ is computable in $O(|V| + |E|)$.
+- $SG$ may contain cycles even though $RG$ is acyclic: two reciprocal relation nodes (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_) produce a cycle in the entity sub-graph.
+- Every edge in $SG$ traces back through its relation node $r$ to $r$'s provenance in $RG$. Tampering at any $RG$ ancestor of $r$ changes $op("id")(r)$ (Merkle integrity, @sec:merkle), and thus the corresponding edge in $SG$.
+
 == Auth-Scoped Visibility and Verifiable Partial Views
 
 Auth-scoped visibility (a claim derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
@@ -501,7 +524,7 @@ They share the Ranke-Graph's commitment to immutability and provenance-per-asser
 
 == The Identified Gap
 
-No existing system combines all of: (a) a content-addressable immutable source archive, (b) an append-only Provenance DAG as the primary data structure, (c) a semantic knowledge graph as a materialised view with per-edge provenance, (d) verifiable partial views under structural auth-scoping, (e) CRDT-compatible merge of independent replicas, and (f) natural-language relations with emergent ontology.
+No existing system combines all of: (a) a content-addressable immutable source archive, (b) an append-only Provenance DAG as the primary data structure, (c) a semantic graph as a materialised view with per-edge provenance, (d) verifiable partial views under structural auth-scoping, (e) CRDT-compatible merge of independent replicas, and (f) natural-language relations with emergent ontology.
 Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
