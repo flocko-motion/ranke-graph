@@ -38,22 +38,21 @@ It records that a file is present, its metadata is as given, and the record has 
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
 #concept("Claim")[
-  A *claim* in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their inputs. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every input it cites down to the sources.
+  A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their inputs. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every input it cites down to the sources.
 ]
 
-This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve attributed claims.
+This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
 = The Problem and the Position
 
 == The Archival Tradition
 
-#todo[Note: compress this section]
+The Ranke-Graph is named after the historian Leopold von Ranke (1795–1886), who transformed his discipline by insisting that every historical claim must trace back to a primary source.
+Ranke's famous phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has since been criticised for assuming unmediated access to past reality.
+A modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
-The Ranke-Graph is named after Leopold von Ranke (1795–1886), the historian who transformed his discipline by insisting that every historical claim must trace back to a critically examined primary source.
-Ranke's famous phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has since been rightly criticised for assuming unmediated access to past reality.
-The Ranke-Graph takes that criticism as foundational: the primary data point is never _"how it was"_ but the artifact of a communicative act that reports, claims, or interprets it — an email, a chat message, a voicemail, a document.
-What the Ranke-Graph stores is always someone's utterance about the world, never the world itself.
-What survives from Ranke's method, intact, is the discipline of attribution: nothing is asserted without its derivation, and nothing is derived without its sources.
+The Ranke-Graph supports this process: every claim has its derivation, every derivation has its sources.
+The Ranke-Graph thus stores a graph of _claims_ as defined above.
 
 == The CS Priority That Was Never Operationalised
 

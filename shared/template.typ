@@ -125,7 +125,7 @@
   spacing: 1em,
   width: 100%,
   [
-    #text(weight: "bold")[Definition: #term] \
+    #text(weight: "bold")[Definition:] #h(0.3em) #emph[#term] \
     #v(0.3em)
     #body
   ]
