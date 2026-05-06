@@ -9,7 +9,7 @@
   abstract: todo[One paragraph: a small data structure from which a list of properties — provenance, immutability, verifiable history, auth-scoped visibility, distributability, open-ended vocabulary — emerges as consequence rather than as feature. Close with: reference implementations in Go and Python accompany the paper, with a binary conformance suite. To be written after the body settles.],
 )
 
-= Introduction
+= Introduction <sec:introduction>
 
 Consider three statements:
 
@@ -25,34 +25,29 @@ The first is a claim about the world. The second adds an attribution. The third 
 
 Storing at the first layer is the classic goal of database design.
 Schemas, integrity constraints, and transactions are built to maintain a consistent model of the world; the caller is expected to have applied sound epistemology before writing data.
-When facts change, or sources disagree, the database is edited to align; its earlier states, and the disagreement itself, are discarded.
-In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually filed under _data cleaning_, and treated as consistency rather than loss. The cleaned value is an artifact of the algorithm, not a fact about the world; the ambiguity it discarded was itself information.
+When facts change, or sources disagree, the database is edited to align; its earlier states, and thus the disagreement itself, are discarded.
+In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency rather than loss. The cleaned value is an artifact of the algorithm, not a fact about the world; the ambiguity it discarded was itself information.
 
-This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts.
+This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts about the world.
 
 The Ranke-Graph is designed for the opposite stance.
-It stores only at the third layer.
-Every node is an observation-of-existence: this artifact, with these bytes, this attribution, added to the graph at this moment.
+It stores only at the third layer: attributed claims.
+Every node is an observation-of-existence: this artifact, with these bytes, this attribution, added to the graph at this moment, appearing to make the claim its content carries.
 The graph does not record whether Alice likes apples, or whether she wrote the email.
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-We call what the graph stores an _attributed claim_.
-A claim, in this paper, is not a proposition asserted as true; it is a preserved, attributed record of the form _"contributor X produced this content at time T, derived from these inputs."_
-The claim and its attribution are stored as a single unit.
-Neither is verified nor refuted by the data type itself; both are preserved as received, immutable once written, traceable to every input that contributed to them.
-Derivations — extracts, summaries, conclusions — are constructed on top of the graph by its contributors, with their own stake and context.
+#concept("Claim")[
+  A *claim* in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their inputs. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every input it cites down to the sources.
+]
 
-The Ranke-Graph is not a pure graph-theoretic construction; it is a structure shaped by a purpose.
-Without that purpose — preserving attributed claims without climbing the epistemic ladder — the features that follow would be arbitrary.
-
-The Ranke-Graph is a Merkle DAG whose semantic-graph reading is a subgraph of itself, not a derived structure — provenance and semantics encoded as classes within the same $V$ and $E$, atomic claim by atomic claim.
-
-This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy.
+This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve attributed claims.
 
 = The Problem and the Position
 
 == The Archival Tradition
+
+#todo[Note: compress this section]
 
 The Ranke-Graph is named after Leopold von Ranke (1795–1886), the historian who transformed his discipline by insisting that every historical claim must trace back to a critically examined primary source.
 Ranke's famous phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has since been rightly criticised for assuming unmediated access to past reality.
@@ -62,6 +57,8 @@ What survives from Ranke's method, intact, is the discipline of attribution: not
 
 == The CS Priority That Was Never Operationalised
 
+#todo[Note: compress this section]
+
 Existing systems that address this tension do so partially.
 Temporal knowledge graphs (Graphiti/Zep, @rasmussen2025graphiti) preserve _when_ facts were valid but perform destructive entity-summary updates, losing derivation history.
 Versioned knowledge bases (TerminusDB, @terminusdb) track _what_ changed across snapshots but not _why_ or _how_ knowledge was derived.
@@ -69,6 +66,8 @@ Immutable databases (Datomic, @hickey2012datomic; Fluree, @fluree) preserve all 
 No existing system treats the full chain of provenance — from raw source artifact through extraction, normalisation, and synthesis — as first-class, queryable knowledge.
 
 == The Rupture: Machines Reading and Writing at Scale
+
+#todo[Note: compress this section]
 
 Knowledge management systems face a fundamental tension: they must serve both _current_ truth and _historical_ understanding.
 Traditional knowledge graphs optimise for the former — they store what is believed to be true now, updated in place as understanding changes.
@@ -80,11 +79,6 @@ In this paper we use the term in a narrower, operational sense: the complete der
 This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm) but makes a stronger commitment: in the Ranke-Graph, provenance is not metadata about knowledge — it _is_ knowledge, stored in the same graph, queryable through the same interface, subject to the same invariants.
 Each node in the graph is both a statement and the record of how that statement came to be.
 There is no separate "provenance layer" — the derivation chain is the knowledge, and the knowledge is the derivation chain.
-
-== Convergence: A Foundation, Not a Feature
-
-The Ranke-Graph addresses this gap through a structural inversion: the provenance DAG is the system, and everything else — including the semantic graph — is a view derived from it.
-It is deliberately *under-prescribed* in how it should be used: the data model preserves every level of detail in parallel — from the raw source artifact up to the semantic triplet — networked by provenance, and leaves the strategy of retrieval and reasoning to the consumer.
 
 == Everything Is Knowledge <sec:everything-is-knowledge>
 
@@ -103,33 +97,14 @@ Every claim made _about_ the graph is itself a node in the graph, with its own p
 - an alias ("this node refers to the same person as node Y"),
 - a creation record ("this node was added by contributor X with configuration Y").
 
-This principle — _everything is knowledge_ — eliminates the need for separate metadata systems, tagging taxonomies, or logs of contributor activity as additional infrastructure: all of these are expressible as nodes in the graph, derived from the same sources, subject to the same provenance and immutability guarantees, and queryable through a single interface.
-
-From this ontological flatness follows a structural claim.
-If every claim is a node with provenance, then what is the _primary_ content of the system?
-In conventional knowledge graphs, claims are primary and provenance is an annotation layer bolted on top — an afterthought that explains where things came from.
-No such split exists in the Ranke-Graph.
-
 *Provenance is not an annotation on the knowledge — it _is_ the knowledge.*
-Every derivation, every thought, every projected fact is itself a node in the graph, linked to the inputs it was derived from.
-There is no "real" layer above and a "provenance" layer below; it is one graph, and the knowledge and its derivation are stored together.
-
-This inversion has concrete operational consequences: operations that would require complex graph surgery in a conventional system become simple view operations in the Ranke-Graph.
-Reprocessing sources with better tools produces new nodes alongside old ones — no migration required.
-Filtering out results from an obsolete contributor is a query parameter, not a data operation.
-Evaluating competing interpretations of the same source is a traversal, not a diff between snapshots.
 
 == Immutability and Accumulation
-
-The Ranke-Graph is strictly append-only.
-No node or edge is ever modified or deleted through runtime operations.
-When new information contradicts existing knowledge, the contradiction is represented as a new node — not as an update to the old one.
-Both coexist in the graph, each with full provenance.
 
 *Contradiction is not a bug to resolve; it is a fact about the evidence base.
 Resolving it destroys information: the consolidated graph holds strictly less knowledge than the contradictory one it replaced.*
 
-This design is a deliberate bet on the trajectory of language model context windows.
+This stance is a deliberate bet on the trajectory of language model context windows.
 Systems that destructively consolidate today — merging entity summaries, deduplicating facts, compacting histories — optimise for current retrieval efficiency at the cost of inferential depth.
 The Ranke-Graph is built for a future in which a model able to traverse the full derivation history of a belief as needed — contradictions, revisions, and competing interpretations — may produce better reasoning than one given only a consolidated summary.
 
@@ -141,6 +116,8 @@ The Ranke-Graph is built for a future in which a model able to traverse the full
 - *Consensus* = social agreement on what to trust. A human process, not a database concern.
 - The Ranke-Graph handles provenance. Consensus is downstream, built by contributors on top.
 
+*The Ranke-Graph stores attributed claims; common truth is what contributors build on top when they want it.*
+
 == Bounded Scope
 
 #todo[Expand from the bullet sketch in #raw("notes.md"):]
@@ -148,15 +125,11 @@ The Ranke-Graph is built for a future in which a model able to traverse the full
 - At bounded scale (personal to small-enterprise), trust is pre-established, ontology is finite, adversarial resistance is simple.
 - The Ranke-Graph does not aim for Wikipedia-scale global consensus.
 
-== Thesis
-
-*The Ranke-Graph stores attributed claims; common truth is what contributors build on top when they want it.*
-
 = Desiderata <sec:desiderata>
 
-We state the obligations the data structure of @sec:structure is required to satisfy. The list is intended to be minimal in the sense that no item is implied by the others under the structure to follow; consequences that #emph[do] follow — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — are deferred to @sec:emerges, where each is derived in turn.
+Following the motivation in @sec:introduction, we state the obligations any Ranke-Graph must satisfy. The seven items are independent — together they characterise the contract. Other useful properties — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — follow as consequences.
 
-The desiderata are stated without reference to any implementation, and without prejudice as to how a system might satisfy them. Each is discharged by an identified section in @sec:emerges; cross-references appear at the end of the corresponding section rather than here.
+The desiderata describe what is required; the choice of how to satisfy them is open.
 
 *D1. Provenance.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
 
@@ -171,8 +144,6 @@ The desiderata are stated without reference to any implementation, and without p
 *D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
 *D7. Open-Ended Vocabulary.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
-
-The remainder of the paper presents a single data structure (@sec:structure) and shows that D1–D7 follow from it as theorems rather than as separately engineered features.
 
 = The Data Structure <sec:structure>
 

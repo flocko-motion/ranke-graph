@@ -117,6 +117,20 @@
   })
 }
 
+// Concept callout — for central prose-level definitions (Part I).
+// Visually distinct from formal #definition[] used in math sections.
+#let concept(term, body) = block(
+  stroke: 0.5pt + black,
+  inset: 1em,
+  spacing: 1em,
+  width: 100%,
+  [
+    #text(weight: "bold")[Definition: #term] \
+    #v(0.3em)
+    #body
+  ]
+)
+
 // Small italic forward/backward pointer, e.g. #dref[D1, §4]
 #let dref(label) = text(style: "italic")[→ #label]
 
