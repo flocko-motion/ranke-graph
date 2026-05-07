@@ -13,13 +13,9 @@
 
 Consider three statements:
 
-#block(inset: (left: 1.5em, right: 1.5em))[
-  _Alice likes apples._
-
-  _Alice wrote Bob an email saying she likes apples._
-
-  _A file exists, attributed to Alice by its headers, that appears to be a copy of an email to Bob in which Alice claims to like apples._
-]
++ _Alice likes apples._
++ _Alice wrote Bob an email saying she likes apples._
++ _A file exists, attributed to Alice by its headers, that appears to be a copy of an email to Bob in which Alice claims to like apples._
 
 The first is a claim about the world. The second adds an attribution. The third is an observation of existence — a file is present, with the stated bytes, metadata, and content.
 
@@ -37,13 +33,9 @@ The graph does not record whether Alice likes apples, or whether she wrote the e
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-#concept("Claim")[
-  A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every claim it references down to the sources.
-]
+A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
-
-#todo[Disambiguation pending: throughout the paper, "the Ranke-Graph" is used both for *the structure* (the ADT) and for *an instance* (a hash-rooted subgraph). Once §4 introduces the substrate $cal(U)$ and the hash-rooted instance $"RG"_h$, sweep prose accordingly. Keep "the Ranke-Graph" only for the ADT itself; switch to $"RG"_h$ for instances and $cal(U)$ for the substrate.]
 
 = The Problem and the Position
 
@@ -93,7 +85,7 @@ The Ranke-Graph is append-only: claims accumulate; existing ones are never modif
 
 === Levels of Distillation
 
-This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:classes): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
 Levels of distillation are what make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is not _incomplete_ — it is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
@@ -132,7 +124,7 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -142,7 +134,7 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 node = {
   type:         string (class/subtype, e.g. "source/conversation"),
   content_hash: H(content),
-  encoding:     string (class/subtype, e.g. "text/eml"),
+  encoding:     string (MIME media type, e.g. "message/rfc822"),
   created_at:   timestamp (UTC),
   edges:        set of edge ids,
   ...:          additional implementation-defined fields
@@ -151,7 +143,7 @@ node = {
 
 Two nodes with identical content but different provenance produce different ids.
 
-- `type` and `encoding` follow the `class/subtype` convention (@sec:classes): the first segment is from a fixed set, the second is open vocabulary.
+- `type` and `encoding` follow the `class/subtype` convention (@sec:types, @sec:encoding): the first segment is from a fixed set, the second is open vocabulary.
 - `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
 - `created_at` is the UTC timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
 - Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
@@ -173,13 +165,15 @@ The owning claim's id cannot be stored on the edge: that would make $S(e)$ depen
 
 *Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:claims) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
-As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
+As for nodes, `type` follows the `class/subtype` convention (@sec:types), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
 
 == Claims <sec:claims>
 
 A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+
+To create a new graph, we create a `contribution/contributor` claim with no edges as the initial node. Every subsequent claim must reference who added it via a `contribution/contributor` edge.
 
 == The Universe of Claims <sec:universe>
 
@@ -207,46 +201,38 @@ A complete Ranke-Graph state is the pair $(cal(U), B)$: the immutable claim stor
 
 == Semantic Relations <sec:semantic-relations>
 
-Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice knows Bob_; _Bob knows Alice_.
+Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
 
-A hash-rooted instance $"RG"_h$ reconciles the tension by admitting a *semantic reading* $"RG"_h^S$: the same claims, with `relation/*` edges reoriented by their `relation_direction` field. Two structural moves enable it:
+A relation is itself a claim — a relation node with relation edges to its entities, like any other claim.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). It follows from the no-edge-references rule (@sec:edges): edges cannot point at edges, so relations cannot be encoded as plain edges between entities.] Each relation edge carries a `relation_direction` field tagging the entity's role, with values `from`/+1 or `to`/-1.
 
-+ *Relations are reified as nodes.*#footnote[Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).] A semantic relation is a relation node with relation edges to its entities.
+A hash-rooted instance $"RG"_h$ admits a *semantic reading* $"RG"_h^S$ in which each `relation/*` edge's direction is inverted when `relation_direction = -1`.
 
-+ *A `relation_direction` field tags each entity's role.* Carried on each relation edge, with values
-  $ "relation_direction" in {"from" = +1, "to" = -1}. $
+The two readings stand in bijection (formalized in @sec:semantic-reading). The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
 
-To read a relation, gather the relation node and its relation edges, forming the triplet $("from_nodes", "relationship", "to_nodes")$ — `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`. The same pattern scales to $n$-ary relations.
+== Types <sec:types>
 
-The two readings stand in bijection (formalized in @sec:semantic-reading): translation is a local rewrite, never a copy. The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
-
-== Content Classes <sec:classes>
-
-The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes.
+The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes; subtype vocabulary is open.
 
 *Node classes:*
 
 - *`source/*`* — an external data artifact.
-- *`derivation/*`* — a derived claim.
+- *`derivation/*`* — a claim built from other claims as inputs.
 - *`entity/*`* — an identifiable thing in the world.
-- *`relation/*`* — a reified relation.
-- *`contribution/*`* — an operational claim about the work on the graph.
+- *`relation/*`* — a node representing a relation among entities.
+- *`contribution/*`* — a claim about contributors or their actions on the graph.
 
 *Edge classes:*
 
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — claims about the work on the graph. The ADT defines two subtypes:
+- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines three subtypes:
+  - *`contribution/contributor`* — names the contributor of a claim
   - *`contribution/head`* (structural — consolidates currently-open heads, see @sec:head)
   - *`contribution/prune`* (view-modifying — excludes a reference from views containing the claim)
 
-All three edge classes also appear as node classes. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
+== Encodings <sec:encoding>
 
-*Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
-
-*Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
-
-*Contributor and entity are separate node classes.* `contribution/*` carries operational claims about contributors and their work on the graph. `entity/*` carries semantic targets — the things relations are about. The same real-world person can be referenced from both classes via separate nodes; an explicit `relation/*` claim asserts the connection if and when wanted.
+A node's `encoding` field is a MIME media type (@freed2013rfc6838), telling consumers how to interpret its content bytes (addressed by `content_hash`). Examples: `text/plain`, `image/png`, `message/rfc822`.
 
 = What Emerges <sec:emerges>
 
@@ -389,14 +375,12 @@ Each set op produces a node-id subset; closing under reference-traversal yields 
 
 == The Semantic Reading <sec:semantic-reading>
 
-#todo[Disambiguate throughout: $"RG"$ here is shorthand for $"RG"_h$ (a hash-rooted instance), not for $cal(U)$. The two readings are over the $V_h$, $E_h$ of one instance. After §4.6 lands, switch notation: $"RG"_h$ and $("RG"_h)^S$.]
-
-The Ranke-Graph admits two readings of the same $V$ and $E$:
+A Ranke-Graph instance $"RG"_h$ admits two readings of the same $V$ and $E$, written $"RG"$ (structural) and $"RG"^S$ (semantic) throughout this section:
 
 - the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `derivation/*` and `contribution/*` are unchanged.
 
-For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-relations).
+For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:types). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-relations).
 
 *Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
 
