@@ -177,7 +177,7 @@ A node carries its edges' ids in its own record, so edges are Merkle-secured thr
 
 == Atomic Claim Creation <sec:atomic>
 
-A *claim* is a node together with all its edges. A claim is created in a single atomic transaction comprising:
+A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction comprising:
 
 - $n$ provenance edges (to sources, prior derivations, and the contributor),
 - $m$ relation edges (to the related entities, carrying `relation_direction`).
