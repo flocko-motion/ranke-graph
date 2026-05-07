@@ -179,11 +179,21 @@ A node carries its edges' ids in its own record, so edges are Merkle-secured thr
 
 A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
-#todo[Single-head invariant via *throwaway snapshots* (revised 2026-05-07): branch advance is two structural acts — (1) append the new claim with its semantic edges only; (2) generate a fresh *snapshot claim* whose `evidence/head` edges name all currently-open heads of $cal(U)$ at that moment, including the new claim. The branch updates to point at the snapshot.
+== The Universe of Claims <sec:universe>
 
-The previous snapshot stays in $cal(U)$ forever (immutability) but the branch lets go of it; only the latest snapshot is the active handle. Snapshots are normal claims (no distinguished node class needed); their topological role is carried entirely by the `evidence/head` subtype. Claims themselves do not have `evidence/head` edges — they are semantic-only. Single-head invariant is preserved because branches always resolve to a snapshot hash with full closure.
+$cal(U)$ — the *universe of claims* — is the set of all claims that have ever been created. A *Ranke-Graph instance* $"RG"$ is a subset of $cal(U)$:
+$ "RG" subset.eq cal(U). $
+References across instances are not transfers: a hash addresses the same claim in $cal(U)$ regardless of which instance first carried it. By immutability (D3), $cal(U)$ grows monotonically — claims are added but never modified or removed.
 
-Implementations may handle concurrent writes via sequencing, merge-snapshots, or auto-reference at commit time — details belong to rankedb.]
+== Hash-Rooted Instances <sec:head>
+
+Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of references reachable from $h$. The hash alone suffices to recover it.
+
+Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
+
+To make such an instance addressable, we give it *a head*: a new claim whose `contribution/head` edges name every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
+
+#todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
 
 == Relation Direction <sec:relation-direction>
 
@@ -245,23 +255,24 @@ The reading rule above is formalized in @sec:semantic-reading as the bijection b
 
 == Content Classes <sec:classes>
 
-The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
+The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with four edge classes:
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — provenance edges to contributors involved in the claim's creation.
-- *`evidence/*`* — provenance edges to data the claim processed.
+- *`evidence/*`* — provenance to data the claim references.
+- *`contribution/*`* — claims about the work on the graph (contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding such as `contribution/head`).
+- *`prune/*`* — view-modifying edges that exclude references from views containing the claim.
 
 #todo[Update edge taxonomy to *four classes*, grouped into kinds:
 
 *Descriptive (write-side):*
 - *`relation/*`* — semantic relation edges (carry `relation_direction`).
-- *`contribution/*`* — provenance to contributors.
-- *`evidence/*`* — provenance to data the claim references. Includes the topological subtype *`evidence/head`* — used by snapshots to consolidate currently-open heads. Open heads are the *evidence* a new snapshot uses to become the new head; hence the subtype reading. `evidence/head` is structurally normal evidence at the parser level; its distinct epistemic role (topology rather than semantic dependency) is captured by the subtype.
+- *`evidence/*`* — provenance to data the claim references (sources, chunks, derivations).
+- *`contribution/*`* — claims about the work on the graph: contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding. Includes the structural subtype *`contribution/head`* — used to consolidate currently-open heads under a single root, making the instance addressable by one hash (see @sec:head). Subtypes within `contribution/*` are open vocabulary; head consolidation is a worker action that shapes the graph just as a policy or pubkey does.
 
 *Prescriptive:*
 - *`prune/*`* — view-modifying edges. A `prune/*` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
 
-The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `evidence/head` is the standard subtype for topology; other `evidence/*` subtypes (`evidence/source`, `evidence/chunk`, etc.) carry semantic dependency.]
+The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `contribution/head` is the standard subtype for graph-topology scaffolding; other `contribution/*` subtypes (e.g.\ `contribution/agent`, `contribution/policy`, `contribution/signature`) carry governance and identity concerns.]
 
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
@@ -273,7 +284,7 @@ The four classes share the uniform `class/subtype` convention; subtype is open v
 
 (2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `contribution/*`, `evidence/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
 
-(3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$. Maintained via *throwaway snapshots* (§4.3): each branch advance generates a fresh snapshot claim whose `evidence/head` edges name all currently-open heads of $cal(U)$. Branches always resolve to a snapshot hash, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; the snapshot mechanism consolidates them. Old snapshots remain in $cal(U)$ (immutability) but the branch lets go of them — only the latest is the active handle.
+(3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$ — guaranteed by construction (@sec:head): branches resolve to a head, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; head consolidation resolves them.
 
 (4) $B_x$ — *the branch named $x$*: at any moment, $B_x$ denotes the current graph at branch $x$ — equivalently, $"RG"_h$ where $h$ is the head currently bound to $x$. So $B_x subset.eq cal(U)$ at any frozen moment; mutability lives at the *name-binding* layer (the binding $x arrow.r.bar h$ may be updated as the graph grows). The hash is internal; the user-facing handle is $B_x$. A pure-pointer abstraction at heart; how branches are stored or synchronised is implementation choice (rankedb).
 
@@ -334,25 +345,25 @@ Identical claims are the same claim — writes are idempotent, deduplication is 
 
 == Anchoring <sec:anchoring>
 
-#todo[Anchoring is *grounded* on the single-head invariant (revised 2026-05-07). The structural foundation is: every branch advance produces a snapshot, every snapshot is single-rooted, every snapshot's hash witnesses everything reachable from it via the closure of its `evidence/head` edges. So at any moment, a single hash anchors the entire visible state of the branch.
+#todo[Anchoring is *grounded* on the single-head invariant (revised 2026-05-07). The structural foundation is: every branch advance produces a head, every head is single-rooted, every head's hash witnesses everything reachable from it via the closure of its `contribution/head` edges. So at any moment, a single hash anchors the entire visible state of the branch.
 
-External anchoring (publishing a hash to a tamper-evident medium for third-party proof) is unchanged — pick any snapshot hash, publish it; it anchors everything in its closure. Hashchain emerges from the snapshot sequence: snapshot $S_n$ has `evidence/head` edges to the heads it consolidates, which transitively reach $S_(n-1)$ (since $S_(n-1)$ was a head when $S_n$ was created), so $S_n$ witnesses $S_(n-1)$.
+External anchoring (publishing a hash to a tamper-evident medium for third-party proof) is unchanged — pick any head hash, publish it; it anchors everything in its closure. Hashchain emerges from the head sequence: head $h_n$ has `contribution/head` edges to the heads it consolidates, which transitively reach $h_(n-1)$ (since $h_(n-1)$ was an open head when $h_n$ was created), so $h_n$ witnesses $h_(n-1)$.
 
-Restate §5.3 around snapshots-as-handles: anchoring is not occasional, it is constant; pick any snapshot in your history and you have a tamper-evident witness of everything reachable from it.]
+Restate §5.3 around heads-as-handles: anchoring is not occasional, it is constant; pick any head in your history and you have a tamper-evident witness of everything reachable from it.]
 
-Snapshots are special nodes whose references are all current heads (nodes with no children in $G$) plus the previous snapshot:
+Heads are claims whose `contribution/head` edges name all currently-open heads of $G$ plus the previous head:
 $
-  s_0 &= H(op("heads")(G, t_0)) \
-  s_n &= H(op("heads")(G, t_n) || s_(n-1))
+  h_0 &= H(op("open-heads")(G, t_0)) \
+  h_n &= H(op("open-heads")(G, t_n) || h_(n-1))
 $
 
-The snapshot sequence $(s_0, s_1, dots.h.c, s_n)$ is a hashchain.
-Each snapshot witnesses the graph state _and_ all previous snapshots.
-Manipulation of any $s_i$ invalidates all $s_j$ for $j > i$.
+The head sequence $(h_0, h_1, dots.h.c, h_n)$ is a hashchain.
+Each head witnesses the graph state _and_ all previous heads.
+Manipulation of any $h_i$ invalidates all $h_j$ for $j > i$.
 
-Snapshot hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
+Head hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
 
-#todo[Add the *anchoring composition theorem*: publishing a single snapshot hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that snapshot but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
+#todo[Add the *anchoring composition theorem*: publishing a single head hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that head but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
 
 #todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
 
@@ -376,7 +387,7 @@ Closing trifecta-plus table (one short paragraph + table):
   align: (left, left),
   [*Property*], [*Mechanism*],
   [Integrity], [hashes + Merkle DAG (§5.2)],
-  [Temporal], [snapshots + external anchoring (§5.3)],
+  [Temporal], [head hashchain + external anchoring (§5.3)],
   [Authenticity], [signatures as claims],
   [Governance], [policies as claims],
   [Enforcement verifiability], [validity as a function; replay against the graph],
@@ -392,9 +403,9 @@ The operator collapses to commodity storage + commodity gatekeeper. The trust po
 
 === Set Algebra Theorem
 
-#todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (snapshot); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
+#todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (a head); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
 
-#todo[Result of a boolean operation is a *single hash* — a snapshot claim whose `evidence/head` edges name the heads of the operand graphs that are part of the result and whose `prune/*` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal snapshot claim under the throwaway-snapshot mechanism of §4.3. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
+#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges name the heads of the operand graphs that are part of the result and whose `prune/*` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
 
 #todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
 
@@ -489,7 +500,7 @@ Auth scoping and Merkle integrity are complementary.
 
 === Visibility Propagation
 
-#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency — class `relation/*`, `contribution/*`, and the semantic subtypes of `evidence/*` (e.g.\ `evidence/source`, `evidence/chunk`). It does *not* propagate along `evidence/head` (topological evidence — a snapshot depends on its heads' content only via hash for Merkle integrity, not semantically) nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level for `evidence/*`, not a new class rule.]
+#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, the semantic subtypes of `evidence/*` (e.g.\ `evidence/source`, `evidence/chunk`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level, not a class-wide rule.]
 
 === Compliance by Architecture
 
