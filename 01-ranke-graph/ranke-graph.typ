@@ -219,41 +219,7 @@ Provenance requires acyclicity — hash recursion has no fixed point in a graph 
 
 To read a relation, gather the relation node and all its relation edges, forming the triplet
 $ ("from_nodes", "relationship", "to_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty places all entities in the same role — either all on the from-side (each on the action side: _we're all learning from each other_) or all on the to-side (each on the receiving side: _we're all supporting each other_). @fig:relation illustrates the binary case under entity-resolution ambiguity.
-
-#figure(
-  pad(x: -2.5cm, align(center, diagram(
-    spacing: (4em, 1.2em),
-    node-stroke: 0.5pt,
-    node-shape: rect,
-
-    // Left column: all referenced (older) nodes.
-    // Provenance sources at top.
-    node((0, 0), [Contributor]),
-    node((0, 1), [Source]),
-
-    // Visual gap, then entities below.
-    node((0, 3), [Bob 1]),
-    node((0, 4), [Bob 2]),
-    node((0, 5), [Alice]),
-
-    // Right: the relation node (newer; references everything on the left).
-    // Bolder stroke distinguishes it visually; the relation type sits in its label.
-    node((5, 2.5), [`is_brother_of`], stroke: 0.8pt + black),
-
-    // Edges from Contributor and Source carry no extra fields — the
-    // existence of the reference IS the provenance fact (@sec:edges / @sec:acyclicity).
-    edge((0, 0), (5, 2.5), "->"),
-    edge((0, 1), (5, 2.5), "->"),
-
-    // Semantic: all flow into the relation node (universal convention, @sec:edges).
-    // Labels: rdir = relation_direction, conv = conviction.
-    edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: +0.7`]]),
-    edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: −0.4`]]),
-    edge((0, 5), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: to`, `conv: +1.0`]]),
-  ))),
-  caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `rdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `rdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `rdir` = `relation_direction`, `conv` = `conviction`.],
-) <fig:relation>
+where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty places all entities in the same role — either all on the from-side (each on the action side: _we're all learning from each other_) or all on the to-side (each on the receiving side: _we're all supporting each other_).
 
 The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
 
@@ -271,10 +237,9 @@ The five concepts of @sec:everything-is-knowledge are encoded as the five node c
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
-- *`contribution/*`* — claims about the work on the graph. Subtypes group by role:
-  - *identity and governance* — `contribution/agent`, `contribution/policy`, `contribution/config`, `contribution/pubkey`, `contribution/signature`
-  - *structural* — `contribution/head` (consolidates open heads, see @sec:head)
-  - *view-modifying* — `contribution/prune` (excludes a reference from views containing the claim; per-edge content carries the reason)
+- *`contribution/*`* — claims about the work on the graph. The ADT defines two subtypes:
+  - *`contribution/head`* (structural — consolidates currently-open heads, see @sec:head)
+  - *`contribution/prune`* (view-modifying — excludes a reference from views containing the claim)
 
 All three edge classes also appear as node classes. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
 
@@ -282,7 +247,7 @@ All three edge classes also appear as node classes. The pattern is uniform: at t
 
 *Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
 
-*Contributor and entity are separate node classes.* `contribution/*` carries operational claims — the contributor and what they brought (policies, configs, signatures, structural acts). `entity/*` carries semantic targets — the things relations are about. The same real-world person can be referenced from both classes via separate nodes; an explicit `relation/*` claim asserts the connection if and when wanted.
+*Contributor and entity are separate node classes.* `contribution/*` carries operational claims about contributors and their work on the graph. `entity/*` carries semantic targets — the things relations are about. The same real-world person can be referenced from both classes via separate nodes; an explicit `relation/*` claim asserts the connection if and when wanted.
 
 = What Emerges <sec:emerges>
 
@@ -345,13 +310,12 @@ External anchoring (publishing a hash to a tamper-evident medium for third-party
 
 Restate §5.3 around heads-as-handles: anchoring is not occasional, it is constant; pick any head in your history and you have a tamper-evident witness of everything reachable from it.]
 
-Heads are `contribution/head` claims whose `contribution/head` edges reference all currently-open heads of $G$ plus the previous head:
+Heads are `contribution/head` claims whose `contribution/head` edges reference the currently-open heads of $G$:
 $
-  h_0 &= H(op("open-heads")(G, t_0)) \
-  h_n &= H(op("open-heads")(G, t_n) || h_(n-1))
+  h_n = H(op("open-heads")(G, t_n))
 $
 
-The head sequence $(h_0, h_1, dots.h.c, h_n)$ is a hashchain.
+The head sequence $(h_0, h_1, dots.h.c, h_n)$ is a hashchain: $h_(n-1)$ is always reachable from $h_n$ in the closure — directly if it remained open until $h_n$'s creation, or transitively via newer claims that referenced it.
 Each head witnesses the graph state _and_ all previous heads.
 Manipulation of any $h_i$ invalidates all $h_j$ for $j > i$.
 
