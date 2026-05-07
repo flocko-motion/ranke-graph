@@ -101,6 +101,8 @@ Levels of distillation are what make the Ranke-Graph tractable for any agent or 
 
 Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
 
+Contributors and entities are deliberately separate. A *contributor* is operational — the actor whose work brought a claim into the graph. An *entity* is semantic — a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection — but they never share a node.
+
 
 == A Vision
 
