@@ -192,7 +192,7 @@ Implementations may handle concurrent writes via sequencing, merge-snapshots, or
 
 Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
 
-+ *Relations are reified as nodes.* (Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
++ *Relations are reified as nodes.*#footnote[Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).] A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
 
 + *A `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
   $ "relation_direction" in {"from" = +1, "to" = -1}. $
@@ -200,7 +200,7 @@ Provenance requires acyclicity — hash recursion has no fixed point in a graph 
 
 To read a relation, gather the relation node and all its relation edges, forming the triplet
 $ ("from_nodes", "relationship", "to_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty has no role asymmetry to record — the entities are equally positioned. @fig:relation illustrates the binary case under entity-resolution ambiguity.
+where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty places all entities in the same role — either all on the from-side (each on the action side: _we're all learning from each other_) or all on the to-side (each on the receiving side: _we're all supporting each other_). @fig:relation illustrates the binary case under entity-resolution ambiguity.
 
 #figure(
   pad(x: -2.5cm, align(center, diagram(
@@ -238,7 +238,7 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
 
 The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
 
-A relation node of type `are_similar` with all $n$ entities on the same side of the triplet (the from-side empty, the to-side carrying all entities) represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
+A relation node of type `are_similar` with all $n$ entities on one side of the triplet represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
 
 Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
 
