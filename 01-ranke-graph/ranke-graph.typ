@@ -193,7 +193,9 @@ Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the tr
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
-To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges name every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
+To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges reference every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
+
+Formally, a *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any frozen moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable. The hash $h$ is internal; the user-facing handle is $B_x$.
 
 #todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
 
@@ -261,36 +263,16 @@ The five concepts of @sec:everything-is-knowledge are encoded as the five node c
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
-- *`contribution/*`* — claims about the work on the graph: contributor identity, policies, configs, pubkeys, signatures, structural acts (`contribution/head`), and view-modifying acts (`contribution/prune`).
+- *`contribution/*`* — claims about the work on the graph. Subtypes group by role:
+  - *identity and governance* — `contribution/agent`, `contribution/policy`, `contribution/config`, `contribution/pubkey`, `contribution/signature`
+  - *structural* — `contribution/head` (consolidates open heads, see @sec:head)
+  - *view-modifying* — `contribution/prune` (excludes a reference from views containing the claim; per-edge content carries the reason)
 
 All three edge classes also appear as node classes. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
-
-#todo[Edge taxonomy expansion:
-
-- *`relation/*`* — semantic relation edges (carry `relation_direction`).
-- *`derivation/*`* — citations to the inputs a claim was derived from. Subtype names the kind of derivation: `derivation/chunk` for an extraction, `derivation/transcription` for a transcribed source, etc.
-- *`contribution/*`* — claims about the work on the graph. Open-vocabulary subtypes include:
-  - identity and governance: `contribution/agent`, `contribution/policy`, `contribution/signature`, `contribution/pubkey`, `contribution/config`
-  - structural: *`contribution/head`* — consolidates currently-open heads under a single root, making the instance addressable by one hash (see @sec:head)
-  - view-modifying: *`contribution/prune`* — a `contribution/prune` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason (legal takedown, redaction, boolean difference, etc.).
-
-The three classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes.]
 
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
 *Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
-
-#todo[Add §4.6 *Instances, Substrate, and Branches*: define foundational notions at the math level.
-
-(1) $cal(U)$ — *the substrate*: the union of all claims that have ever been created. Monotone (only ever extended). Not held by any single party in the math; implementations choose where it lives.
-
-(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `derivation/*`, `contribution/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
-
-(3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$ — guaranteed by construction (@sec:head): branches resolve to a head, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; head consolidation resolves them.
-
-(4) $B_x$ — *the branch named $x$*: at any moment, $B_x$ denotes the current graph at branch $x$ — equivalently, $"RG"_h$ where $h$ is the head currently bound to $x$. So $B_x subset.eq cal(U)$ at any frozen moment; mutability lives at the *name-binding* layer (the binding $x arrow.r.bar h$ may be updated as the graph grows). The hash is internal; the user-facing handle is $B_x$. A pure-pointer abstraction at heart; how branches are stored or synchronised is implementation choice (rankedb).
-
-Subsequent sections use $"RG"_h$, $cal(U)$, and $B$ freely as defined here.]
 
 = What Emerges <sec:emerges>
 
@@ -353,7 +335,7 @@ External anchoring (publishing a hash to a tamper-evident medium for third-party
 
 Restate §5.3 around heads-as-handles: anchoring is not occasional, it is constant; pick any head in your history and you have a tamper-evident witness of everything reachable from it.]
 
-Heads are `contribution/head` claims whose `contribution/head` edges name all currently-open heads of $G$ plus the previous head:
+Heads are `contribution/head` claims whose `contribution/head` edges reference all currently-open heads of $G$ plus the previous head:
 $
   h_0 &= H(op("open-heads")(G, t_0)) \
   h_n &= H(op("open-heads")(G, t_n) || h_(n-1))
@@ -407,7 +389,7 @@ The operator collapses to commodity storage + commodity gatekeeper. The trust po
 
 #todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (a head); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
 
-#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges name the heads of the operand graphs that are part of the result and whose `contribution/prune` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
+#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges reference the heads of the operand graphs that are part of the result and whose `contribution/prune` edges reference what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
 
 #todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
 
