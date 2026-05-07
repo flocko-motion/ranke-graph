@@ -138,7 +138,7 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 
 ```
 node = {
-  type:         string (class/subtype, e.g. "evidence/conversation"),
+  type:         string (class/subtype, e.g. "source/conversation"),
   content_hash: H(content),
   encoding:     string (class/subtype, e.g. "text/eml"),
   created_at:   timestamp (UTC),
@@ -255,26 +255,24 @@ The reading rule above is formalized in @sec:semantic-reading as the bijection b
 
 == Content Classes <sec:classes>
 
-The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `evidence/*`, `contribution/*`, `derivation/*`, `entity/*`, `relation/*` — together with four edge classes:
+The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contribution/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
-- *`contribution/*`* — claims about the work on the graph (contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding such as `contribution/head`).
-- *`prune/*`* — view-modifying edges that exclude references from views containing the claim.
+- *`contribution/*`* — claims about the work on the graph: contributor identity, policies, configs, pubkeys, signatures, structural acts (`contribution/head`), and view-modifying acts (`contribution/prune`).
 
-Three classes — `relation/*`, `derivation/*`, `contribution/*` — appear at both the node and edge level. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
+All three edge classes also appear as node classes. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
 
 #todo[Edge taxonomy expansion:
 
-*Descriptive (write-side):*
 - *`relation/*`* — semantic relation edges (carry `relation_direction`).
 - *`derivation/*`* — citations to the inputs a claim was derived from. Subtype names the kind of derivation: `derivation/chunk` for an extraction, `derivation/transcription` for a transcribed source, etc.
-- *`contribution/*`* — claims about the work on the graph: contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding. Includes the structural subtype *`contribution/head`* — used to consolidate currently-open heads under a single root, making the instance addressable by one hash (see @sec:head). Subtypes within `contribution/*` are open vocabulary; head consolidation is a worker action that shapes the graph just as a policy or pubkey does.
+- *`contribution/*`* — claims about the work on the graph. Open-vocabulary subtypes include:
+  - identity and governance: `contribution/agent`, `contribution/policy`, `contribution/signature`, `contribution/pubkey`, `contribution/config`
+  - structural: *`contribution/head`* — consolidates currently-open heads under a single root, making the instance addressable by one hash (see @sec:head)
+  - view-modifying: *`contribution/prune`* — a `contribution/prune` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason (legal takedown, redaction, boolean difference, etc.).
 
-*Prescriptive:*
-- *`prune/*`* — view-modifying edges. A `prune/*` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
-
-The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes.]
+The three classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes.]
 
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
@@ -284,7 +282,7 @@ The four classes share the uniform `class/subtype` convention; subtype is open v
 
 (1) $cal(U)$ — *the substrate*: the union of all claims that have ever been created. Monotone (only ever extended). Not held by any single party in the math; implementations choose where it lives.
 
-(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `derivation/*`, `contribution/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
+(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `derivation/*`, `contribution/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
 
 (3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$ — guaranteed by construction (@sec:head): branches resolve to a head, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; head consolidation resolves them.
 
@@ -407,7 +405,7 @@ The operator collapses to commodity storage + commodity gatekeeper. The trust po
 
 #todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (a head); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
 
-#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges name the heads of the operand graphs that are part of the result and whose `prune/*` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
+#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges name the heads of the operand graphs that are part of the result and whose `contribution/prune` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
 
 #todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
 
@@ -470,7 +468,7 @@ $"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Re
 #todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible claims; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over claim fields (with access to fields of the claim's edges); concrete syntax and operator set are implementation choices (rankedb).
 
 *Definition (Pruned set).* For a hash-rooted instance $"RG"_h$, the pruned set is
-$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "reference"(e) = t }. $
+$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "type"(e) = "contribution/prune" "and" "reference"(e) = t }. $
 
 *Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
 $ "view"(h, sigma) := lr(("closure"(h, cal(U)) inter Sigma)) \\ "pruned"(h). $
@@ -502,7 +500,7 @@ Auth scoping and Merkle integrity are complementary.
 
 === Visibility Propagation
 
-#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, all of `derivation/*` (e.g.\ `derivation/chunk`, `derivation/transcription`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level, not a class-wide rule.]
+#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, all of `derivation/*` (e.g.\ `derivation/chunk`, `derivation/transcription`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along the prescriptive subtype `contribution/prune`, whose references are excluded by design. The refinement is at the subtype level, not a class-wide rule.]
 
 === Compliance by Architecture
 
