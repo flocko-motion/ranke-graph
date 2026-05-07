@@ -169,7 +169,7 @@ The owning claim's id cannot be stored on the edge: that would make $S(e)$ depen
 
 *Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
-As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Extension fields participate in $S$ like any other field.
+As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Edge content documents how the referenced claim contributed to the new claim — opaque bytes, like node content (§4.1), shaped by the application (e.g.\ "extracted lines 100–149" on an `evidence/source` edge, or per-entity role detail on a `relation/*` edge). Extension fields participate in $S$ like any other field.
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
 
