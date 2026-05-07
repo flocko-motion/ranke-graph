@@ -233,7 +233,17 @@ The reading rule above is formalized in @sec:semantic-reading as the bijection b
 
 == Content Classes <sec:classes>
 
-The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contribution/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
+The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes.
+
+*Node classes:*
+
+- *`relation/*`* — a reified relation.
+- *`derivation/*`* — a derived claim.
+- *`contribution/*`* — an operational claim about the work on the graph.
+- *`entity/*`* — an identifiable thing in the world.
+- *`source/*`* — an external data artifact.
+
+*Edge classes:*
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
