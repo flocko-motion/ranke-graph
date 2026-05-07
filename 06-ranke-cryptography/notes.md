@@ -38,7 +38,7 @@ stack:
 | Audit | validity attestations are claims |
 
 Each layer uses the same primitive — a claim with provenance, content,
-signature, anchored in snapshots — applied one level up. Nothing in this
+signature, anchored in heads — applied one level up. Nothing in this
 paper is a new structural mechanism; everything composes from the ADT.
 
 ---
@@ -47,7 +47,7 @@ paper is a new structural mechanism; everything composes from the ADT.
 
 **Mechanism.** Add `pubkey` to the content of contributor identity nodes.
 Introduce a normal claim type — e.g. `contribution/signature` — with a
-`contribution/*` edge to the signing contributor and an `evidence/*` edge
+`contribution/*` edge to the signing contributor and a `derivation/*` edge
 to the hash being signed; its content carries the signature bytes.
 
 The signature is *on a separate claim*, not a field of the signed claim.
@@ -57,7 +57,7 @@ otherwise `H(S(v))` would depend on `sign(H(S(v)))`, no fixed point.
 **Cross-attestation = web of trust by structure.** Bob signing Alice's
 claim is a `contribution/signature` claim from Bob targeting Alice's hash.
 Multiple signatures on one hash → cumulative attestation; queryable as
-"find all `contribution/signature` claims with `evidence/*` to *h*."
+"find all `contribution/signature` claims with `derivation/*` to *h*."
 Multi-sig (CRA's vendor + distributor pattern), peer review, *n*-of-*m*
 signing — all the same machinery. Web-of-trust paths emerge as subgraphs of
 the substrate, traversable like any other.
@@ -72,10 +72,10 @@ application-level over the structural primitive.
 
 ## 2. Policies as claims
 
-**A policy claim** — e.g. type `contributor/policy` — describes admission
+**A policy claim** — e.g. type `contribution/policy` — describes admission
 rules: what kinds of claims may be added; which signatures are required;
 which contributors are authorized. It is a normal claim with provenance:
-signed by an authoring contributor, traceable, anchored in snapshots,
+signed by an authoring contributor, traceable, anchored in heads,
 immutable once written.
 
 **Unified governance rule.** A graph's governance is determined by the
@@ -193,7 +193,7 @@ the rules are *in* the substrate.
 
 The same `valid(G, policy)` function the server runs at merge time, anyone
 can run later — a v2 server, an auditor, a regulator with access to a
-snapshot. Walk the substrate chronologically, find the policy that was
+head. Walk the substrate chronologically, find the policy that was
 reachable from each transition's head, replay the validation. Disagreements
 identify violations.
 
@@ -227,7 +227,7 @@ and into the structure:
 | Property | Mechanism |
 |---|---|
 | Integrity | hashes + Merkle DAG (paper 01 §5.2) |
-| Temporal | snapshots + external anchoring (paper 01 §5.3) |
+| Temporal | heads + external anchoring (paper 01 §5.3) |
 | Authenticity | signed-by claims via contributor pubkeys |
 | Governance | policies as claims; admission predicate over the graph |
 | Enforcement verifiability | replay against the same graph; violations become claims |
@@ -294,8 +294,8 @@ conventions live in implementations. Qualities-not-commitments throughout.
   Bob's exists in graph B, how do they sign each other's claims? Probably
   by referencing across `cal(U)` boundaries via hash, but the practical
   ergonomics need work.
-- *Snapshot frequency vs anchoring frequency.* Anchoring is expensive
-  (publishing to external medium); snapshots are cheap. What's the right
+- *Head-publication frequency vs anchoring frequency.* Anchoring is expensive
+  (publishing to external medium); heads are cheap. What's the right
   cadence for each? Application-level but worth a recommendation.
 - *Validity caching.* Re-evaluating policy on every read is wasteful if
   the graph hasn't changed. Cache strategies that compose with the
