@@ -38,7 +38,7 @@ It records that a file is present, its metadata is as given, and the record has 
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
 #concept("Claim")[
-  A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their inputs. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every input it cites down to the sources.
+  A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every claim it references down to the sources.
 ]
 
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
@@ -114,15 +114,13 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 *D1. Provenance.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
 
-*D2. Semantic Relations.* Claims of the form _"these participants stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-participation cases without requiring a separate construct for each.
+*D2. Semantic Relations.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
 
 *D3. Immutability.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
 
-*D4. Verifiable History.* The state of the store at any past point in time is provable to a third party without reliance on the operator.
+*D4. Verifiable History.* The state of the store at past points in time is provable to a third party without reliance on the operator.
 
-*D5. Auth-Scoped Visibility.* Visibility of a claim to an observer is determined structurally, not by policy: an observer sees a claim only if it sees every artifact and intermediate derivation on which the claim depends. Visibility propagates from inputs to outputs without explicit administration.
-
-#todo[D5 refinement (revised 2026-05-07): visibility propagates along edges that record *semantic dependency*. The class `relation/*`, `contribution/*`, and most `evidence/*` subtypes (e.g. `evidence/source`, `evidence/chunk`) carry semantic dependency and propagate visibility. `evidence/head` is *topological evidence* — a snapshot does not depend on its heads' content, only on their hashes for Merkle integrity — and does NOT propagate visibility. Prescriptive edges (`prune/*`) also do not propagate visibility (their targets are excluded by design). The refinement is at the subtype level for `evidence/*`, not a new class rule.]
+*D5. Scoped Visibility.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
 
 *D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
@@ -141,58 +139,46 @@ node = {
   type:         string (class/subtype, e.g. "source/conversation"),
   content_hash: hash of the content bytes,
   encoding:     string (class/subtype, e.g. "text/eml"),
-  created_at:   timestamp,
-  edges:        set of input edge ids,
+  created_at:   timestamp (UTC),
+  edges:        set of edge ids,
   ...:          additional implementation-defined fields
 }
 ```
 
-Identity:
-
-$ op("id")(v) := H(S(v)) $
-
-where $S$ is the canonical serialization (@sec:structure) and $H$ the cryptographic hash. Two nodes with identical content but different provenance produce different ids.
+Two nodes with identical content but different provenance produce different ids.
 
 - `type` and `encoding` follow the `class/subtype` convention (@sec:classes): the first segment is from a fixed set, the second is open vocabulary.
 - `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
-- `created_at` is the timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
+- `created_at` is the UTC timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
 - Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
 
 == Edges <sec:edges>
 
-An edge belongs to one node — its _parent_ — recoverable as the node whose `edges` set contains the edge's id.
+Each edge is part of exactly one claim, recoverable as the claim whose node lists the edge's id in its `edges` set.
 
 ```
 edge = {
-  target:       hash_of_target_node,
+  reference:    hash of the referenced claim,
   type:         string (class/subtype, e.g. "relation/family", "evidence/chunk", "contribution/worker"),
   content_hash: hash of the content bytes,
   ...:          additional implementation-defined fields
 }
 ```
 
-Identity:
+The owning claim is implicit by necessity: if its id were a field on the edge, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
 
-$ op("id")(e) := H(S(e)) $
+*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
-Parent is implicit by necessity: if it were a field, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
+As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Extension fields participate in $S$ like any other field.
 
-*Structural direction is universal.* Every edge runs from an older node (its `target`) to the newer node that owns it (its parent), since the atomic creation rule (@sec:atomic) only allows references to already-existing nodes. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. We call such an edge an *input edge* of its parent. Acyclicity (@sec:acyclicity) follows directly.
-
-As for nodes, `type` follows the `class/subtype` convention (@sec:classes); `content_hash` commits to the edge's content bytes.
-
-- *Relation edge* (`relation/*`). Carries a `relation_direction` (@sec:relation-direction); connects a relation node (parent) to a participant (target).
-- *Provenance edge.* Class `contribution/*` (target is an agent or tool — every claim has at least one, to its contributor) or `evidence/*` (target is data the parent processed). The reference by hash _is_ the provenance record; no further field is required.
-- Extension fields work as for nodes (@sec:nodes).
-
-A node carries its edges' ids in its own record, so edges are Merkle-secured through the parent (@sec:merkle).
+A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
 
 == Atomic Claim Creation <sec:atomic>
 
-A *claim* is a node together with all its input edges. A claim is created in a single atomic transaction comprising:
+A *claim* is a node together with all its edges. A claim is created in a single atomic transaction comprising:
 
 - $n$ provenance edges (to sources, prior derivations, and the contributor),
-- $m$ relation edges (to relation participants, carrying `relation_direction`).
+- $m$ relation edges (to the related entities, carrying `relation_direction`).
 
 Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
@@ -208,9 +194,9 @@ The structure so far is a Merkle DAG. A semantic graph is not — it admits cycl
 
 Two additions enable the semantic reading:
 
-+ *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its participants. The relation's type lives on the relation node; participants are the edges' targets.
++ *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
 
-+ *The `relation_direction` field tags each participant's role in the reading.* Carried on each relation edge, with values
++ *The `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
   $ "relation_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
   The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
@@ -229,7 +215,7 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
     node((0, 0), [Contributor]),
     node((0, 1), [Source]),
 
-    // Visual gap, then participants below.
+    // Visual gap, then entities below.
     node((0, 3), [Bob 1]),
     node((0, 4), [Bob 2]),
     node((0, 5), [Alice]),
@@ -252,13 +238,13 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
   caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `rdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `rdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `rdir` = `relation_direction`, `conv` = `conviction`.],
 ) <fig:relation>
 
-The same pattern scales to $n$-ary relations without changing the edge schema: more participants, more relation edges, each with its own role tag.
+The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
 
-A relation node of type `are_similar` with $n$ `peer`-tagged edges represents a *similarity cluster*: a set of participants asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
+A relation node of type `are_similar` with $n$ `peer`-tagged edges represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
 
 Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
 
-A consequence of reifying relations as nodes: provenance edges target only nodes, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other node.
+A consequence of reifying relations as nodes: provenance edges have only claims as references, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other claim.
 
 The reading rule above is formalized in @sec:semantic-reading as the bijection between the structural and semantic readings of the same data.
 
@@ -267,18 +253,18 @@ The reading rule above is formalized in @sec:semantic-reading as the bijection b
 The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — provenance edges to contributors involved in the parent's creation.
-- *`evidence/*`* — provenance edges to data the parent processed.
+- *`contribution/*`* — provenance edges to contributors involved in the claim's creation.
+- *`evidence/*`* — provenance edges to data the claim processed.
 
 #todo[Update edge taxonomy to *four classes*, grouped into kinds:
 
 *Descriptive (write-side):*
 - *`relation/*`* — semantic relation edges (carry `relation_direction`).
 - *`contribution/*`* — provenance to contributors.
-- *`evidence/*`* — provenance to data inputs. Includes the topological subtype *`evidence/head`* — used by snapshots to consolidate currently-open heads. Open heads are the *evidence* a new snapshot uses to become the new head; hence the subtype reading. `evidence/head` is structurally normal evidence at the parser level; its distinct epistemic role (topology rather than semantic dependency) is captured by the subtype.
+- *`evidence/*`* — provenance to data the claim references. Includes the topological subtype *`evidence/head`* — used by snapshots to consolidate currently-open heads. Open heads are the *evidence* a new snapshot uses to become the new head; hence the subtype reading. `evidence/head` is structurally normal evidence at the parser level; its distinct epistemic role (topology rather than semantic dependency) is captured by the subtype.
 
 *Prescriptive:*
-- *`prune/*`* — view-modifying edges. A `prune/*` edge from claim $c$ to target $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
+- *`prune/*`* — view-modifying edges. A `prune/*` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
 
 The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `evidence/head` is the standard subtype for topology; other `evidence/*` subtypes (`evidence/source`, `evidence/chunk`, etc.) carry semantic dependency.]
 
@@ -302,12 +288,12 @@ Subsequent sections use $"RG"_h$, $cal(U)$, and $B$ freely as defined here.]
 
 == Acyclicity <sec:acyclicity>
 
-Let $G = (V, E)$ be the graph. Every edge $e in E$ has a target ($op("target")(e)$, the node it points at) and an implicit parent (the node whose `edges` set contains $op("id")(e)$). Edges are created atomically with their parent node (@sec:atomic).
+Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:atomic).
 
 #theorem[$G$ is acyclic.]
 
 #proof[
-  By the atomic creation rule (@sec:atomic), every edge $e$ owned by $v$ targets a node $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
+  By the atomic creation rule (@sec:atomic), every edge $e$ owned by node $v$ has reference $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
 ]
 
 The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
@@ -320,7 +306,7 @@ The proof makes no use of the class taxonomy: every edge runs old → new by the
 
 == Content Addressing and Merkle Integrity <sec:merkle>
 
-Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for edges (@sec:structure). Every id is therefore a cryptographic hash, and a node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the targets they reference.
+Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for edges (@sec:structure). Every id is therefore a cryptographic hash, and a node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the claims they reference.
 
 === Tampering Detectable at the Root
 
@@ -331,7 +317,7 @@ Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for ed
 
   _Base case._ $v' = v$. Changing any field of $v$ changes $op("id")(v)$ directly ($H$ is collision-resistant).
 
-  _Inductive step._ $v'$ is an ancestor of $v$ in $G$. There exists a path $v' arrow.r dots.h.c arrow.r u arrow.r v$ in $G$ (following edges from $v$ back through its references). By the inductive hypothesis, manipulation of $v'$ changes $op("id")(u)$. $op("id")(u)$ is the target hash used in the computation of some edge $e$ of $v$. Changing $op("id")(u)$ changes $op("id")(e)$. Changing $op("id")(e)$ changes $op("id")(v)$ (since $op("id")(e)$ is part of $v$'s hash computation and $H$ is collision-resistant).
+  _Inductive step._ $v'$ is an ancestor of $v$ in $G$. There exists a path $v' arrow.r dots.h.c arrow.r u arrow.r v$ in $G$ (following edges from $v$ back through its references). By the inductive hypothesis, manipulation of $v'$ changes $op("id")(u)$. $op("id")(u)$ is the reference hash used in the computation of some edge $e$ of $v$. Changing $op("id")(u)$ changes $op("id")(e)$. Changing $op("id")(e)$ changes $op("id")(v)$ (since $op("id")(e)$ is part of $v$'s hash computation and $H$ is collision-resistant).
 ]
 
 #corollary[
@@ -359,7 +345,7 @@ External anchoring (publishing a hash to a tamper-evident medium for third-party
 
 Restate §5.3 around snapshots-as-handles: anchoring is not occasional, it is constant; pick any snapshot in your history and you have a tamper-evident witness of everything reachable from it.]
 
-Snapshots are special nodes whose inputs are all current heads (nodes with no children in $G$) plus the previous snapshot:
+Snapshots are special nodes whose references are all current heads (nodes with no children in $G$) plus the previous snapshot:
 $
   s_0 &= H(op("heads")(G, t_0)) \
   s_n &= H(op("heads")(G, t_n) || s_(n-1))
@@ -383,7 +369,7 @@ Snapshot hashes can be published to any external timestamping service — for in
 
 *The structure of this paper's mention.* One paragraph stating that the claim machinery enables a complete trust posture as application-layer patterns:
 
-- *Signatures as claims* — `pubkey` in contributor content; signed-by claims target hashes via `evidence/*`. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
+- *Signatures as claims* — `pubkey` in contributor content; signed-by claims reference hashes via `evidence/*`. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
 - *Policies as claims* — admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head.
 - *Validity is a function of a graph* — `valid(G, policy)`. Invalid graphs are well-formed; merge is structural composition; validation is a separate operation any party can run at any time.
 - *Full historical auditability* — anyone can replay the validity check against the graph. Violations are recognized via additional claims; self-healing through accumulation, not editing.
@@ -420,9 +406,9 @@ The operator collapses to commodity storage + commodity gatekeeper. The trust po
 Proof sketch composes three structural facts:
 (1) content-addressed ids (@sec:structure) make node identity decidable by hash equality (O(1));
 (2) immutability (D3, @sec:atomic) means a given id corresponds to one fixed record — no version disagreement is possible;
-(3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-target relation is itself a DAG; closure costs O(|E|).
+(3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-reference relation is itself a DAG; closure costs O(|E|).
 
-Each set op produces a node-id subset; closing under target-references yields a well-formed instance.]
+Each set op produces a node-id subset; closing under reference-traversal yields a well-formed instance.]
 
 === Cheap Forks
 
@@ -434,7 +420,7 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 === Operations and Composability
 
-#todo[The Set Algebra Theorem above is the *operational definition* of the ADT's four binary operations. The proof gives the rules: each operation produces a node-id subset by hash-set algebra, then closes under target-references to form a well-formed instance. Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur. (Any read or write operation on a Ranke-Graph — whether through a library, a server, or a query layer — composes from these four; the ADT does not prescribe an interface, only the operations it must support.)]
+#todo[The Set Algebra Theorem above is the *operational definition* of the ADT's four binary operations. The proof gives the rules: each operation produces a node-id subset by hash-set algebra, then closes under reference-traversal to form a well-formed instance. Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur. (Any read or write operation on a Ranke-Graph — whether through a library, a server, or a query layer — composes from these four; the ADT does not prescribe an interface, only the operations it must support.)]
 
 #dref[D6, this section]
 
@@ -444,12 +430,12 @@ Each set op produces a node-id subset; closing under target-references yields a 
 
 The Ranke-Graph admits two readings of the same $V$ and $E$:
 
-- the *structural reading* $"RG" = (V, E)$ — every edge runs target $arrow.r$ parent (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
+- the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `contribution/*` and `evidence/*` are unchanged.
 
 For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, 0, -1}$ denote `relation_direction` (@sec:relation-direction).
 
-*Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (parent $r$, target $t$) is oriented:
+*Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
 
 - $t arrow.r r$ if $op("rdir")(e) = +1$,
 - $r arrow.r t$ if $op("rdir")(e) = -1$,
@@ -468,22 +454,22 @@ All other edges are invariant.
 
 $ V_("SG") = {v in V : op("class")(v) in {"entity", "relation"}}, quad E_("SG") = {e in E : op("class")(e) = "relation"}. $
 
-$"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-participant attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
+$"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-entity attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
 
 == Auth-Scoped Visibility and Verifiable Partial Views
 
 #todo[Disambiguate: visibility scoping operates over $cal(U)$, returning a smaller $"RG"_h$ to the user. Every user query is $(h, sigma)$ for some scope $sigma$; the server selects $"RG"_h$ from $cal(U)$ filtered by $sigma$. Re-frame this section once §4.6 lands.]
 
-#todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible nodes; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over node fields (with access to fields of the node's input edges); concrete syntax and operator set are implementation choices (rankedb).
+#todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible claims; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over claim fields (with access to fields of the claim's edges); concrete syntax and operator set are implementation choices (rankedb).
 
 *Definition (Pruned set).* For a hash-rooted instance $"RG"_h$, the pruned set is
-$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "target"(e) = t }. $
+$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "reference"(e) = t }. $
 
 *Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
 $ "view"(h, sigma) := lr(("closure"(h, cal(U)) inter Sigma)) \\ "pruned"(h). $
-Equivalently: take the closure, keep scope-eligible nodes, subtract pruned targets.
+Equivalently: take the closure, keep scope-eligible claims, subtract pruned claims.
 
-*Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a target. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
+*Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a claim. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
 
 *Property (Pure function).* $"view"(h, sigma)$ is a deterministic function of $(cal(U), h, sigma)$. Caches at the implementation layer are throw-awayable and reconstructible.]
 
@@ -509,7 +495,7 @@ Auth scoping and Merkle integrity are complementary.
 
 === Visibility Propagation
 
-#todo[Formalise: a node is visible iff all its inputs are visible. Visibility propagates through $G_p$ automatically. Compliance by structure, not by policy.]
+#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency — class `relation/*`, `contribution/*`, and the semantic subtypes of `evidence/*` (e.g.\ `evidence/source`, `evidence/chunk`). It does *not* propagate along `evidence/head` (topological evidence — a snapshot depends on its heads' content only via hash for Merkle integrity, not semantically) nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level for `evidence/*`, not a new class rule.]
 
 === Compliance by Architecture
 
