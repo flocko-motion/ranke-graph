@@ -132,7 +132,7 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -189,7 +189,7 @@ References across instances are not transfers: a hash addresses the same claim i
 
 == Hash-Rooted Instances <sec:head>
 
-Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
+Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. We write $V$ for its node set (one node per claim) and $E$ for the union of their edges, so $"RG"_h$ is the graph $(V, E)$. The hash alone suffices to recover it.
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
@@ -197,15 +197,17 @@ To make such an instance addressable, we give it *a head*: a new `contribution/h
 
 == Branches <sec:branches>
 
-A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any frozen moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable. The hash $h$ is internal; the user-facing handle is $B_x$.
+A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable.
 
 A branch advance creates a new head and rebinds $x$ to its hash. Earlier heads remain in $cal(U)$ (immutability) but the branch lets go of them; only the latest is the active handle.
+
+Branches enable concurrent contribution: with $B$, contributors write to a branch name and the binding resolves to the current head at write time. Sequencing of simultaneous writes is an implementation concern; the structural enabler is the existence of $B$.
 
 A complete Ranke-Graph state is the pair $(cal(U), B)$ — the immutable claim store and the mutable name-bindings over it. $cal(U)$ is the data; $B$ is the set of pointers into it; everything else (closures, views, queries) is derived.
 
 #todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
 
-== Relation Direction <sec:relation-direction>
+== Semantic Relations <sec:semantic-relations>
 
 Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
 
@@ -431,7 +433,7 @@ The Ranke-Graph admits two readings of the same $V$ and $E$:
 - the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `derivation/*` and `contribution/*` are unchanged.
 
-For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:relation-direction).
+For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-relations).
 
 *Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
 
