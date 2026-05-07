@@ -138,7 +138,7 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 
 ```
 node = {
-  type:         string (class/subtype, e.g. "source/conversation"),
+  type:         string (class/subtype, e.g. "evidence/conversation"),
   content_hash: H(content),
   encoding:     string (class/subtype, e.g. "text/eml"),
   created_at:   timestamp (UTC),
@@ -161,7 +161,7 @@ Each edge is part of exactly one claim, recoverable as the claim whose node list
 ```
 edge = {
   reference:    id of referenced claim,
-  type:         string (class/subtype, e.g. "relation/family", "evidence/chunk", "contribution/worker"),
+  type:         string (class/subtype, e.g. "relation/family", "derivation/chunk", "contribution/worker"),
   content_hash: H(content),
   ...:          additional implementation-defined fields
 }
@@ -171,7 +171,7 @@ The owning claim's id cannot be stored on the edge: that would make $S(e)$ depen
 
 *Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
-As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on an `evidence/source` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
+As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
 
@@ -187,11 +187,11 @@ References across instances are not transfers: a hash addresses the same claim i
 
 == Hash-Rooted Instances <sec:head>
 
-Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of references reachable from $h$. The hash alone suffices to recover it.
+Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
-To make such an instance addressable, we give it *a head*: a new claim whose `contribution/head` edges name every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
+To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges name every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
 
 #todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
 
@@ -255,24 +255,26 @@ The reading rule above is formalized in @sec:semantic-reading as the bijection b
 
 == Content Classes <sec:classes>
 
-The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with four edge classes:
+The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `evidence/*`, `contribution/*`, `derivation/*`, `entity/*`, `relation/*` — together with four edge classes:
 
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`evidence/*`* — provenance to data the claim references.
+- *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
 - *`contribution/*`* — claims about the work on the graph (contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding such as `contribution/head`).
 - *`prune/*`* — view-modifying edges that exclude references from views containing the claim.
 
-#todo[Update edge taxonomy to *four classes*, grouped into kinds:
+Three classes — `relation/*`, `derivation/*`, `contribution/*` — appear at both the node and edge level. The pattern is uniform: at the node level the class names a *thing* (a relation, a derivation, a contribution), at the edge level it names the *act* binding the owning claim to that thing (asserting the relation, deriving from an input, recording a contribution).
+
+#todo[Edge taxonomy expansion:
 
 *Descriptive (write-side):*
 - *`relation/*`* — semantic relation edges (carry `relation_direction`).
-- *`evidence/*`* — provenance to data the claim references (sources, chunks, derivations).
+- *`derivation/*`* — citations to the inputs a claim was derived from. Subtype names the kind of derivation: `derivation/chunk` for an extraction, `derivation/transcription` for a transcribed source, etc.
 - *`contribution/*`* — claims about the work on the graph: contributor identity, policies, configs, pubkeys, signatures, and structural scaffolding. Includes the structural subtype *`contribution/head`* — used to consolidate currently-open heads under a single root, making the instance addressable by one hash (see @sec:head). Subtypes within `contribution/*` are open vocabulary; head consolidation is a worker action that shapes the graph just as a policy or pubkey does.
 
 *Prescriptive:*
 - *`prune/*`* — view-modifying edges. A `prune/*` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
 
-The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `contribution/head` is the standard subtype for graph-topology scaffolding; other `contribution/*` subtypes (e.g.\ `contribution/agent`, `contribution/policy`, `contribution/signature`) carry governance and identity concerns.]
+The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes.]
 
 *Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
 
@@ -282,7 +284,7 @@ The four classes share the uniform `class/subtype` convention; subtype is open v
 
 (1) $cal(U)$ — *the substrate*: the union of all claims that have ever been created. Monotone (only ever extended). Not held by any single party in the math; implementations choose where it lives.
 
-(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `contribution/*`, `evidence/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
+(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `derivation/*`, `contribution/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
 
 (3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$ — guaranteed by construction (@sec:head): branches resolve to a head, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; head consolidation resolves them.
 
@@ -351,7 +353,7 @@ External anchoring (publishing a hash to a tamper-evident medium for third-party
 
 Restate §5.3 around heads-as-handles: anchoring is not occasional, it is constant; pick any head in your history and you have a tamper-evident witness of everything reachable from it.]
 
-Heads are claims whose `contribution/head` edges name all currently-open heads of $G$ plus the previous head:
+Heads are `contribution/head` claims whose `contribution/head` edges name all currently-open heads of $G$ plus the previous head:
 $
   h_0 &= H(op("open-heads")(G, t_0)) \
   h_n &= H(op("open-heads")(G, t_n) || h_(n-1))
@@ -375,7 +377,7 @@ Head hashes can be published to any external timestamping service — for instan
 
 *The structure of this paper's mention.* One paragraph stating that the claim machinery enables a complete trust posture as application-layer patterns:
 
-- *Signatures as claims* — `pubkey` in contributor content; signed-by claims reference hashes via `evidence/*`. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
+- *Signatures as claims* — `pubkey` in `contribution/*` content; signed-by claims reference hashes via `contribution/signature` edges. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
 - *Policies as claims* — admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head.
 - *Validity is a function of a graph* — `valid(G, policy)`. Invalid graphs are well-formed; merge is structural composition; validation is a separate operation any party can run at any time.
 - *Full historical auditability* — anyone can replay the validity check against the graph. Violations are recognized via additional claims; self-healing through accumulation, not editing.
@@ -437,7 +439,7 @@ Each set op produces a node-id subset; closing under reference-traversal yields 
 The Ranke-Graph admits two readings of the same $V$ and $E$:
 
 - the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
-- the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `contribution/*` and `evidence/*` are unchanged.
+- the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `derivation/*` and `contribution/*` are unchanged.
 
 For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:relation-direction).
 
@@ -451,7 +453,7 @@ All other edges are invariant.
 *Properties.*
 
 - The two readings are bijective on $V$ and $E$, and switching is computable in $O(|E|)$.
-- Provenance traversal — `contribution/*` and `evidence/*` edges — is identical in both readings; no sign logic is ever needed for it.
+- Provenance traversal — `derivation/*` and `contribution/*` edges — is identical in both readings; no sign logic is ever needed for it.
 - $"RG"^S$ admits cycles (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_); $"RG"$ does not.
 - The structural theorems (@sec:acyclicity, @sec:merkle, @sec:crdt) hold on the underlying $V$ and $E$; both readings inherit them.
 
@@ -500,7 +502,7 @@ Auth scoping and Merkle integrity are complementary.
 
 === Visibility Propagation
 
-#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, the semantic subtypes of `evidence/*` (e.g.\ `evidence/source`, `evidence/chunk`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level, not a class-wide rule.]
+#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, all of `derivation/*` (e.g.\ `derivation/chunk`, `derivation/transcription`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level, not a class-wide rule.]
 
 === Compliance by Architecture
 
