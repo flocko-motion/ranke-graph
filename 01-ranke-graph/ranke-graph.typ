@@ -126,7 +126,7 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (`source/*`, `derivation/*`, `entity/*`, `relation/*`, `contribution/*`; catalogued in @sec:types). From this definition, the structural consequences emerge (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -145,8 +145,9 @@ node = {
 
 Two nodes with identical content but different provenance produce different ids.
 
-- `type` and `encoding` follow the `class/subtype` convention (@sec:types, @sec:encoding): the first segment is from a fixed set, the second is open vocabulary.
-- `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
+- `type` follows the `class/subtype` convention (@sec:types): the first segment is from a fixed set, the second is open vocabulary.
+- `encoding` is a MIME media type (@freed2013rfc6838) — e.g.\ `text/plain`, `image/png`, `message/rfc822` — telling consumers how to interpret the content bytes.
+- `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`.
 - `created_at` is the UTC timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
 - Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:verifiability and onward) apply uniformly to any refinement.
 
@@ -170,33 +171,6 @@ The owning claim's id cannot be stored on the edge: that would make $S(e)$ depen
 As for nodes, `type` follows the `class/subtype` convention (@sec:types), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:verifiability).
-
-== Types <sec:types>
-
-The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes; subtype vocabulary is open.
-
-*Node classes:*
-
-- *`source/*`* — an external data artifact.
-- *`derivation/*`* — a claim built from other claims as inputs.
-- *`entity/*`* — an identifiable thing in the world.
-- *`relation/*`* — a node representing a relation among entities.
-- *`contribution/*`* — a claim about contributors or their actions on the graph.
-
-*Edge classes:*
-
-- *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
-- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
-  - *`contribution/contributor`* — names the contributor of a claim
-  - *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
-  - *`contribution/branches`* — names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
-  - *`contribution/branch`* — edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
-  - *`contribution/prune`* — view-modifying; excludes a reference from views containing the claim
-
-== Encodings <sec:encoding>
-
-A node's `encoding` field is a MIME media type (@freed2013rfc6838), telling consumers how to interpret its content bytes (addressed by `content_hash`). Examples: `text/plain`, `image/png`, `message/rfc822`.
 
 == Claims <sec:claims>
 
@@ -637,5 +611,28 @@ Each component has mature prior art; the architectural composition is novel.
 #todo[A small structure, a long list of consequences. Forward pointers to the implementation paper (working title _RankeDB_) and to subsequent work on workers, retrieval, and orchestration.]
 
 #todo[Closing paragraph: reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.]
+
+= Type Vocabulary <sec:types>
+
+The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes; subtype vocabulary is open.
+
+*Node classes:*
+
+- *`source/*`* — an external data artifact.
+- *`derivation/*`* — a claim built from other claims as inputs.
+- *`entity/*`* — an identifiable thing in the world.
+- *`relation/*`* — a node representing a relation among entities.
+- *`contribution/*`* — a claim about contributors or their actions on the graph.
+
+*Edge classes:*
+
+- *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
+- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
+- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
+  - *`contribution/contributor`* — names the contributor of a claim
+  - *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
+  - *`contribution/branches`* — names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
+  - *`contribution/branch`* — edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/prune`* — view-modifying; excludes a reference from views containing the claim
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
