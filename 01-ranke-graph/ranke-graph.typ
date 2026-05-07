@@ -452,7 +452,7 @@ $"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Re
 $ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "target"(e) = t }. $
 
 *Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
-$ "view"(h, sigma) := big( "closure"(h, cal(U)) inter Sigma big) \\ "pruned"(h). $
+$ "view"(h, sigma) := lr(("closure"(h, cal(U)) inter Sigma)) \\ "pruned"(h). $
 Equivalently: take the closure, keep scope-eligible nodes, subtract pruned targets.
 
 *Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a target. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
