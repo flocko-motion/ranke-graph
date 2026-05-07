@@ -37,6 +37,8 @@ A _claim_ in the Ranke-Graph is an attributed record — a piece of content adde
 
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
+#todo[Self-review: verify that §5 explicitly returns to and validates the three-statements framing — that the paper demonstrates why storing at "the third layer" (attributed claims) yields the emergent properties. Without this payoff, the §1 hook lands without follow-through.]
+
 = The Problem and the Position
 
 == Knowledge Systems: Machines Reading and Writing at Scale
@@ -108,19 +110,19 @@ Following the motivation in @sec:introduction, we state the obligations any Rank
 
 The desiderata describe what is required; the choice of how to satisfy them is open.
 
-*D1. Provenance.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
+*D1. Provenance — every claim has a path back to its sources.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
 
-*D2. Semantic Relations.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
+*D2. Semantic Relations — rich relations can be expressed.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
 
-*D3. Immutability.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
+*D3. Immutability — no claim is ever modified or deleted.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
 
-*D4. Verifiable History.* The state of the store at past points in time is provable to a third party without reliance on the operator.
+*D4. Verifiability — integrity is provable from the structure.* Any past state of the graph is provable to a third party from the structure alone, without reliance on the operator.
 
-*D5. Scoped Visibility.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
+*D5. Scoped Visibility — visibility propagates along references and admits scoping.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
 
-*D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
+*D6. Distributability — replicas converge without coordination.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
-*D7. Open-Ended Vocabulary.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
+*D7. Open-Ended Vocabulary — vocabulary is unbounded.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
 
 = The Data Structure <sec:structure>
 
@@ -203,7 +205,7 @@ A complete Ranke-Graph state is the pair $(cal(U), B)$: the immutable claim stor
 
 Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
 
-A relation is itself a claim — a relation node with relation edges to its entities, like any other claim.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). It follows from the no-edge-references rule (@sec:edges): edges cannot point at edges, so relations cannot be encoded as plain edges between entities.] Each relation edge carries a `relation_direction` field tagging the entity's role, with values `from`/+1 or `to`/-1.
+A relation is itself a claim — a `relation/*` node with `relation/*` edges to its entities, but otherwise like any other claim.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). It follows from the no-edge-references rule (@sec:edges): edges cannot point at edges, so relations cannot be encoded as plain edges between entities.] Each relation edge carries a `relation_direction` field tagging the entity's role, with values `from`/+1 or `to`/-1. All-`from` or all-`to` expresses a symmetric relation: no entity is distinguished by role — e.g., `are_friends`.
 
 A hash-rooted instance $"RG"_h$ admits a *semantic reading* $"RG"_h^S$ in which each `relation/*` edge's direction is inverted when `relation_direction = -1`.
 
@@ -286,6 +288,7 @@ Identical claims are the same claim — writes are idempotent, deduplication is 
 #todo[Add a "Backup from a Hash Root" sub-property: a single root hash plus access to the content store reconstitutes the entire graph and proves its integrity. State as a corollary of Merkle integrity. Lands right after Idempotency while the structure is fresh.]
 
 #dref[D3, this section]
+#dref[D4, this section]
 
 == Anchoring <sec:anchoring>
 
@@ -309,8 +312,6 @@ Head hashes can be published to any external timestamping service — for instan
 #todo[Add the *anchoring composition theorem*: publishing a single head hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that head but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
 
 #todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
-
-#dref[D4, this section]
 
 == Cryptographic Attestation <sec:attestation>
 
