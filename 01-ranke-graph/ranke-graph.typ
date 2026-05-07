@@ -195,12 +195,12 @@ Provenance requires acyclicity — hash recursion has no fixed point in a graph 
 + *Relations are reified as nodes.* (Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
 
 + *A `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
-  $ "relation_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
+  $ "relation_direction" in {"from" = +1, "to" = -1}. $
   The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
-To read a relation, gather the relation node and all its relation edges, forming the generalised quadruplet
-$ ("from_nodes", "relationship", "to_nodes", "peer_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, `peer`-tagged edges contribute `peer_nodes`, and the relation node supplies the relationship. Any slot may be empty: a binary directional relation has one from and one to and no peers; a symmetric similarity cluster has only peers. @fig:relation illustrates the binary directional case under entity-resolution ambiguity.
+To read a relation, gather the relation node and all its relation edges, forming the triplet
+$ ("from_nodes", "relationship", "to_nodes"), $
+where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty has no role asymmetry to record — the entities are equally positioned. @fig:relation illustrates the binary case under entity-resolution ambiguity.
 
 #figure(
   pad(x: -2.5cm, align(center, diagram(
@@ -238,7 +238,7 @@ where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute 
 
 The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
 
-A relation node of type `are_similar` with $n$ `peer`-tagged edges represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
+A relation node of type `are_similar` with all $n$ entities on the same side of the triplet (the from-side empty, the to-side carrying all entities) represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
 
 Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
 
@@ -431,13 +431,12 @@ The Ranke-Graph admits two readings of the same $V$ and $E$:
 - the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `contribution/*` and `evidence/*` are unchanged.
 
-For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, 0, -1}$ denote `relation_direction` (@sec:relation-direction).
+For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:relation-direction).
 
 *Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
 
 - $t arrow.r r$ if $op("rdir")(e) = +1$,
-- $r arrow.r t$ if $op("rdir")(e) = -1$,
-- ${r, t}$ (undirected) if $op("rdir")(e) = 0$.
+- $r arrow.r t$ if $op("rdir")(e) = -1$.
 
 All other edges are invariant.
 
