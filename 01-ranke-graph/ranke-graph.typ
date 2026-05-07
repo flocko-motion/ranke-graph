@@ -192,15 +192,15 @@ Implementations may handle concurrent writes via sequencing, merge-snapshots, or
 
 Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
 
-+ *Relations are reified as nodes.* (Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)].) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
++ *Relations are reified as nodes.* (Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
 
 + *A `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
   $ "relation_direction" in {"from" = +1, "peer" = 0, "to" = -1}. $
   The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
-To read a relation, gather the relation node and all its relation edges, forming the generalised triple
-$ ("from_nodes", "relationship", "to_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. `peer`-tagged edges express symmetric participation, with no asymmetric role to record. @fig:relation illustrates the binary case under entity-resolution ambiguity.
+To read a relation, gather the relation node and all its relation edges, forming the generalised quadruplet
+$ ("from_nodes", "relationship", "to_nodes", "peer_nodes"), $
+where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, `peer`-tagged edges contribute `peer_nodes`, and the relation node supplies the relationship. Any slot may be empty: a binary directional relation has one from and one to and no peers; a symmetric similarity cluster has only peers. @fig:relation illustrates the binary directional case under entity-resolution ambiguity.
 
 #figure(
   pad(x: -2.5cm, align(center, diagram(
