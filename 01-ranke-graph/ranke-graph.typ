@@ -190,9 +190,7 @@ Implementations may handle concurrent writes via sequencing, merge-snapshots, or
 
 == Relation Direction <sec:relation-direction>
 
-The structure so far is a Merkle DAG. A semantic graph is not — it admits cycles that a DAG forbids. The semantic information is therefore embedded in the DAG: the *semantic reading* (@sec:semantic-reading) of the same $V$ and $E$ reveals it as a graph that admits cycles.
-
-Two additions enable the semantic reading:
+Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
 
 + *Relations are reified as nodes.* (Reification — see RDF 1.0 `rdf:Statement` (W3C, 1999) #todo[(add RDF 1.0 to sources.bib)] — is a known technique.) A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
 
