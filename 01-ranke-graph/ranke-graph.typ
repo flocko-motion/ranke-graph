@@ -172,7 +172,7 @@ A *claim* is a node together with the edges in its `edges` set. A claim is creat
 
 == Ranke-Graph <sec:ranke-graph>
 
-A *Ranke-Graph* (RG) is a set of claims forming a graph. A RG is _valid_, if all contain a `contribution/contributor` reference and if all references recursively resolve to a single `contribution/contributor` node - the initial node that founded the RG (@sec:types). 
+A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if it contains a unique `contribution/contributor` node with no references — the *initial node* — every other claim carries a `contribution/contributor` edge, and all references recursively resolve to the initial node (@sec:types).
 
 == Semantic Relations <sec:semantic-relations>
 
