@@ -189,7 +189,7 @@ References across instances are not transfers: a hash addresses the same claim i
 
 == Hash-Rooted Instances <sec:head>
 
-Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. We write $V$ for its node set (one node per claim) and $E$ for the union of their edges, so $"RG"_h$ is the graph $(V, E)$. The hash alone suffices to recover it.
+Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
@@ -201,35 +201,24 @@ A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes 
 
 A branch advance creates a new head and rebinds $x$ to its hash. Earlier heads remain in $cal(U)$ (immutability) but the branch lets go of them; only the latest is the active handle.
 
-Branches enable concurrent contribution: with $B$, contributors write to a branch name and the binding resolves to the current head at write time. Sequencing of simultaneous writes is an implementation concern; the structural enabler is the existence of $B$.
+Branches enable concurrent contribution: contributors write to a branch name and the binding resolves to the current head at write time.
 
-A complete Ranke-Graph state is the pair $(cal(U), B)$ — the immutable claim store and the mutable name-bindings over it. $cal(U)$ is the data; $B$ is the set of pointers into it; everything else (closures, views, queries) is derived.
-
-#todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
+A complete Ranke-Graph state is the pair $(cal(U), B)$: the immutable claim store $cal(U)$ paired with the mutable name-bindings $B$.
 
 == Semantic Relations <sec:semantic-relations>
 
-Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
+Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice knows Bob_; _Bob knows Alice_.
 
-+ *Relations are reified as nodes.*#footnote[Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).] A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
+A hash-rooted instance $"RG"_h$ reconciles the tension by admitting a *semantic reading* $"RG"_h^S$: the same claims, with `relation/*` edges reoriented by their `relation_direction` field. Two structural moves enable it:
 
-+ *A `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
++ *Relations are reified as nodes.*#footnote[Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).] A semantic relation is a relation node with relation edges to its entities.
+
++ *A `relation_direction` field tags each entity's role.* Carried on each relation edge, with values
   $ "relation_direction" in {"from" = +1, "to" = -1}. $
-  The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
 
-To read a relation, gather the relation node and all its relation edges, forming the triplet
-$ ("from_nodes", "relationship", "to_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty places all entities in the same role — either all on the from-side (each on the action side: _we're all learning from each other_) or all on the to-side (each on the receiving side: _we're all supporting each other_).
+To read a relation, gather the relation node and its relation edges, forming the triplet $("from_nodes", "relationship", "to_nodes")$ — `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`. The same pattern scales to $n$-ary relations.
 
-The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
-
-A relation node of type `are_similar` with all $n$ entities on one side of the triplet represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
-
-Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The complementary edge `content` can carry the reasoning behind a given conviction (e.g.\ on the edge to Bob 1: "based on same family name; but not certain — common name"). This is _levels of distillation_ (§2) operating within a single relation: relation type → conviction → reasoning → source provenance, each layer optional. The agent or user reads down only as deep as needed. The ADT does not define `conviction`.
-
-A consequence of reifying relations as nodes: provenance edges have only claims as references, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other claim.
-
-The reading rule above is formalized in @sec:semantic-reading as the bijection between the structural and semantic readings of the same data.
+The two readings stand in bijection (formalized in @sec:semantic-reading): translation is a local rewrite, never a copy. The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
 
 == Content Classes <sec:classes>
 
@@ -237,16 +226,16 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 
 *Node classes:*
 
-- *`relation/*`* — a reified relation.
-- *`derivation/*`* — a derived claim.
-- *`contribution/*`* — an operational claim about the work on the graph.
-- *`entity/*`* — an identifiable thing in the world.
 - *`source/*`* — an external data artifact.
+- *`derivation/*`* — a derived claim.
+- *`entity/*`* — an identifiable thing in the world.
+- *`relation/*`* — a reified relation.
+- *`contribution/*`* — an operational claim about the work on the graph.
 
 *Edge classes:*
 
-- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
+- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
 - *`contribution/*`* — claims about the work on the graph. The ADT defines two subtypes:
   - *`contribution/head`* (structural — consolidates currently-open heads, see @sec:head)
   - *`contribution/prune`* (view-modifying — excludes a reference from views containing the claim)
