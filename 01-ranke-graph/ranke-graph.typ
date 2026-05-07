@@ -177,12 +177,7 @@ A node carries its edges' ids in its own record, so edges are Merkle-secured thr
 
 == Atomic Claim Creation <sec:atomic>
 
-A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction comprising:
-
-- $n$ provenance edges (to sources, prior derivations, and the contributor),
-- $m$ relation edges (to the related entities, carrying `relation_direction`).
-
-Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
 #todo[Single-head invariant via *throwaway snapshots* (revised 2026-05-07): branch advance is two structural acts — (1) append the new claim with its semantic edges only; (2) generate a fresh *snapshot claim* whose `evidence/head` edges name all currently-open heads of $cal(U)$ at that moment, including the new claim. The branch updates to point at the snapshot.
 
