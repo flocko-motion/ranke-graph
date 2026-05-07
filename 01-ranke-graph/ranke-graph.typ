@@ -137,7 +137,7 @@ Two general primitives are used throughout: a canonical serialization $S$ mappin
 ```
 node = {
   type:         string (class/subtype, e.g. "source/conversation"),
-  content_hash: hash of the content bytes,
+  content_hash: H(content),
   encoding:     string (class/subtype, e.g. "text/eml"),
   created_at:   timestamp (UTC),
   edges:        set of edge ids,
@@ -158,14 +158,14 @@ Each edge is part of exactly one claim, recoverable as the claim whose node list
 
 ```
 edge = {
-  reference:    hash of the referenced claim,
+  reference:    id of referenced claim,
   type:         string (class/subtype, e.g. "relation/family", "evidence/chunk", "contribution/worker"),
-  content_hash: hash of the content bytes,
+  content_hash: H(content),
   ...:          additional implementation-defined fields
 }
 ```
 
-The owning claim is implicit by necessity: if its id were a field on the edge, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
+The owning claim's id cannot be stored on the edge: that would make $S(e)$ depend, via the claim's `edges` set, on $S(e)$ itself.
 
 *Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
