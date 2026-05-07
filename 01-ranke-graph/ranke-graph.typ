@@ -197,7 +197,7 @@ To make such an instance addressable, we give it *a head*: a new `contribution/h
 
 == Branches <sec:branches>
 
-A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable.
+A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h subset.eq cal(U)$ where $h$ is the head currently bound to $x$. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable.
 
 A branch advance creates a new head and rebinds $x$ to its hash. Earlier heads remain in $cal(U)$ (immutability) but the branch lets go of them; only the latest is the active handle.
 
