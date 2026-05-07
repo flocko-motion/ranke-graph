@@ -106,21 +106,21 @@ Such systems can evolve on the same data: selecting views that fit, contributing
 
 = Desiderata <sec:desiderata>
 
-Following the motivation in @sec:introduction, we state the obligations any Ranke-Graph must satisfy. The seven items are independent — together they characterise the contract. Other useful properties — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — follow as consequences.
+Following the motivation in @sec:introduction, we state the obligations any Ranke-Graph must satisfy. The seven items are independent — together they characterise the contract. Additional emergent properties — including idempotency of writes, external anchoring, the full set algebra, and the bijection between structural and semantic readings — follow as consequences (see @sec:emergent).
 
 The desiderata describe what is required; the choice of how to satisfy them is open.
 
-*D1. Provenance — every claim has a path back to its sources.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
+*D1. Immutability — no claim is ever modified or deleted.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
 
-*D2. Semantic Relations — rich relations can be expressed.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
+*D2. Provenance — every claim has a path back to its sources.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
 
-*D3. Immutability — no claim is ever modified or deleted.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
+*D3. Verifiability — integrity is provable from the structure.* Any past state of the graph is provable to a third party from the structure alone, without reliance on the operator.
 
-*D4. Verifiability — integrity is provable from the structure.* Any past state of the graph is provable to a third party from the structure alone, without reliance on the operator.
+*D4. Scoped Visibility — visibility propagates along references and admits scoping.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
 
-*D5. Scoped Visibility — visibility propagates along references and admits scoping.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
+*D5. Distributability — replicas converge without coordination.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
 
-*D6. Distributability — replicas converge without coordination.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
+*D6. Semantic Relations — rich relations can be expressed.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
 
 *D7. Open-Ended Vocabulary — vocabulary is unbounded.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
 
@@ -148,7 +148,7 @@ Two nodes with identical content but different provenance produce different ids.
 - `type` and `encoding` follow the `class/subtype` convention (@sec:types, @sec:encoding): the first segment is from a fixed set, the second is open vocabulary.
 - `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
 - `created_at` is the UTC timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
-- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
+- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:verifiability and onward) apply uniformly to any refinement.
 
 == Edges <sec:edges>
 
@@ -165,11 +165,11 @@ edge = {
 
 The owning claim's id cannot be stored on the edge: that would make $S(e)$ depend, via the claim's `edges` set, on $S(e)$ itself.
 
-*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:claims) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
+*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:claims) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:provenance) follows directly.
 
 As for nodes, `type` follows the `class/subtype` convention (@sec:types), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
 
-A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
+A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:verifiability).
 
 == Claims <sec:claims>
 
@@ -181,11 +181,11 @@ To create a new graph, we create a `contribution/contributor` claim with no edge
 
 $cal(U)$ — the *universe of claims* — is the set of all claims that have ever been created. A *Ranke-Graph instance* $"RG"$ is a subset of $cal(U)$:
 $ "RG" subset.eq cal(U). $
-References across instances are not transfers: a hash addresses the same claim in $cal(U)$ regardless of which instance first carried it. By immutability (D3), $cal(U)$ grows monotonically — claims are added but never modified or removed.
+References across instances are not transfers: a hash addresses the same claim in $cal(U)$ regardless of which instance first carried it. By immutability (D1), $cal(U)$ grows monotonically — claims are added but never modified or removed.
 
 == Hash-Rooted Instances <sec:head>
 
-Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
+Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h := "closure"(h, cal(U))$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
@@ -193,13 +193,25 @@ To make such an instance addressable, we give it *a head*: a new `contribution/h
 
 == Branches <sec:branches>
 
-A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h subset.eq cal(U)$ where $h$ is the head currently bound to $x$. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable.
+A *branch* $x$ is a name. The *branch table* is a `contribution/branches` claim in $cal(U)$ — a single claim whose edges name every active branch. A branch table has:
 
-A branch advance creates a new head and rebinds $x$ to its hash. Earlier heads remain in $cal(U)$ (immutability) but the branch lets go of them; only the latest is the active handle.
+- a `contribution/contributor` edge to the contributor who last updated the table;
+- one `contribution/branch` edge per active branch, with the branch name in edge content and the reference pointing at the branch's current head (a `contribution/head` claim);
+- optionally, a `contribution/branches` edge to the previous branch table — chaining the table's own history.
 
-Branches enable concurrent contribution: contributors write to a branch name and the binding resolves to the current head at write time.
+The store handle $B_h$ is the id of the current branch table. Mutability lives only in $B_h$.
 
-A complete Ranke-Graph state is the pair $(cal(U), B)$: the immutable claim store $cal(U)$ paired with the mutable name-bindings $B$.
+A *Ranke-Graph store* is the pair $(cal(U), B_h)$: the immutable universe of claims paired with the current branch-table handle. Given $cal(U)$ and $B_h$, the entire store — every branch, every head, every content claim, the full table history — reconstitutes by closure traversal from $B_h$. Multiple stores share $cal(U)$; each has its own $B_h$.
+
+A new store is created by writing an initial contributor claim and an empty branch table — a `contribution/branches` claim with only the `contribution/contributor` edge to that contributor and no branch references. $B_h$ is set to the empty table's id; this is the founding act of the store.
+
+A branch advance creates two new claims: a `contribution/head` claim that consolidates the branch's currently-open content (a `contribution/contributor` edge plus `contribution/head` edges to the open content claims being consolidated), and a new `contribution/branches` claim referencing all current branches (with the advanced branch's edge updated to point at the new head, all others unchanged) plus a `contribution/branches` edge to the previous table; $B_h$ is updated to the new table's id.
+
+The branch table's history is itself a chain of `contribution/branches` claims, traversable like any other provenance chain. Each table is a content-addressed snapshot of all branch bindings at a moment; updates are cheap because identical edges (unchanged branch references) hash identically and are deduplicated by content addressing — like git commits, but over branch bindings.
+
+Branches enable concurrent contribution: contributors write to a branch name; the binding resolves through $B_h$ to the branch's current head at write time.
+
+Forks and merges arise naturally from heads consolidating multiple predecessors via `contribution/head` edges — branch trees and DAGs emerge from the same head mechanism without extra structure.
 
 == Semantic Relations <sec:semantic-relations>
 
@@ -209,7 +221,7 @@ A relation is itself a claim — a `relation/*` node with `relation/*` edges to 
 
 A hash-rooted instance $"RG"_h$ admits a *semantic reading* $"RG"_h^S$ in which each `relation/*` edge's direction is inverted when `relation_direction = -1`.
 
-The two readings stand in bijection (formalized in @sec:semantic-reading). The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
+The two readings stand in bijection (formalized in @sec:bijection). The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
 
 == Types <sec:types>
 
@@ -227,20 +239,34 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 
 - *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
 - *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines three subtypes:
+- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
   - *`contribution/contributor`* — names the contributor of a claim
-  - *`contribution/head`* (structural — consolidates currently-open heads, see @sec:head)
-  - *`contribution/prune`* (view-modifying — excludes a reference from views containing the claim)
+  - *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
+  - *`contribution/branches`* — names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
+  - *`contribution/branch`* — edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/prune`* — view-modifying; excludes a reference from views containing the claim
 
 == Encodings <sec:encoding>
 
 A node's `encoding` field is a MIME media type (@freed2013rfc6838), telling consumers how to interpret its content bytes (addressed by `content_hash`). Examples: `text/plain`, `image/png`, `message/rfc822`.
 
-= What Emerges <sec:emerges>
+= Discharging the Desiderata <sec:emerges>
 
-== Acyclicity <sec:acyclicity>
+== Immutability <sec:immutability>
 
-Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:claims).
+A hash $h$ names an instance $"RG"_h$ (@sec:head). Two facts make this naming uniquely determining:
+
++ *Recovery is functional.* The closure procedure from $h$ in $cal(U)$ is deterministic — same inputs, same result.
+
++ *Each claim is fixed by its id.* Identity is $op("id")(v) = H(S(v))$ (@sec:claims). Modifying $S(v)$ produces a different id under collision-resistance — a different claim, not a modification of the original.
+
+By the monotonicity of $cal(U)$ (@sec:universe), claims are not removed from the substrate. Under collision-resistance of $H$, and given access to $cal(U)$, recovery from $h$ yields the same $"RG"_h$ forever. The structure does not guarantee that recovery is *possible* — substrate availability is operational, not structural — but if recovery succeeds, the result is provably the original.
+
+#dref[D1, this section]
+
+== Provenance <sec:provenance>
+
+Let $G = (V, E)$ be the graph of an instance $"RG"_h$. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:claims).
 
 #theorem[$G$ is acyclic.]
 
@@ -248,17 +274,32 @@ Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("referen
   By the atomic creation rule (@sec:claims), every edge $e$ owned by node $v$ has reference $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
 ]
 
-The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
+The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of subtype. The whole graph $G$ — including any future subtype — is a DAG.
 
-#corollary[
-  Cycles can appear under the *semantic reading* (@sec:semantic-reading), where `relation/*` edges flip direction by `relation_direction`: e.g. _"Alice knows Bob"_ together with _"Bob knows Alice"_ produce reciprocal relation nodes that close a cycle. The structural reading $G$ remains a DAG.
+A complementary cryptographic angle: a cycle would require $op("id")(v_1) = H(text("content involving ") op("id")(v_1))$ — a fixed point of $H$, impossible under collision-resistance (see @sec:verifiability). The two proofs are independent: the temporal argument needs no cryptography; the hash-recursion argument needs no creation order. Either alone suffices; both hold.
+
+#corollary[Every claim $v in V$ has a finite path of references terminating at the initial node (@sec:claims).]
+
+#proof[
+  By acyclicity, no claim is revisited during traversal. By finiteness of $V$ (every $"RG"_h$ is a finite subset of $cal(U)$, @sec:head), traversal terminates. The only claim with no outgoing references is the initial node, so traversal terminates there.
 ]
 
-#dref[D1, this section]
+The provenance chain is therefore explicit, finite, and queryable for every claim — every claim's full derivation history, down to its sources, is reachable in $O(|V|)$.
 
-== Content Addressing and Merkle Integrity <sec:merkle>
+#corollary[
+  Cycles can appear under the *semantic reading* (@sec:bijection), where `relation/*` edges flip direction by `relation_direction`. The structural reading $G$ remains a DAG.
+]
 
-Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for edges (@sec:structure). Every id is therefore a cryptographic hash, and a node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the claims they reference.
+#dref[D2, this section]
+
+== Verifiability <sec:verifiability>
+
+Hashing in the structure operates at two layers:
+
+- *Record id:* $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges (@sec:structure). A node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the claims they reference: ids are recursive over the closure.
+- *Content hash:* each record carries a `content_hash` field $H("content bytes")$ committing to the bytes that the claim represents (@sec:nodes, @sec:edges); the bytes themselves live in implementation-defined storage, addressed by `content_hash`.
+
+*Standing assumption.* Every claim in this chapter rests on *collision-resistance of $H$* — the cryptographic assumption that no two distinct byte sequences hash to the same value. Under this assumption, the structure offers full integrity guarantees. A true collision violates the assumption: the system cannot distinguish distinct claims sharing an id, since claims are identified by id alone, and the structure offers no remedy at this layer. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
 === Tampering Detectable at the Root
 
@@ -267,14 +308,33 @@ Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for ed
 #proof[
   By induction on the depth of the DAG.
 
-  _Base case._ $v' = v$. Changing any field of $v$ changes $op("id")(v)$ directly ($H$ is collision-resistant).
+  _Base case._ $v' = v$. Changing any field of $v$ — including `content_hash` — changes $op("id")(v)$ directly ($H$ is collision-resistant).
 
   _Inductive step._ $v'$ is an ancestor of $v$ in $G$. There exists a path $v' arrow.r dots.h.c arrow.r u arrow.r v$ in $G$ (following edges from $v$ back through its references). By the inductive hypothesis, manipulation of $v'$ changes $op("id")(u)$. $op("id")(u)$ is the reference hash used in the computation of some edge $e$ of $v$. Changing $op("id")(u)$ changes $op("id")(e)$. Changing $op("id")(e)$ changes $op("id")(v)$ (since $op("id")(e)$ is part of $v$'s hash computation and $H$ is collision-resistant).
 ]
 
-#corollary[
-  Each node hash witnesses the integrity of every node it transitively depends on. Tampering anywhere in the ancestry is detectable at the root.
+#theorem[Tampering with the content bytes addressed by `content_hash` is detectable on retrieval.]
+
+#proof[
+  `content_hash` $= H("content bytes")$ is fixed at creation and committed in $S(v)$. By the previous theorem, modifying `content_hash` itself changes $op("id")(v)$. Tampering with the bytes while leaving `content_hash` unchanged produces stored bytes that no longer hash to `content_hash`; recomputing $H$ on the retrieved bytes and comparing detects this.
 ]
+
+#corollary[
+  The two layers are independent and complementary. The record-id chain witnesses every claim's structural integrity (Theorem 1); each `content_hash` witnesses the bytes it commits to (Theorem 2). Full integrity verification requires both checks at every claim in the closure.
+]
+
+=== Verification Procedure
+
+Given a trusted root hash $h$ and access to $cal(U)$, a third party verifies integrity by recursive descent. Each claim is checked at two layers — its serialized record and its content bytes:
+
++ *Existence.* Look up the bytes of $S(v)$ for $h$ in $cal(U)$. If no bytes are found, the substrate is incomplete; verification cannot complete.
++ *Record integrity.* Recompute $H$ over $S(v)$; if the result differs from $h$, tampering is detected at the record level.
++ *Content integrity.* For each node and edge, fetch the content bytes (addressed by `content_hash`) and verify $H("content bytes") = "content_hash"$. Without this step, content bytes could be swapped without changing the claim id, since `content_hash` (a field of $S(v)$) does not regenerate the bytes — it only commits to them.
++ *Recurse.* For each edge $e$ in the claim's `edges` set, repeat with $op("reference")(e)$ as the next id.
+
+The traversal terminates at the initial node (@sec:claims). Verification succeeds if and only if every claim in $"RG"_h$'s closure passes existence, record integrity, and content integrity at each step.
+
+The procedure depends only on the structure and the chosen $H$. The operator is not trusted; only $H$'s collision-resistance is assumed. Anyone with the root hash and access to any replica of $cal(U)$ can verify independently.
 
 === Idempotency
 
@@ -283,102 +343,135 @@ Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for ed
   $ forall v_1, v_2 : S(v_1) = S(v_2) arrow.r.double op("id")(v_1) = op("id")(v_2). $
 ]
 
+#corollary[
+  Under collision-resistance of $H$, identical ids imply identical claims:
+  $ forall v_1, v_2 : op("id")(v_1) = op("id")(v_2) arrow.r.double S(v_1) = S(v_2). $
+]
+
 Identical claims are the same claim — writes are idempotent, deduplication is free.
 
-#todo[Add a "Backup from a Hash Root" sub-property: a single root hash plus access to the content store reconstitutes the entire graph and proves its integrity. State as a corollary of Merkle integrity. Lands right after Idempotency while the structure is fresh.]
-
+#dref[D1, this section]
 #dref[D3, this section]
+
+== Pruning <sec:pruning>
+
+A `contribution/prune` edge in a claim $c$ with reference $t$ asserts "exclude $t$ from any view containing $c$." The edge is ordinary — same atomic-creation rule, content-addressing, and provenance as any other edge. Applications use pruning for legal takedowns, redactions, retractions, and scope-driven exclusions; the structure makes no distinction between use cases.
+
+*Definition (Pruned).* A claim $v in V$ is *pruned* under $"RG"_h$ if and only if some `contribution/prune` edge inside $"closure"(h, cal(U))$ references $v$.
+
+Pruning is a *structural directive*, not a security mechanism by itself: prune edges only declare what is excluded. Security comes from the server's role as a gateway between viewers and $cal(U)$. Two architectural commitments give the server enforceable pruning:
+
++ *Claims are the unit of access.* Edges are structurally part of their owning claim (@sec:edges) and not independently addressable. A viewer cannot fetch an edge in isolation; every fetch goes through the owning claim.
++ *$cal(U)$ is server-internal.* Viewers fetch claims through an interface that respects prune edges in any $"RG"_h$ they query — content is delivered only for unpruned claims; pruned claims yield only their hash.
+
+This is why pruning lives in the ADT rather than in an application layer above it: a uniform server-gateway model requires the pruning primitive to be structural. Without ADT-level pruning, every application would invent its own access-restriction scheme; with it, the structural definition of pruning is the same wherever the ADT is implemented.
+
+== Scoped Visibility <sec:visibility>
+
+*Scoping* is predicate-based pruning: for a viewer with scope predicate $sigma$, the server constructs a *scoped head* $h_sigma$ — a single `contribution/head` claim whose edges consolidate the current state and prune everything outside $sigma$.
+
+*View generation.* On query $(h, sigma)$:
+
++ Compute $"closure"(h, cal(U))$.
++ Apply $sigma$ to identify the in-scope subset $Sigma subset.eq "closure"(h, cal(U))$.
++ Create $h_sigma$ — a `contribution/head` claim with `contribution/head` edges to the currently-open content claims and `contribution/prune` edges to every claim in $"closure"(h, cal(U)) without Sigma$.
++ Return $"closure"(h_sigma, cal(U))$ — full bytes for in-scope claims; hash-only for pruned (out-of-scope) claims.
+
+The scoped head is structurally a normal head with extra prune edges: same atomic creation, content-addressing, provenance (a `contribution/contributor` edge to the operator). Idempotent under $(h, sigma)$: same query, same $h_sigma$.
+
+*Definition (Scope).* A scope $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible claims via a viewer-supplied predicate. The predicate may reference claim fields and the fields of its edges; concrete syntax and operator set are implementation choices.
+
+*Definition (Scoped head).* For a query $(h, sigma)$, the *scoped head* $h_sigma$ is the `contribution/head` claim whose edges are: `contribution/head` to each currently-open content claim of $"closure"(h, cal(U))$, and `contribution/prune` to each claim in $"closure"(h, cal(U)) without Sigma$.
+
+*Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
+$ "view"(h, sigma) := "closure"(h_sigma, cal(U)). $
+The viewer receives content for in-scope claims; out-of-scope claims appear as hash-only references via the prune edges of $h_sigma$.
+
+#theorem[Scope-resistance.] The prune edges in $h_sigma$ are determined by the *full closure* of $h$, not by $Sigma$ alone — once encoded in $h_sigma$, no re-evaluation of $sigma$ can remove a prune.
+
+#proof[
+  By construction of $h_sigma$: prune edges are added for every claim in $"closure"(h, cal(U)) without Sigma$. The closure is independent of $sigma$; once $h_sigma$ exists, its prune edges are part of its content-addressed identity and cannot be modified.
+]
+
+#theorem[The view function is pure.] $"view"(h, sigma)$ is a deterministic function of $(cal(U), h, sigma)$.
+
+#proof[
+  Closure is deterministic from $h$ and $cal(U)$ (@sec:head). Scope partitioning of the closure is deterministic from $sigma$. The construction of $h_sigma$ is deterministic. Hence $"closure"(h_sigma, cal(U))$ is deterministic.
+]
+
+Implementation caches are therefore throw-awayable and reconstructible: any view recomputes from inputs without coordination, and identical $(h, sigma)$ requests reuse the same $h_sigma$ via content-addressing.
+
+=== Verifiable Partial Views
+
+A view delivers full claims for everything in scope and the bare hash for everything outside. The hash-only claims preserve enough structure to verify the integrity of the in-scope subgraph (Merkle integrity, @sec:verifiability) without revealing content.
+
+```
+[hash_only] ← out-of-scope claim; viewer sees only hash
+     ↓
+[full claim] ← in-scope; full content
+     ↓
+[full claim] ← in-scope
+```
+
+The viewer can verify: "my subgraph is intact; it builds on a claim with hash $X$ whose content is not visible to me." Integrity is provable without transparency.
+
+=== Visibility Propagation
+
+A claim is visible to a viewer if and only if every claim it *semantically depends on* (via its references) is visible. Visibility propagates along edges that carry semantic dependency:
+
+- `relation/*` edges (entity participation in the relation),
+- all of `derivation/*` (data citation),
+- semantic subtypes of `contribution/*` (`contribution/contributor`, plus application-level subtypes such as `contribution/agent`, `contribution/policy`, …).
+
+It does *not* propagate along:
+
+- `contribution/head` — structural; the head depends on referenced heads via hash for Merkle integrity, not semantically.
+- `contribution/branches`, `contribution/branch` — structural; branch-table claims and their entries carry no semantic dependency.
+- `contribution/prune` — prescriptive; references are excluded by design.
+
+The refinement is at the subtype level, not a class-wide rule.
+
 #dref[D4, this section]
 
-== Anchoring <sec:anchoring>
+== Distributability <sec:distributability>
 
-#todo[Anchoring is *grounded* on the single-head invariant (revised 2026-05-07). The structural foundation is: every branch advance produces a head, every head is single-rooted, every head's hash witnesses everything reachable from it via the closure of its `contribution/head` edges. So at any moment, a single hash anchors the entire visible state of the branch.
+Three structural facts compose to make Ranke-Graph instances composable across replicas:
 
-External anchoring (publishing a hash to a tamper-evident medium for third-party proof) is unchanged — pick any head hash, publish it; it anchors everything in its closure. Hashchain emerges from the head sequence: head $h_n$ has `contribution/head` edges to the heads it consolidates, which transitively reach $h_(n-1)$ (since $h_(n-1)$ was an open head when $h_n$ was created), so $h_n$ witnesses $h_(n-1)$.
++ *Content-addressed ids.* Two claims with identical content have identical ids (@sec:verifiability). Identity is decidable by hash equality.
++ *Immutability.* A given id corresponds to one fixed record (@sec:immutability). No version disagreement is possible: if two replicas hold a claim under id $h$, the bytes are identical.
++ *DAG-by-construction.* Any subset of $V$ closed under the edge-reference relation is a well-formed Ranke-Graph instance (@sec:provenance). Closure under references costs $O(|E|)$.
 
-Restate §5.3 around heads-as-handles: anchoring is not occasional, it is constant; pick any head in your history and you have a tamper-evident witness of everything reachable from it.]
+#theorem[For any two Ranke-Graph instances $"RG"_(h_A)$ and $"RG"_(h_B)$, their node-id union $V_A union V_B$ closes under reference-traversal to a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.]
 
-Heads are `contribution/head` claims whose `contribution/head` edges reference the currently-open heads of $G$:
-$
-  h_n = H(op("open-heads")(G, t_n))
-$
+#proof[
+  Hash-set union is well-defined: each id is a fixed-length cryptographic hash, identity decidable by equality. Closure under references adds claims reachable from $V_A union V_B$ via edges — by immutability, every reachable claim is uniquely determined; by DAG-by-construction, the closure is finite and a Ranke-Graph instance. At no step is there a choice between versions of the same claim: two ids that differ are different claims; two ids that match are the same claim.
+]
 
-The head sequence $(h_0, h_1, dots.h.c, h_n)$ is a hashchain: $h_(n-1)$ is always reachable from $h_n$ in the closure — directly if it remained open until $h_n$'s creation, or transitively via newer claims that referenced it.
-Each head witnesses the graph state _and_ all previous heads.
-Manipulation of any $h_i$ invalidates all $h_j$ for $j > i$.
+The merged instance is named by a single hash — a `contribution/head` claim whose `contribution/head` edges reference the open content claims of the union, with `contribution/contributor` provenance for the merge act. The merge head's closure recovers the merged instance.
 
-Head hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
+The full set algebra over node-id sets — $union$, $inter$, $\\$, $triangle.stroked.small$ — falls out of the same machinery; the others emerge for free (see @sec:set-algebra).
 
-#todo[Add the *anchoring composition theorem*: publishing a single head hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that head but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
+== Coordination-Free Merge <sec:cfree-merge>
 
-#todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
+By the union theorem (@sec:distributability), two replicas of a Ranke-Graph store that diverge by independent appends converge by hash-set union of their node-id sets. No coordination protocol is required; no conflict-resolution policy; no merge algorithm beyond the union itself.
 
-== Cryptographic Attestation <sec:attestation>
+This is the join-semilattice condition for Conflict-Free Replicated Data Types (@shapiro2011crdt). Replicas can be partitioned arbitrarily, write independently, and reconcile at any later time by exchanging claim ids — every replica reaching the same merged state, regardless of partition order or message timing.
 
-#todo[*Emergent capability, not a discharger of any D-item.* Keep this section *short* — point at the possibilities and move on. The deep treatment is the subject of a companion paper (working title _Ranke Cryptography_, see #raw("06-ranke-cryptography/notes.md") for the full development).
+The merged head is itself a claim with a contributor; the merge act has provenance like any other contribution to the graph.
 
-*The structure of this paper's mention.* One paragraph stating that the claim machinery enables a complete trust posture as application-layer patterns:
+#dref[D5, this section]
 
-- *Signatures as claims* — `pubkey` in `contribution/*` content; signed-by claims reference hashes via `contribution/signature` edges. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
-- *Policies as claims* — admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head.
-- *Validity is a function of a graph* — `valid(G, policy)`. Invalid graphs are well-formed; merge is structural composition; validation is a separate operation any party can run at any time.
-- *Full historical auditability* — anyone can replay the validity check against the graph. Violations are recognized via additional claims; self-healing through accumulation, not editing.
+== Cheap Forks <sec:cheap-forks>
 
-Closing trifecta-plus table (one short paragraph + table):
+A fork of $"RG"_h$ is a divergence in the node-id set, not a copy of content. Content bytes are addressed by `content_hash` and shared across forks via the substrate.
 
-#table(
-  columns: 2,
-  align: (left, left),
-  [*Property*], [*Mechanism*],
-  [Integrity], [hashes + Merkle DAG (§5.2)],
-  [Temporal], [head hashchain + external anchoring (§5.3)],
-  [Authenticity], [signatures as claims],
-  [Governance], [policies as claims],
-  [Enforcement verifiability], [validity as a function; replay against the graph],
-)
+The storage cost of $N$ forks of $"RG"_h$ is therefore $O(|V_h|)$ in metadata (each fork carries its own node-id set) plus $O(1)$ in the content pool (bytes are deduplicated by hash). Forking is essentially free; the cost is only the metadata of references — not the content.
 
-The operator collapses to commodity storage + commodity gatekeeper. The trust posture is structural, not procedural.
-
-*Length when written:* half a page maximum. The full design (signing schemes, policy DSLs, audit cadence, deployment workflow, regulatory mapping) is out of scope for this paper.]
-
-== Boolean Composability <sec:crdt>
-
-#todo[Section opener (1–2 sentences): the graph admits a full set algebra over its node-id sets — $union$, $inter$, $\\$, $triangle.stroked.small$ — all conflict-free by construction.]
-
-=== Set Algebra Theorem
-
-#todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (a head); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
-
-#todo[Result of a boolean operation is a *single hash* — a head whose `contribution/head` edges reference the heads of the operand graphs that are part of the result and whose `contribution/prune` edges reference what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal head under the head mechanism of @sec:head. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
-
-#todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
-
-Proof sketch composes three structural facts:
-(1) content-addressed ids (@sec:structure) make node identity decidable by hash equality (O(1));
-(2) immutability (D3, @sec:claims) means a given id corresponds to one fixed record — no version disagreement is possible;
-(3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-reference relation is itself a DAG; closure costs O(|E|).
-
-Each set op produces a node-id subset; closing under reference-traversal yields a well-formed instance.]
-
-=== Cheap Forks
-
-#todo[Corollary: forking is divergence in the node-id set; content blobs are shared via the addressed pool. Storage cost of $N$ forks of a graph $G$ is $O(|V_G|)$ in metadata plus $O(1)$ in the content pool.]
-
-=== Coordination-Free Merge
-
-#todo[Corollary: convergence is $union$. The Ranke-Graph satisfies the join-semilattice condition for CRDTs (@shapiro2011crdt). No coordination protocol, no conflict resolution, no merge algorithm beyond hash-set union.]
-
-=== Operations and Composability
-
-#todo[The Set Algebra Theorem above is the *operational definition* of the ADT's four binary operations. The proof gives the rules: each operation produces a node-id subset by hash-set algebra, then closes under reference-traversal to form a well-formed instance. Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur. (Any read or write operation on a Ranke-Graph — whether through a library, a server, or a query layer — composes from these four; the ADT does not prescribe an interface, only the operations it must support.)]
-
-#dref[D6, this section]
-
-== The Semantic Reading <sec:semantic-reading>
+== Semantic Relations <sec:bijection>
 
 A Ranke-Graph instance $"RG"_h$ admits two readings of the same $V$ and $E$, written $"RG"$ (structural) and $"RG"^S$ (semantic) throughout this section:
 
-- the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
+- the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:provenance, @sec:verifiability).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `derivation/*` and `contribution/*` are unchanged.
 
 For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:types). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-relations).
@@ -395,7 +488,7 @@ All other edges are invariant.
 - The two readings are bijective on $V$ and $E$, and switching is computable in $O(|E|)$.
 - Provenance traversal — `derivation/*` and `contribution/*` edges — is identical in both readings; no sign logic is ever needed for it.
 - $"RG"^S$ admits cycles (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_); $"RG"$ does not.
-- The structural theorems (@sec:acyclicity, @sec:merkle, @sec:crdt) hold on the underlying $V$ and $E$; both readings inherit them.
+- The structural theorems (@sec:provenance, @sec:verifiability, @sec:distributability) hold on the underlying $V$ and $E$; both readings inherit them.
 
 *The semantic graph as subgraph.* The semantic graph $"SG"$ — the entity-and-relation portion typically queried by knowledge-graph consumers — is the subgraph of $"RG"^S$ induced by
 
@@ -403,58 +496,94 @@ $ V_("SG") = {v in V : op("class")(v) in {"entity", "relation"}}, quad E_("SG") 
 
 $"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-entity attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
 
-== Auth-Scoped Visibility and Verifiable Partial Views
+#dref[D6, this section]
 
-#todo[Disambiguate: visibility scoping operates over $cal(U)$, returning a smaller $"RG"_h$ to the user. Every user query is $(h, sigma)$ for some scope $sigma$; the server selects $"RG"_h$ from $cal(U)$ filtered by $sigma$. Re-frame this section once §4.6 lands.]
+== Open-Ended Vocabulary <sec:vocabulary>
 
-#todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible claims; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over claim fields (with access to fields of the claim's edges); concrete syntax and operator set are implementation choices (rankedb).
+The ADT prescribes a small set of class names (`relation/*`, `derivation/*`, `contribution/*`, `source/*`, `entity/*`) and a few structurally-defined subtypes (`contribution/contributor`, `contribution/head`, `contribution/branches`, `contribution/branch`, `contribution/prune`). Beyond these, vocabulary is unbounded:
 
-*Definition (Pruned set).* For a hash-rooted instance $"RG"_h$, the pruned set is
-$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "type"(e) = "contribution/prune" "and" "reference"(e) = t }. $
+- *Subtypes after the slash are open vocabulary.* Applications introduce new subtypes for any class without modifying the ADT — `relation/family`, `derivation/transcription`, `contribution/policy`, `source/conversation`, and so on.
+- *Content is bytes addressed by `content_hash`.* The ADT specifies no schema for the bytes themselves; applications choose JSON, CBOR, RDF, plaintext, binary blobs, or any format consistent with the claim's `encoding`.
+- *Extension fields* (denoted by `…` in the schemas of @sec:nodes and @sec:edges) are application-defined. They participate in $S$ and id computation like any other field, so integrity proofs apply uniformly to any refinement.
 
-*Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
-$ "view"(h, sigma) := lr(("closure"(h, cal(U)) inter Sigma)) \\ "pruned"(h). $
-Equivalently: take the closure, keep scope-eligible claims, subtract pruned claims.
-
-*Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a claim. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
-
-*Property (Pure function).* $"view"(h, sigma)$ is a deterministic function of $(cal(U), h, sigma)$. Caches at the implementation layer are throw-awayable and reconstructible.]
-
-Auth-scoped visibility (a claim derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
-
-A user receives a verifiable subgraph: full claims with content for everything in scope.
-For branches outside their scope, they see only the hash — enough to verify the integrity of their own subgraph, but no content access.
-
-```
-[hash_only] ← confidential node, user sees only hash
-     ↓
-[full node] ← derived, user has access
-     ↓
-[full node] ← user has access
-```
-
-The user can verify: "my subgraph is intact, it builds on a claim with hash $X$ whose content I don't know."
-Integrity is provable without transparency.
-Only the server sees everything.
-
-Merkle structure is what _enables_ verifiable partial views.
-Auth scoping and Merkle integrity are complementary.
-
-=== Visibility Propagation
-
-#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency: `relation/*`, all of `derivation/*` (e.g.\ `derivation/chunk`, `derivation/transcription`), and the semantic subtypes of `contribution/*` (e.g.\ `contribution/agent`, `contribution/policy`). It does *not* propagate along the structural subtype `contribution/head` — a head depends on its referenced heads only via hash for Merkle integrity, not semantically — nor along the prescriptive subtype `contribution/prune`, whose references are excluded by design. The refinement is at the subtype level, not a class-wide rule.]
-
-=== Compliance by Architecture
-
-#todo[Brief paragraph: this is compliance by structure rather than by policy. The implementation in a real authentication system is the concern of a downstream paper.]
-
-#dref[D5, this section]
-
-== Schema-Light, Open-Ended Knowledge
-
-#todo[Explain: the ADT prescribes no vocabulary for `type` (on nodes or edges) and no fixed schema for `content` or `fields_0..n`. A refinement may layer a content-type taxonomy on top, but the ADT itself does not commit to one. Vocabulary extension is therefore a contributor concern, not a structural change.]
+A new subtype, content schema, or extension field is a contributor-side concern — not a structural change. The ADT itself does not need to evolve when applications introduce new vocabulary; existing graphs and tools continue to work, ignoring or transparently passing through what they do not recognize.
 
 #dref[D7, this section]
+
+= Emergent Properties <sec:emergent>
+
+Properties that fall out of the structure beyond the desiderata. Each subsection cross-references the §5 chapter from which it emerges.
+
+== Hash-as-Backup <sec:hash-backup>
+
+*Emerges from @sec:head + @sec:verifiability.*
+
+A single hash suffices: $h$ names the instance; $cal(U)$ provides the bytes. Closure traversal from $h$ recovers $"RG"_h$ (@sec:head); Merkle integrity verifies each claim against its id (@sec:verifiability).
+
+$cal(U)$ is the recovery substrate. By immutability (D1), $cal(U)$ accumulates monotonically and never loses claims. The hash distributes alone — anyone with $h$ and access to any replica of $cal(U)$ can recover and verify $"RG"_h$ independently, without coordination with the operator that produced it.
+
+== Anchoring <sec:anchoring>
+
+*Emerges from @sec:verifiability and @sec:hash-backup.* Anchoring extends structural integrity to time-witnessing: a single hash, published to a tamper-evident external medium, anchors the entire reachable state at the moment of publication.
+
+Heads are `contribution/head` claims whose `contribution/head` edges reference the currently-open content claims; the branch table chains through prior tables via its `contribution/branches` edge (@sec:branches). The sequence of branch-table handles $(B_0, B_1, dots.h.c, B_n)$ is a hashchain: each $B_i$ is reachable from $B_(i+1)$ in the closure, so $B_(i+1)$ witnesses $B_i$ — and through it, every head $B_i$ named. Manipulation of any $B_i$ invalidates all $B_j$ for $j > i$ (Tampering Detectable, @sec:verifiability).
+
+#theorem[Anchoring composition.] Publishing a single head hash $h$ to a tamper-evident external medium anchors the integrity of every claim in $"closure"(h, cal(U))$.
+
+#proof[
+  By @sec:verifiability, every claim in $"closure"(h, cal(U))$ is integrity-witnessed by $h$ (any tampering changes hashes up to $h$). The external publication binds $h$ to a point in time. Any third party with the published $h$, and access to $cal(U)$, verifies the entire closure via the recursive verification procedure (@sec:verifiability) — without trust in the operator.
+]
+
+A ~32-byte hash anchors the whole graph state. Anchoring is not occasional but constant: pick any head in branch history, publish it (or query an existing publication), and you have a tamper-evident witness of everything reachable.
+
+Common external media for anchoring include public timestamping ledgers, blockchain transactions, certificate-transparency logs, and printed records (following the construction of Haber & Stornetta, 1991). The structure delivers a regulatory-grade tamper-resistance guarantee — the kind that medical-records, financial-audit, and legal-evidence systems spend significant effort to approximate via write-once media or notary services — as a structural consequence rather than a procedural commitment.
+
+== Set Algebra Beyond Mergeability <sec:set-algebra>
+
+*Emerges from @sec:distributability and @sec:cfree-merge.* The CRDT property requires only $union$. The same structural facts (content-addressed ids, immutability, DAG-by-construction) give the full set algebra — $inter$, $\\$, $triangle.stroked.small$ — over node-id sets, all conflict-free by construction.
+
+#theorem[For any two Ranke-Graph instances $"RG"_(h_A)$ and $"RG"_(h_B)$, the operations $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.]
+
+#proof[
+  Identical to the union proof (@sec:distributability): hash-set operations are well-defined under content-addressed identity; closure under references yields a finite well-formed instance under DAG-by-construction; immutability makes "same id = same claim" decidable. The choice of set operation does not change the conflict-freeness: at no step is there a version disagreement.
+]
+
+The result of any set operation is a single hash — a `contribution/head` claim whose `contribution/head` edges reference the open content claims of the result and (for $\\$ and $triangle.stroked.small$) `contribution/prune` edges to the excluded claims (@sec:pruning). One hash $h_("op")$ fully describes the resulting instance.
+
+Worked examples:
+
+- *Per-project ingestion as throwaway sub-graphs.* Spin up an isolated graph for project X's ingestion; on success, $"main" := "main" union "project"$; on failure, drop the project graph. No partial state; no rollback algorithm.
+- *Selective rollback.* Subtract a known-bad sub-graph: $"clean" := G \\ "bad"$.
+- *Cross-fork agreement.* Find what two forks have in common: $"agreed" := A inter B$.
+- *Disagreement diffing.* Find what two forks differ on: $"diff" := A triangle.stroked.small B$.
+
+These are stronger guarantees than Git: no merge conflict can ever occur, since identity is by hash and no version disagreement is possible. Any read or write operation on a Ranke-Graph store — through a library, a server, or a query layer — composes from these four operations; the ADT prescribes no interface, only the operations it must support.
+
+== Cryptographic Attestation <sec:attestation>
+
+*Emerges from @sec:immutability and @sec:verifiability — application-layer patterns built on the structural foundation.*
+
+The claim machinery enables a complete trust posture as application-layer patterns, without ADT extension:
+
+- *Signatures as claims.* A contributor's pubkey lives in the content of a `contribution/contributor` claim; signed-by relationships are recorded as `contribution/signature` claims that reference the signed claim's hash. Multi-sig, web-of-trust, and key rotation all fall out as patterns over normal claims.
+- *Policies as claims.* Admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head — not by an external configuration file or runtime parameter.
+- *Validity as a function.* $"valid"(G, "policy")$ is a deterministic function from a graph and a policy claim to a boolean (or a set of violation claims). Invalid graphs are still well-formed structurally; merge is structural composition; validation is a separate operation any party can run at any time.
+- *Full historical auditability.* Anyone with access to the graph and the policy can replay the validity check. Violations are themselves claims that accumulate alongside the data; self-healing happens through additional claims, not by editing.
+
+Combined, the structure delivers the full trifecta of trust-posture properties — without an enforcement layer separate from the graph itself:
+
+#table(
+  columns: 2,
+  align: (left, left),
+  [*Property*], [*Mechanism*],
+  [Integrity], [hashes + Merkle DAG (@sec:verifiability)],
+  [Temporal], [head hashchain + external anchoring (@sec:anchoring)],
+  [Authenticity], [signatures as claims],
+  [Governance], [policies as claims],
+  [Enforcement verifiability], [validity as a function; replay against the graph],
+)
+
+The operator collapses to commodity storage plus commodity gatekeeper; the trust posture is structural, not procedural. The deep treatment of these patterns — signing schemes, policy DSLs, audit cadence, deployment workflow, regulatory mapping — is the subject of a companion paper.
 
 = Relation to Prior Work <sec:related-work>
 
@@ -496,7 +625,7 @@ They share the Ranke-Graph's commitment to immutability and provenance-per-asser
 
 == CRDTs and Distributed Provenance
 
-#todo[An add-only monotonic DAG is provably a Conflict-Free Replicated Data Type (@shapiro2011crdt) — it can be replicated across distributed nodes and always merged into a consistent state without coordination. This connection between provenance DAGs and CRDTs appears unexplored in the literature; we develop it formally in @sec:crdt and as related work here.]
+#todo[An add-only monotonic DAG is provably a Conflict-Free Replicated Data Type (@shapiro2011crdt) — it can be replicated across distributed nodes and always merged into a consistent state without coordination. This connection between provenance DAGs and CRDTs appears unexplored in the literature; we develop it formally in @sec:distributability and as related work here.]
 
 == The Identified Gap
 
