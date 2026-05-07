@@ -132,7 +132,7 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
 
 Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
@@ -171,13 +171,13 @@ edge = {
 
 The owning claim's id cannot be stored on the edge: that would make $S(e)$ depend, via the claim's `edges` set, on $S(e)$ itself.
 
-*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
+*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:claims) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
 
 As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Edge content is application-defined — any comment on the creation or nature of this specific reference (e.g.\ "extracted lines 100–149" on a `derivation/chunk` edge; "based on same family name" on a `relation/*` edge to a candidate entity). Extension fields participate in $S$ like any other field.
 
 A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
 
-== Atomic Claim Creation <sec:atomic>
+== Claims <sec:claims>
 
 A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
@@ -193,9 +193,15 @@ Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h$ is the tr
 
 Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
 
-To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges reference every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. A *branch* $B_x$ resolves to its current head, so the tree invariant is preserved. Earlier heads remain in $cal(U)$ (immutability) but the branch advances past them; only the latest head is the active handle.
+To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges reference every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. By construction, every $"RG"_h$ rooted at a head is then a tree, addressable by a single hash.
 
-Formally, a *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any frozen moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable. The hash $h$ is internal; the user-facing handle is $B_x$.
+== Branches <sec:branches>
+
+A *branch* $B_x$ is the binding of name $x$ to a head hash — so $B_x$ denotes $"RG"_h$ where $h$ is the head currently bound to $x$, with $B_x subset.eq cal(U)$ at any frozen moment. Mutability lives at the name-binding layer alone: $x arrow.r.bar h$ updates as the graph grows, while every $"RG"_h$ in $cal(U)$ remains immutable. The hash $h$ is internal; the user-facing handle is $B_x$.
+
+A branch advance creates a new head and rebinds $x$ to its hash. Earlier heads remain in $cal(U)$ (immutability) but the branch lets go of them; only the latest is the active handle.
+
+A complete Ranke-Graph state is the pair $(cal(U), B)$ — the immutable claim store and the mutable name-bindings over it. $cal(U)$ is the data; $B$ is the set of pointers into it; everything else (closures, views, queries) is derived.
 
 #todo[Implementations may handle concurrent writes via sequencing, head consolidation, or auto-reference at commit time — details belong to rankedb.]
 
@@ -274,16 +280,18 @@ All three edge classes also appear as node classes. The pattern is uniform: at t
 
 *Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
 
+*Contributor and entity are separate node classes.* `contribution/*` carries operational claims — the contributor and what they brought (policies, configs, signatures, structural acts). `entity/*` carries semantic targets — the things relations are about. The same real-world person can be referenced from both classes via separate nodes; an explicit `relation/*` claim asserts the connection if and when wanted.
+
 = What Emerges <sec:emerges>
 
 == Acyclicity <sec:acyclicity>
 
-Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:atomic).
+Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:claims).
 
 #theorem[$G$ is acyclic.]
 
 #proof[
-  By the atomic creation rule (@sec:atomic), every edge $e$ owned by node $v$ has reference $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
+  By the atomic creation rule (@sec:claims), every edge $e$ owned by node $v$ has reference $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
 ]
 
 The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
@@ -395,7 +403,7 @@ The operator collapses to commodity storage + commodity gatekeeper. The trust po
 
 Proof sketch composes three structural facts:
 (1) content-addressed ids (@sec:structure) make node identity decidable by hash equality (O(1));
-(2) immutability (D3, @sec:atomic) means a given id corresponds to one fixed record — no version disagreement is possible;
+(2) immutability (D3, @sec:claims) means a given id corresponds to one fixed record — no version disagreement is possible;
 (3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-reference relation is itself a DAG; closure costs O(|E|).
 
 Each set op produces a node-id subset; closing under reference-traversal yields a well-formed instance.]
