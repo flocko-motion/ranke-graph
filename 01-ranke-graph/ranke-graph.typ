@@ -377,6 +377,34 @@ Snapshot hashes can be published to any external timestamping service — for in
 
 #dref[D4, this section]
 
+== Cryptographic Attestation <sec:attestation>
+
+#todo[*Emergent capability, not a discharger of any D-item.* Keep this section *short* — point at the possibilities and move on. The deep treatment is the subject of a companion paper (working title _Ranke Cryptography_, see #raw("06-ranke-cryptography/notes.md") for the full development).
+
+*The structure of this paper's mention.* One paragraph stating that the claim machinery enables a complete trust posture as application-layer patterns:
+
+- *Signatures as claims* — `pubkey` in contributor content; signed-by claims target hashes via `evidence/*`. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
+- *Policies as claims* — admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head.
+- *Validity is a function of a graph* — `valid(G, policy)`. Invalid graphs are well-formed; merge is structural composition; validation is a separate operation any party can run at any time.
+- *Full historical auditability* — anyone can replay the validity check against the graph. Violations are recognized via additional claims; self-healing through accumulation, not editing.
+
+Closing trifecta-plus table (one short paragraph + table):
+
+#table(
+  columns: 2,
+  align: (left, left),
+  [*Property*], [*Mechanism*],
+  [Integrity], [hashes + Merkle DAG (§5.2)],
+  [Temporal], [snapshots + external anchoring (§5.3)],
+  [Authenticity], [signatures as claims],
+  [Governance], [policies as claims],
+  [Enforcement verifiability], [validity as a function; replay against the graph],
+)
+
+The operator collapses to commodity storage + commodity gatekeeper. The trust posture is structural, not procedural.
+
+*Length when written:* half a page maximum. The full design (signing schemes, policy DSLs, audit cadence, deployment workflow, regulatory mapping) is out of scope for this paper.]
+
 == Boolean Composability <sec:crdt>
 
 #todo[Section opener (1–2 sentences): the graph admits a full set algebra over its node-id sets — $union$, $inter$, $\\$, $triangle.stroked.small$ — all conflict-free by construction.]
