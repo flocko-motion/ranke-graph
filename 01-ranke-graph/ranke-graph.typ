@@ -242,6 +242,12 @@ Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$
 
 #dref[D1, this section]
 
+== Idempotency <sec:idempotency>
+
+By the Merkle-DAG structure, identical claims produce identical ids; under collision-resistance, identical ids imply identical claims. Writes are idempotent; deduplication is free.
+
+#dref[D1, this section]
+
 == Provenance <sec:provenance>
 
 By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at the *initial node* (@sec:ranke-graph). Querying a node's provenance is therefore in $O(n)$.
@@ -253,13 +259,6 @@ Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"R
 == Verifiability <sec:verifiability>
 
 The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity, its embedded `content_hash` field witnesses the content bytes. Recursively computing the id of any $"RG"_h$ including the recalculation of each `content_hash` thus verifies the integrity of the full Ranke-Graph.
-
-== Idempotency
-
-By the Merkle-DAG structure, identical claims produce identical ids; under collision-resistance, identical ids imply identical claims. Writes are idempotent; deduplication is free.
-
-#dref[D3, this section]
-
 
 == Scoping <sec:scoping>
 
@@ -273,7 +272,7 @@ Pruning allows creating partial views that hide arbitrary claims by referencing 
 
 $op("pruned")(v in "RG"_h) <=>$ some `contribution/prune` edge inside $"closure"(h, cal(U))$ references $v$.
 
-Pruning is a structural directive; implementations enforce it by hiding pruned claims from viewers.
+Pruning is a structural directive; implementations enforce it by hiding pruned claims from viewers. This requires that direct id-based access be operator-only — prune edges expose the ids of hidden claims, so users could otherwise bypass pruning by fetching them directly. Users access via branch names; the operator controls which heads they can reach.
 
 An indicator $pi : "RG"_h -> {0, 1}$ marks visibility. Consolidate (@sec:consolidate) the heads with $pi = 1$ and add `contribution/prune` edges to claims with $pi = 0$ on the resulting head $h_p$:
 $ "RG"_(h_p) := "closure"(h_p, cal(U)). $
@@ -304,10 +303,6 @@ Two replicas of a Ranke-Archive converge by union (@sec:set-algebra) — the joi
 
 #dref[D5, this section]
 
-== Forks <sec:forks>
-
-A fork of $"RG"_h$ is just a new branch entry pointing at its head. Claims live once in $cal(U)$ and are shared across forks by id. Each fork is a valid Ranke-Graph (@sec:validity): forks share the initial node of their common ancestry, and any appended claims follow the construction rules. At $O(1)$ per fork, forking is computationally cheap.
-
 == Semantic Relations <sec:bijection>
 
 A Ranke-Graph admits two readings of the same $V$ and $E$:
@@ -325,60 +320,53 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 #dref[D7, this section]
 
-= Emergent Properties <sec:emergent>
+= Additional Emergent Properties <sec:emergent>
 
-Properties that fall out of the structure beyond the desiderata. Each subsection cross-references the §5 chapter from which it emerges.
+Properties that follow from the structure beyond the desiderata. Each subsection cross-references the §5 chapter from which it emerges.
 
-== Hash-as-Backup <sec:hash-backup>
+== Forks <sec:forks>
 
-*Emerges from @sec:head + @sec:verifiability.*
+*Emerges from @sec:branches.* Forking is a new branch entry pointing at $h$ — $O(1)$.
 
-A single hash suffices: $h$ names the instance; $cal(U)$ provides the bytes. Closure traversal from $h$ recovers $"RG"_h$ (@sec:head); Merkle integrity verifies each claim against its id (@sec:verifiability).
+== Backup <sec:hash-backup>
 
-$cal(U)$ is the recovery substrate. By immutability (D1), $cal(U)$ accumulates monotonically and never loses claims. The hash distributes alone — anyone with $h$ and access to any replica of $cal(U)$ can recover and verify $"RG"_h$ independently, without coordination with the operator that produced it.
+*Emerges from @sec:merkle + @sec:verifiability.* A single id $h$ recovers and verifies $"RG"_h$ from any replica of $cal(U)$.
 
 == Anchoring <sec:anchoring>
 
-*Emerges from @sec:verifiability and @sec:hash-backup.* Anchoring extends structural integrity to time-witnessing: a single hash, published to a tamper-evident external medium, anchors the entire reachable state at the moment of publication.
-
-Heads are `contribution/head` claims whose `contribution/head` edges reference the currently-open content claims; the branch table chains through prior tables via its `contribution/branches` edge (@sec:branches). The sequence of branch-table handles $(B_0, B_1, dots.h.c, B_n)$ is a hashchain: each $B_i$ is reachable from $B_(i+1)$ in the closure, so $B_(i+1)$ witnesses $B_i$ — and through it, every head $B_i$ named. Manipulation of any $B_i$ invalidates all $B_j$ for $j > i$ (Tampering Detectable, @sec:verifiability).
-
-#theorem[Anchoring composition.] Publishing a single head id $h$ to a tamper-evident external medium anchors the integrity of every claim in $"closure"(h, cal(U))$.
-
-#proof[
-  By @sec:verifiability, every claim in $"closure"(h, cal(U))$ is integrity-witnessed by $h$ (any tampering changes hashes up to $h$). The external publication binds $h$ to a point in time. Any third party with the published $h$, and access to $cal(U)$, verifies the entire closure via the recursive verification procedure (@sec:verifiability) — without trust in the operator.
-]
-
-A ~32-byte hash anchors the whole graph state. Anchoring is not occasional but constant: pick any head in branch history, publish it (or query an existing publication), and you have a tamper-evident witness of everything reachable.
-
-Common external media for anchoring include public timestamping ledgers, blockchain transactions, certificate-transparency logs, and printed records (following the construction of Haber & Stornetta, 1991). The structure delivers a regulatory-grade tamper-resistance guarantee — the kind that medical-records, financial-audit, and legal-evidence systems spend significant effort to approximate via write-once media or notary services — as a structural consequence rather than a procedural commitment.
-
+*Emerges from @sec:hash-backup.* Publishing $h$ externally — e.g. to a public ledger or a newspaper#footnote[Surety LLC, founded by Haber and Stornetta on the construction of @haber1991, published weekly hash digests in the NYT classifieds for over a decade; archived papers witness the hashes at publication.] — witnesses $"closure"(h, cal(U))$ at the moment of publication.
 
 == Cryptographic Attestation <sec:attestation>
 
-*Emerges from @sec:immutability and @sec:verifiability — application-layer patterns built on the structural foundation.*
+Application-layer patterns built on the structural foundation, without ADT extension. *Emerges from @sec:immutability and @sec:verifiability.*
 
-The claim machinery enables a complete trust posture as application-layer patterns, without ADT extension:
+=== Signatures as Claims <sec:signatures>
 
-- *Signatures as claims.* A contributor's pubkey lives in the content of a `contribution/contributor` claim; signed-by relationships are recorded as `contribution/signature` claims that reference the signed claim's id. Multi-sig, web-of-trust, and key rotation all fall out as patterns over normal claims.
-- *Policies as claims.* Admission rules live in the RG itself. An RG's governance is determined by the policy claims reachable from its head — not by an external configuration file or runtime parameter.
-- *Validity as a function.* The structural validity defined in @sec:ranke-graph generalizes: $"valid"("RG"_h, "policy")$ is a deterministic function from an RG and a policy claim to a boolean (or a set of violation claims). Invalid RGs are still well-formed structurally; merge is structural composition; validation is a separate operation any party can run at any time.
-- *Full historical auditability.* Anyone with access to the RG and the policy can replay the validity check. Violations are themselves claims that accumulate alongside the data; self-healing happens through additional claims, not by editing.
+A contributor's pubkey can live in the content of a `contribution/contributor` claim. Signed-by relationships can be recorded as separate `contribution/signature` claims referencing the signed claim's id — they cannot be a field on the signed claim itself, since the signature would have to be computed over an id that in turn is computed including the signature. Multi-sig, web-of-trust, and key rotation are then patterns over normal claims.
 
-Combined, the structure delivers the full trifecta of trust-posture properties — without an enforcement layer separate from the RG itself:
+=== Policies as Claims <sec:policies-as-claims>
 
-#table(
-  columns: 2,
-  align: (left, left),
-  [*Property*], [*Mechanism*],
-  [Integrity], [hashes + Merkle DAG (@sec:verifiability)],
-  [Temporal], [head hashchain + external anchoring (@sec:anchoring)],
-  [Authenticity], [signatures as claims],
-  [Governance], [policies as claims],
-  [Enforcement verifiability], [validity as a function; replay against the RG],
-)
+Quality and admission rules — required fields, well-formedness checks, signing requirements — can live in the RG itself as policy claims. An RG's governance can be determined by the policy claims reachable from its head, not by an external configuration file or runtime parameter.
 
-The operator collapses to commodity storage plus commodity gatekeeper; the trust posture is structural, not procedural. The deep treatment of these patterns — signing schemes, policy DSLs, audit cadence, deployment workflow, regulatory mapping — is the subject of a companion paper.
+=== Compliance as a Function <sec:compliance>
+
+A compliance check $"compliant"("RG"_h, "policy")$ is a deterministic function from an RG and a policy claim to a boolean (or a set of violation claims). It can perform arbitrary checks, such as requirements on signatures, content formats, or contributor identity.
+
+=== Audit Trail <sec:audit-trail>
+
+Compliance results — boolean verdict and any violations — are themselves recorded as claims, accumulating an audit trail alongside the data. Anyone with access to the RG and thus also the embedded policy can replay the check; self-healing happens through additional claims, not by editing.
+
+=== Trust Posture
+
+If an implementation realizes the patterns above, the ADT provides the structural foundation for:
+
+- *Integrity*: @sec:merkle, @sec:verifiability
+- *Temporal*: @sec:anchoring
+- *Authenticity*: @sec:signatures
+- *Governance*: @sec:policies-as-claims
+- *Enforcement verifiability*: @sec:compliance, @sec:audit-trail
+
+The patterns above sketch what can be built on this foundation. Procedural enforcement — access gateway, policy machinery — is the implementation's responsibility.
 
 = Relation to Prior Work <sec:related-work>
 
