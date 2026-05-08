@@ -138,6 +138,10 @@ Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for 
 
 Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
+== Content <sec:content>
+
+Content-hash-addressed storage holds any content $c$ as bytes, addressed by $H(c)$.
+
 == Nodes <sec:nodes>
 
 ```
@@ -172,7 +176,7 @@ Edges point from the `reference` claim to the node owning the edge. For types se
 
 == Claims <sec:claims>
 
-A *claim* is a node together with the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
 
 == Relations (Semantic Claims) <sec:semantic-claims>
 
@@ -188,7 +192,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if it 
 
 == Universe <sec:universe>
 
-$cal(U)$ — the *universe of claims* — is the set of all claims that have ever been created. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$ — each addressed by a root hash $h$ (@sec:head) — is a subset of $cal(U)$:~$ "RG"_h subset.eq cal(U). $
+$cal(U)$ — the *universe* — is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a root hash $h$ (@sec:head), is a subset of $cal(U)$:~$ "RG"_h subset.eq cal(U). $
 
 By immutability (D1), $cal(U)$ grows monotonically — claims are added but never modified or removed.
 
@@ -202,9 +206,9 @@ A *branch* is a name resolving to a closure, anchored by a `contribution/head` c
 
 The branch table's history is itself a chain of `contribution/branches` claims, thus having full provenance.
 
-== Archive <sec:archive>
+== Ranke-Archive <sec:archive>
 
-A *Ranke-Graph archive* is the tuple $(cal(U), B_h)$ — with $B_h$ being the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
+A *Ranke-Archive* is the tuple $(cal(U), B_h)$ — with $B_h$ being the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
 
 A new archive is created by writing an initial contributor claim and an empty `contribution/branches` claim referenced as $B_h$.
 
@@ -214,13 +218,9 @@ Ranke puts the universe into an archive.
 
 == Immutability <sec:immutability>
 
-A hash $h$ names an instance $"RG"_h$ (@sec:head). Two facts make this naming uniquely determining:
+The closure procedure from $h$ in $cal(U)$ is deterministic — same inputs, same result. Identity is $op("id")(v) = H(S(v))$ (@sec:claims). Modifying $S(v)$ produces a different id under collision-resistance — a different claim, not a modification of the original.
 
-+ *Recovery is functional.* The closure procedure from $h$ in $cal(U)$ is deterministic — same inputs, same result.
-
-+ *Each claim is fixed by its id.* Identity is $op("id")(v) = H(S(v))$ (@sec:claims). Modifying $S(v)$ produces a different id under collision-resistance — a different claim, not a modification of the original.
-
-By the monotonicity of $cal(U)$ (@sec:universe), claims are not removed from the substrate. Under collision-resistance of $H$, and given access to $cal(U)$, recovery from $h$ yields the same $"RG"_h$ forever. The structure does not guarantee that recovery is *possible* — substrate availability is operational, not structural — but if recovery succeeds, the result is provably the original.
+By the monotonicity of $cal(U)$ (@sec:universe), claims are not removed from the substrate. Under collision-resistance of $H$, and given access to $cal(U)$, recovery from $h$ yields the same $"RG"_h$ forever.
 
 #dref[D1, this section]
 
@@ -413,7 +413,7 @@ The full set algebra over node-id sets — $union$, $inter$, $\\$, $triangle.str
 
 == Coordination-Free Merge <sec:cfree-merge>
 
-By the union theorem (@sec:distributability), two replicas of a Ranke-Graph archive that diverge by independent appends converge by hash-set union of their node-id sets. No coordination protocol is required; no conflict-resolution policy; no merge algorithm beyond the union itself.
+By the union theorem (@sec:distributability), two replicas of a Ranke-Archive that diverge by independent appends converge by hash-set union of their node-id sets. No coordination protocol is required; no conflict-resolution policy; no merge algorithm beyond the union itself.
 
 This is the join-semilattice condition for Conflict-Free Replicated Data Types (@shapiro2011crdt). Replicas can be partitioned arbitrarily, write independently, and reconcile at any later time by exchanging claim ids — every replica reaching the same merged state, regardless of partition order or message timing.
 
@@ -517,7 +517,7 @@ Worked examples:
 - *Cross-fork agreement.* Find what two forks have in common: $"agreed" := A inter B$.
 - *Disagreement diffing.* Find what two forks differ on: $"diff" := A triangle.stroked.small B$.
 
-These are stronger guarantees than Git: no merge conflict can ever occur, since identity is by hash and no version disagreement is possible. Any read or write operation on a Ranke-Graph archive — through a library, a server, or a query layer — composes from these four operations; the ADT prescribes no interface, only the operations it must support.
+These are stronger guarantees than Git: no merge conflict can ever occur, since identity is by hash and no version disagreement is possible. Any read or write operation on a Ranke-Archive — through a library, a server, or a query layer — composes from these four operations; the ADT prescribes no interface, only the operations it must support.
 
 == Cryptographic Attestation <sec:attestation>
 
@@ -609,6 +609,7 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`entity/*`* — an identifiable thing in the world.
 - *`relation/*`* — a node representing a relation among entities.
 - *`contribution/*`* — a claim about contributors or their actions on the RG.
+- *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
 
 *Edge classes:*
 
