@@ -126,9 +126,17 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-relations), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-claims), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
 
-Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
+== Primitives <sec:primitives>
+
+Let $S$ be a canonical serialization mapping any object (node or edge) to bytes. It must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly).
+
+Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
+
+Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. 
+
+Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
 
 == Nodes <sec:nodes>
 
@@ -138,85 +146,67 @@ node = {
   content_hash: H(content),
   encoding:     string (MIME media type, e.g. "message/rfc822"),
   created_at:   timestamp (UTC),
-  edges:        set of edge ids,
+  edges:        set of owned edge ids,
   ...:          additional implementation-defined fields
 }
 ```
 
-Two nodes with identical content but different provenance produce different ids.
-
-- `type` follows the `class/subtype` convention (@sec:types): the first segment is from a fixed set, the second is open vocabulary.
-- `encoding` is a MIME media type (@freed2013rfc6838) — e.g.~`text/plain`, `image/png`, `message/rfc822` — telling consumers how to interpret the content bytes.
-- `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`.
-- `created_at` is the UTC timestamp the claim was added to the Ranke-Graph — *not* the time of any external artifact the claim may represent.
-- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:verifiability and onward) apply uniformly to any refinement.
+- `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
+- `encoding` is a MIME media type (@freed2013rfc6838) — e.g.~`text/plain`, `image/png`, `message/rfc822`.
+- `content_hash` commits to the content bytes; stored in content-hash-addressed storage.
+- `created_at` is the UTC timestamp the claim was added — *not* the time of its origin.
+- Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>
-
-Each edge is part of exactly one claim, recoverable as the claim whose node lists the edge's id in its `edges` set.
 
 ```
 edge = {
   reference:    id of referenced claim,
   type:         string (class/subtype, e.g. "relation/family"),
-  content_hash: H(content),
+  content:      string,
   ...:          additional implementation-defined fields
 }
 ```
 
-The owning claim's id cannot be stored on the edge: that would make $S(e)$ depend, via the claim's `edges` set, on $S(e)$ itself. `type`, `content_hash`, and extension fields follow the same conventions as for nodes (@sec:nodes). 
+Edges point from the `reference` claim to the node owning the edge. For types see @sec:types.
 
 == Claims <sec:claims>
 
-A *claim* is a node together with the edges in its `edges` set. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. 
+A *claim* is a node together with the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+
+== Relations (Semantic Claims) <sec:semantic-claims>
+
+Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
+
+A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim — never another edge — so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities — e.g., `are_friends`.
+
+The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The regular *structural reading* is acyclic; the _semantic reading_ admits cycles (formalized in @sec:bijection).
 
 == Ranke-Graph <sec:ranke-graph>
 
 A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if it contains a unique `contribution/contributor` node with no references — the *initial node* — every other claim carries a `contribution/contributor` edge, and all references recursively resolve to the initial node (@sec:types).
 
-== Semantic Relations <sec:semantic-relations>
+== Universe <sec:universe>
 
-Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
+$cal(U)$ — the *universe of claims* — is the set of all claims that have ever been created. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$ — each addressed by a root hash $h$ (@sec:head) — is a subset of $cal(U)$:~$ "RG"_h subset.eq cal(U). $
 
-A relation is itself a claim, consisting of a `relation/*` node with `relation/*` edges to its entities, but otherwise like any other claim.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). It follows from the no-edge-references rule (@sec:edges): edges cannot point at edges, so relations cannot be encoded as plain edges between entities.] Each relation edge carries a `relation_direction` field tagging the entity's role, with values `from`/+1 or `to`/-1. All-`from` or all-`to` expresses a symmetric relation: no entity is distinguished by role — e.g., `are_friends`.
+By immutability (D1), $cal(U)$ grows monotonically — claims are added but never modified or removed.
 
-Any graph built from claims admits a *semantic reading* in which each `relation/*` edge's direction is inverted when `relation_direction = -1`. The two readings stand in bijection (formalized in @sec:bijection). The structural reading is acyclic — every proof in @sec:emerges uses it. The semantic reading admits cycles.
+== Closures <sec:head>
 
-== The Universe of Claims <sec:universe>
-
-$cal(U)$ — the *universe of claims* — is the set of all claims that have ever been created. A *Ranke-Graph instance* $"RG"$ is a subset of $cal(U)$:
-$ "RG" subset.eq cal(U). $
-References across instances are not transfers: a hash addresses the same claim in $cal(U)$ regardless of which instance first carried it. By immutability (D1), $cal(U)$ grows monotonically — claims are added but never modified or removed.
-
-== Hash-Rooted Instances <sec:head>
-
-Given $cal(U)$ and a hash $h$ that roots a tree, the instance $"RG"_h := "closure"(h, cal(U))$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
-
-Concurrent writes naturally produce multiple open heads, breaking the tree property: no single hash can name a multi-headed state, since no claim sits above all of them.
-
-To make such an instance addressable, we give it *a head*: a new `contribution/head` claim whose `contribution/head` edges reference every currently-open head. The new claim unifies them under a single root — itself the unique open head — and its hash names the whole tree. By construction, every $"RG"_h$ rooted at a head is then a tree, addressable by a single hash.
+Given $cal(U)$ and a hash $h$, the instance $"RG"_h := "closure"(h, cal(U))$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The hash alone suffices to recover it.
 
 == Branches <sec:branches>
 
-A *branch* $x$ is a name. The *branch table* is a `contribution/branches` claim in $cal(U)$ — a single claim whose edges name every active branch. A branch table has:
+A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim with `contribution/branch` references to all contained branches and optionally a `contribution/branches` edge to the previous revision of that table. Both are stored in $cal(U)$ with $B_h$ being the id of the current branch table.
 
-- a `contribution/contributor` edge to the contributor who last updated the table;
-- one `contribution/branch` edge per active branch, with the branch name in edge content and the reference pointing at the branch's current head (a `contribution/head` claim);
-- optionally, a `contribution/branches` edge to the previous branch table — chaining the table's own history.
-
-Write $B_h$ for the id of the current branch table.
-
-A branch advance creates two new claims: a `contribution/head` claim that consolidates the branch's currently-open content (a `contribution/contributor` edge plus `contribution/head` edges to the open content claims being consolidated), and a new `contribution/branches` claim referencing all current branches (with the advanced branch's edge updated to point at the new head, all others unchanged) plus a `contribution/branches` edge to the previous table; $B_h$ is updated to the new table's id.
-
-The branch table's history is itself a chain of `contribution/branches` claims, traversable like any other provenance chain. Each table is a content-addressed snapshot of all branch bindings at a moment; updates are cheap because identical edges (unchanged branch references) hash identically and are deduplicated by content addressing — like git commits, but over branch bindings.
-
-Branches enable concurrent contribution: contributors write to a branch name; the binding resolves through $B_h$ to the branch's current head at write time. Forks and merges arise naturally from heads consolidating multiple predecessors via `contribution/head` edges — branch trees and DAGs emerge from the same head mechanism without extra structure.
+The branch table's history is itself a chain of `contribution/branches` claims, thus having full provenance.
 
 == Archive <sec:archive>
 
-A *Ranke-Graph archive* is the pair $(cal(U), B_h)$: the immutable universe of claims paired with the current branch-table handle into it. Mutability lives only in $B_h$. Given $cal(U)$ and $B_h$, the entire archive — every branch, every head, every content claim, the full table history — reconstitutes by closure traversal from $B_h$. Multiple archives share $cal(U)$; each has its own $B_h$.
+A *Ranke-Graph archive* is the tuple $(cal(U), B_h)$ — with $B_h$ being the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
 
-A new archive is created by writing an initial contributor claim and an empty branch table — a `contribution/branches` claim with only the `contribution/contributor` edge to that contributor and no branch references. $B_h$ is set to the empty table's id; this is the founding act of the archive.
+A new archive is created by writing an initial contributor claim and an empty `contribution/branches` claim referenced as $B_h$.
 
 Ranke puts the universe into an archive.
 
@@ -444,7 +434,7 @@ A Ranke-Graph instance $"RG"_h$ admits two readings of the same $V$ and $E$, wri
 - the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:provenance, @sec:verifiability).
 - the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `derivation/*` and `contribution/*` are unchanged.
 
-For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:types). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-relations).
+For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:types). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:semantic-claims).
 
 *Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
 
@@ -537,7 +527,7 @@ The claim machinery enables a complete trust posture as application-layer patter
 
 - *Signatures as claims.* A contributor's pubkey lives in the content of a `contribution/contributor` claim; signed-by relationships are recorded as `contribution/signature` claims that reference the signed claim's hash. Multi-sig, web-of-trust, and key rotation all fall out as patterns over normal claims.
 - *Policies as claims.* Admission rules live in the RG itself. An RG's governance is determined by the policy claims reachable from its head — not by an external configuration file or runtime parameter.
-- *Validity as a function.* $"valid"(G, "policy")$ is a deterministic function from an RG and a policy claim to a boolean (or a set of violation claims). Invalid RGs are still well-formed structurally; merge is structural composition; validation is a separate operation any party can run at any time.
+- *Validity as a function.* The structural validity defined in @sec:ranke-graph generalizes: $"valid"(G, "policy")$ is a deterministic function from an RG and a policy claim to a boolean (or a set of violation claims). Invalid RGs are still well-formed structurally; merge is structural composition; validation is a separate operation any party can run at any time.
 - *Full historical auditability.* Anyone with access to the RG and the policy can replay the validity check. Violations are themselves claims that accumulate alongside the data; self-healing happens through additional claims, not by editing.
 
 Combined, the structure delivers the full trifecta of trust-posture properties — without an enforcement layer separate from the RG itself:
