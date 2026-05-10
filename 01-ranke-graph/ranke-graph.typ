@@ -59,7 +59,7 @@ Centuries of archival practice converged on a small set of principles — proven
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
 
-== Two Traditions
+== Two Traditions <sec:two-traditions>
 
 Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer, not in the system. Knowledge is something external to the data.
 
@@ -116,41 +116,27 @@ Such systems can evolve on the same data: selecting views that fit, contributing
 
 = Desiderata <sec:desiderata>
 
-Following the motivation in @sec:introduction, we state the obligations any Ranke-Graph must satisfy. The seven items are independent — together they characterise the contract. Additional emergent properties — including idempotency of writes, external anchoring, the full set algebra, and the bijection between structural and semantic readings — follow as consequences (see @sec:emergent).
+From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties — idempotency of writes, the full set algebra, and the bijection between structural and semantic readings — follow as consequences (see @sec:emergent).
 
-The desiderata describe what is required; the choice of how to satisfy them is open.
+The first five concern how knowledge is gathered — the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organized. D8 and D9 are CS-operational concerns: access control and distributed use.
 
-*D1. Immutability — no claim is ever modified or deleted.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
+*D1. Provenance — every claim references what it's based on and has a path back to its sources.*
 
-*D2. Provenance — every claim has a path back to its sources.* For every claim recorded in the archive, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
+*D2. Immutability — no claim is ever modified or deleted.*
 
-*D3. Verifiability — integrity is provable from the structure.* Any past state of the graph is provable to a third party from the structure alone, without reliance on the operator.
+*D3. Identity and Authenticity — every claim has a named author whose authorship is verifiable.*
 
-*D4. Scoped Visibility — visibility propagates along references and admits scoping.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
+*D4. Temporality — every claim's time of existence is provably bounded.*
 
-*D5. Distributability — replicas converge without coordination.* Independent replicas of the archive may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
+*D5. Verifiability — integrity is independently verifiable.*
 
-*D6. Semantic Relations — rich relations can be expressed.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
+*D6. Semantic Relations — rich relations between entities can be expressed.*
 
-*D7. Open-Ended Vocabulary — vocabulary is unbounded.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
+*D7. Open Vocabulary — applications can define their own categories and content schemas.*
 
-#todo[
-  *Pending: D8 Authenticity, D9 Temporality, and reorder by centrality.*
+*D8. Scoped Visibility — views can expose only chosen subsets of claims.*
 
-  Two new desiderata to add:
-
-  *D8. Authenticity — every claim has a verifiable author.* Each claim's id binds to the cryptographic signature of its contributor's pubkey, making authorship structurally verifiable from the claim alone. Discharged in @sec:authenticity.
-
-  *D9. Temporality — every claim's time of existence is provably bounded.* Through monotone $"created_at"$ along provenance edges (@sec:claims) and external anchoring of head ids (@sec:anchoring), a claim's existence is bounded within a verifiable time window.
-
-  Reorder all D's by centrality (Ranke's quellenkritik hierarchy):
-
-  + *Fundament — quellenkritik:* D-Provenance (woher), D-Immutability (was bleibt was), D-Authenticity (wer), D-Temporality (wann), D-Verifiability (Echtheitsprüfung).
-  + *Structural:* D-Semantic Relations, D-Open-Ended Vocabulary.
-  + *Operational:* D-Scoped Visibility, D-Distributability.
-
-  Renumbering will require sweeping the #dref calls throughout §5/§6.
-]
+*D9. Distributability — the structure supports distributed use.*
 
 = The Data Structure <sec:structure>
 
@@ -266,29 +252,62 @@ Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creat
 
 Under this assumption, standard Merkle-DAG properties hold without further proof: the structure is acyclic; manipulation of any ancestor changes the descendant's id; identical claims produce identical ids. Subsequent sections invoke these as established.
 
-== Immutability <sec:immutability>
-
-Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim, not a modification. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
-
-#dref[D1, this section]
-
-== Idempotency <sec:idempotency>
-
-By the Merkle-DAG structure, identical claims produce identical ids; under collision-resistance, identical ids imply identical claims. Writes are idempotent; deduplication is free.
-
-#dref[D1, this section]
-
 == Provenance <sec:provenance>
 
 By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
 Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"RG"_h$ stays complete.
 
+#dref[D1, this section]
+
+== Immutability <sec:immutability>
+
+Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim, not a modification. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
+
 #dref[D2, this section]
+
+== Idempotency <sec:idempotency>
+
+By the Merkle-DAG structure, identical claims produce identical ids; under collision-resistance, identical ids imply identical claims. Writes are idempotent; deduplication is free.
+
+#dref[D2, this section]
+
+== Identity and Authenticity <sec:authenticity>
+
+Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives) — for the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
+
+When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims — a rotation chain, for example, is a new contributor signed by the old.
+
+#dref[D3, this section]
+
+== Anchoring <sec:anchoring>
+
+Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(h, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $h_1, h_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
+
+#dref[D4, this section]
 
 == Verifiability <sec:verifiability>
 
 The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation — since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
+
+#dref[D5, this section]
+
+== Semantic Relations <sec:bijection>
+
+A Ranke-Graph admits two readings of the same $V$ and $E$:
+
+- *Structural reading*: edges run reference $arrow.r$ owner (older $arrow.r$ newer). Acyclic; Merkle-secured.
+- *Semantic reading*: same $V$ and $E$, with `relation/*` edges directed by their `relation_direction`: `from` runs entity $arrow.r$ relation, `to` runs relation $arrow.r$ entity.
+
+Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. The structural reading is acyclic; the semantic admits cycles (e.g. _Alice knows Bob_, _Bob ignores Alice_).
+
+#dref[D6, this section]
+
+== Open-Ended Vocabulary <sec:vocabulary>
+
+`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognize.
+
+#dref[D7, this section]
 
 == Scoping <sec:scoping>
 
@@ -309,7 +328,7 @@ $ "RG"_(h_p) := "closure"(h_p, cal(U)). $
 
 A pruned view is not a valid Ranke-Graph (@sec:validity): provenance recursion halts at pruned claims, allowing Merkle integrity verification (@sec:merkle) for the visible claims only; pruned claims appear as id-only via `contribution/prune` edges, attesting existence without revealing content.
 
-#dref[D4, this section]
+#dref[D8, this section]
 
 == Set Algebra <sec:set-algebra>
 
@@ -331,28 +350,11 @@ Define a pruning indicator $pi$ so that $pi(v) = 0$ for claims to remove and app
 
 Two replicas of a Ranke-Archive converge by union (@sec:set-algebra) — the join-semilattice condition for Conflict-Free Replicated Data Types (@shapiro2011crdt). Replicas can write independently and reconcile by exchanging claim ids; every replica reaches the same state regardless of partition order.
 
-#dref[D5, this section]
-
-== Semantic Relations <sec:bijection>
-
-A Ranke-Graph admits two readings of the same $V$ and $E$:
-
-- *Structural reading*: edges run reference $arrow.r$ owner (older $arrow.r$ newer). Acyclic; Merkle-secured.
-- *Semantic reading*: same $V$ and $E$, with `relation/*` edges directed by their `relation_direction`: `from` runs entity $arrow.r$ relation, `to` runs relation $arrow.r$ entity.
-
-Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. The structural reading is acyclic; the semantic admits cycles (e.g. _Alice knows Bob_, _Bob ignores Alice_).
-
-#dref[D6, this section]
-
-== Open-Ended Vocabulary <sec:vocabulary>
-
-`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognize.
-
-#dref[D7, this section]
+#dref[D9, this section]
 
 = Additional Emergent Properties <sec:emergent>
 
-Properties that follow from the structure beyond the desiderata. Each subsection cross-references the §5 chapter from which it emerges.
+Properties that follow from the structure beyond the desiderata.
 
 == Forks <sec:forks>
 
@@ -361,16 +363,6 @@ Properties that follow from the structure beyond the desiderata. Each subsection
 == Backup <sec:hash-backup>
 
 *Emerges from @sec:merkle + @sec:verifiability.* A single id $h$ recovers and verifies $"RG"_h$ from any replica of $cal(U)$.
-
-== Anchoring <sec:anchoring>
-
-*Emerges from @sec:hash-backup.* Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(h, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $h_1, h_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
-
-== Authenticity <sec:authenticity>
-
-*Emerges from @sec:primitives.* Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives) — for the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
-
-When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims — a rotation chain, for example, is a new contributor signed by the old.
 
 = Relation to Prior Work <sec:related-work>
 
