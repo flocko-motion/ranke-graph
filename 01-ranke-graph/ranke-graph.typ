@@ -316,7 +316,7 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 == Open-Ended Vocabulary <sec:vocabulary>
 
-`class/*` is open vocabulary: applications add subtypes (`relation/family`, `contribution/policy`, `source/conversation`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognize.
+`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognize.
 
 #dref[D7, this section]
 
@@ -344,18 +344,6 @@ Application-layer patterns built on the structural foundation, without ADT exten
 
 A contributor's pubkey can live in the content of a `contribution/contributor` claim. Signed-by relationships can be recorded as separate `contribution/signature` claims referencing the signed claim's id — they cannot be a field on the signed claim itself, since the signature would have to be computed over an id that in turn is computed including the signature. Multi-sig, web-of-trust, and key rotation are then patterns over normal claims.
 
-=== Policies as Claims <sec:policies-as-claims>
-
-Quality and admission rules — required fields, well-formedness checks, signing requirements — can live in the RG itself as policy claims. An RG's governance can be determined by the policy claims reachable from its head, not by an external configuration file or runtime parameter.
-
-=== Compliance as a Function <sec:compliance>
-
-A compliance check $"compliant"("RG"_h, "policy")$ is a deterministic function from an RG and a policy claim to a boolean (or a set of violation claims). It can perform arbitrary checks, such as requirements on signatures, content formats, or contributor identity.
-
-=== Audit Trail <sec:audit-trail>
-
-Compliance results — boolean verdict and any violations — are themselves recorded as claims, accumulating an audit trail alongside the data. Anyone with access to the RG and thus also the embedded policy can replay the check; self-healing happens through additional claims, not by editing.
-
 === Trust Posture
 
 If an implementation realizes the patterns above, the ADT provides the structural foundation for:
@@ -363,10 +351,6 @@ If an implementation realizes the patterns above, the ADT provides the structura
 - *Integrity*: @sec:merkle, @sec:verifiability
 - *Temporal*: @sec:anchoring
 - *Authenticity*: @sec:signatures
-- *Governance*: @sec:policies-as-claims
-- *Enforcement verifiability*: @sec:compliance, @sec:audit-trail
-
-The patterns above sketch what can be built on this foundation. Procedural enforcement — access gateway, policy machinery — is the implementation's responsibility.
 
 = Relation to Prior Work <sec:related-work>
 
