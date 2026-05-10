@@ -108,6 +108,8 @@ Five concepts populate the graph. On the provenance side: *sources* (artifacts c
 Contributors and entities are deliberately separate. A *contributor* is operational — the actor whose work brought a claim into the graph. An *entity* is semantic — a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection — but they never share a node.
 
 
+#todo[Refresh §A Vision to follow the new spine: predates the §Two Traditions framing and the Phase 6 D-reorder. Could land harder if rewritten as the *application* layer of the two-traditions composition (rather than as a forward-looking AI/agent pitch). Keep the AI examples but ground them in archival continuity.]
+
 == A Vision
 
 The Ranke-Graph is a substrate for systems just becoming possible — AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
@@ -134,7 +136,7 @@ The first five concern how knowledge is gathered — the source-criticism method
 
 *D7. Open Vocabulary — applications can define their own categories and content schemas.*
 
-*D8. Scoped Visibility — views can expose only chosen subsets of claims.*
+*D8. Partial Views — views can expose only chosen subsets of claims.*
 
 *D9. Distributability — the structure supports distributed use.*
 
@@ -258,6 +260,8 @@ By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in
 
 Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"RG"_h$ stays complete.
 
+#todo[Add a one-liner observation here (or in @sec:validity): multi-root RGs are the federation case — when two archives merge their Universes, the resulting RG has the initial nodes of both as roots. Closes the loop between §Validity's "one or more initial nodes" and the §Distributability merge story.]
+
 #dref[D1, this section]
 
 == Immutability <sec:immutability>
@@ -354,6 +358,8 @@ Two replicas of a Ranke-Archive converge by union (@sec:set-algebra) — the joi
 
 = Additional Emergent Properties <sec:emergent>
 
+#todo[Possible dissolution: Forks and Backup are both single-line consequences. Each could become an inline observation in its emerging chapter — Forks at the end of §Branches, Backup at the end of §Verifiability — making §6 redundant. Consider folding and removing the chapter in a future pass.]
+
 Properties that follow from the structure beyond the desiderata.
 
 == Forks <sec:forks>
@@ -365,6 +371,8 @@ Properties that follow from the structure beyond the desiderata.
 *Emerges from @sec:merkle + @sec:verifiability.* A single id $h$ recovers and verifies $"RG"_h$ from any replica of $cal(U)$.
 
 = Relation to Prior Work <sec:related-work>
+
+#todo[Refresh §7 Related Work for the Phase 2-3 Sign integration and Phase 6 D-reorder. Currently focuses on temporal/versioned/immutable graph systems and provenance vocabularies (PROV-DM, Nanopublications) but doesn't address signature-based identity systems (PGP web of trust, Sigstore, RFC 3161 timestamping in the wild, Merkle-tree-based signing schemes). Add a sub-chapter on "Signature and Timestamping Infrastructure" or fold into existing chapters where the mechanism overlaps.]
 
 == Temporal Knowledge Graphs: Graphiti / Zep
 
