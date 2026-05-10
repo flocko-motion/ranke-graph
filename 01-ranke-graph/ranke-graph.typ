@@ -134,9 +134,11 @@ Let $S$ be a canonical serialization mapping any object (node or edge) to bytes.
 
 Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
 
-Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. 
+Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice — $"Sign"(h) = h$ — is valid for systems without authenticity needs.
 
-Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
+Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$ — adopted by the reference implementations.
+
+Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
 
 == Content <sec:content>
 
@@ -176,7 +178,7 @@ Edges point from the `reference` claim to the node owning the edge. For types se
 
 == Claims <sec:claims>
 
-A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$ — a claim cannot predate what it references.
 
 == Relations (Semantic Claims) <sec:semantic-claims>
 
@@ -188,7 +190,7 @@ The *semantic reading* of a graph inverts each `relation/*` edge's direction if 
 
 == Ranke-Graph <sec:ranke-graph>
 
-A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if it contains a unique `contribution/contributor` node with no references — the *initial node* — every other claim carries a `contribution/contributor` edge, and all references recursively resolve to the initial node (@sec:types).
+A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references — making it an *initial node* — or carries a `contribution/contributor` edge whose closure resolves to one or more initial nodes (@sec:types).
 
 == Universe <sec:universe>
 
@@ -230,7 +232,7 @@ $ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
 == Merkle DAG <sec:merkle>
 
-Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = H(S(v))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
+Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
 *Standing assumption.* The structure rests on *collision-resistance of $H$* — no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
@@ -250,7 +252,7 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 == Provenance <sec:provenance>
 
-By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at the *initial node* (@sec:ranke-graph). Querying a node's provenance is therefore in $O(n)$.
+By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
 Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"RG"_h$ stays complete.
 
@@ -258,13 +260,13 @@ Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"R
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity, its embedded `content_hash` field witnesses the content bytes. Recursively computing the id of any $"RG"_h$ including the recalculation of each `content_hash` thus verifies the integrity of the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation — since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
 
 == Scoping <sec:scoping>
 
 Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope — σ propagates through the closure. This allows creating a valid, consolidated subgraph of $"RG"_h$ that e.g. contains only the claims derived from the contributions of a specific contributor, or related to a specific project.
 
-The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): recursion reaches the initial node, full provenance, no prune edges. Incremental updates are cheap — apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance, no prune edges. Incremental updates are cheap — apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
 
 == Pruning <sec:pruning>
 
@@ -334,23 +336,13 @@ Properties that follow from the structure beyond the desiderata. Each subsection
 
 == Anchoring <sec:anchoring>
 
-*Emerges from @sec:hash-backup.* Publishing $h$ externally — e.g. to a public ledger or a newspaper#footnote[Surety LLC, founded by Haber and Stornetta on the construction of @haber1991, published weekly hash digests in the NYT classifieds for over a decade; archived papers witness the hashes at publication.] — witnesses $"closure"(h, cal(U))$ at the moment of publication.
+*Emerges from @sec:hash-backup.* Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(h, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $h_1, h_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
 
-== Cryptographic Attestation <sec:attestation>
+== Authenticity <sec:authenticity>
 
-Application-layer patterns built on the structural foundation, without ADT extension. *Emerges from @sec:immutability and @sec:verifiability.*
+*Emerges from @sec:primitives.* Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives) — for the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
 
-=== Signatures as Claims <sec:signatures>
-
-A contributor's pubkey can live in the content of a `contribution/contributor` claim. Signed-by relationships can be recorded as separate `contribution/signature` claims referencing the signed claim's id — they cannot be a field on the signed claim itself, since the signature would have to be computed over an id that in turn is computed including the signature. Multi-sig, web-of-trust, and key rotation are then patterns over normal claims.
-
-=== Trust Posture
-
-If an implementation realizes the patterns above, the ADT provides the structural foundation for:
-
-- *Integrity*: @sec:merkle, @sec:verifiability
-- *Temporal*: @sec:anchoring
-- *Authenticity*: @sec:signatures
+When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims — a rotation chain, for example, is a new contributor signed by the old.
 
 = Relation to Prior Work <sec:related-work>
 
