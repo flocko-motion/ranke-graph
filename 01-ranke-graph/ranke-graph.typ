@@ -55,7 +55,17 @@ Across these traditions, three conclusions converge: contradictions in the evide
 
 For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
+Centuries of archival practice converged on a small set of principles — provenance, immutability, attribution, dated existence, tolerance for contradiction — not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favor of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
+
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
+
+== Two Traditions
+
+Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer, not in the system. Knowledge is something external to the data.
+
+Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
+
+The Ranke-Graph operates in the intersection. It uses CS primitives — hashes, DAGs, signatures, content-addressing — as substrate for the archival discipline of knowledge. Neither purely algorithmic nor purely narrative, but a deliberate composition of both.
 
 == The Ranke Graph
 
@@ -123,6 +133,24 @@ The desiderata describe what is required; the choice of how to satisfy them is o
 *D6. Semantic Relations — rich relations can be expressed.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
 
 *D7. Open-Ended Vocabulary — vocabulary is unbounded.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
+
+#todo[
+  *Pending: D8 Authenticity, D9 Temporality, and reorder by centrality.*
+
+  Two new desiderata to add:
+
+  *D8. Authenticity — every claim has a verifiable author.* Each claim's id binds to the cryptographic signature of its contributor's pubkey, making authorship structurally verifiable from the claim alone. Discharged in @sec:authenticity.
+
+  *D9. Temporality — every claim's time of existence is provably bounded.* Through monotone $"created_at"$ along provenance edges (@sec:claims) and external anchoring of head ids (@sec:anchoring), a claim's existence is bounded within a verifiable time window.
+
+  Reorder all D's by centrality (Ranke's quellenkritik hierarchy):
+
+  + *Fundament — quellenkritik:* D-Provenance (woher), D-Immutability (was bleibt was), D-Authenticity (wer), D-Temporality (wann), D-Verifiability (Echtheitsprüfung).
+  + *Structural:* D-Semantic Relations, D-Open-Ended Vocabulary.
+  + *Operational:* D-Scoped Visibility, D-Distributability.
+
+  Renumbering will require sweeping the #dref calls throughout §5/§6.
+]
 
 = The Data Structure <sec:structure>
 
@@ -393,9 +421,11 @@ Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
 
-#todo[A small structure, a long list of consequences. Forward pointers to the implementation paper (working title _RankeDB_) and to subsequent work on workers, retrieval, and orchestration.]
+The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realization in the digital substrate.
 
-#todo[Closing paragraph: reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.]
+The computer science tools used here are all established — Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
+
+Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.
 
 = Type Vocabulary <sec:types>
 
