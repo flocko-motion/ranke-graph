@@ -427,6 +427,8 @@ The computer science tools used here are all established — Merkle trees from 1
 
 Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.
 
+#todo[Add a closing line / afterthought for §8 reflecting the demarcation line: *"The Ranke-Graph documents; it does not decide."* This is the principle that subsumes the design — signatures document who signed (no decision who may sign), pruning documents what's hidden (no decision who may see), validity documents structural well-formedness (no decision what's true). Anything that would *decide* — policies, governance, consensus — belongs above the ADT, in the application layer. Could land as the closing sentence of §8, after "we invent nothing; we compose." — explains in one line why we drew the boundary where we did.]
+
 = Type Vocabulary <sec:types>
 
 The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes; subtype vocabulary is open.
