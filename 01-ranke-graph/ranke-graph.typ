@@ -39,7 +39,7 @@ Schemas, integrity constraints, and transactions are built to maintain a consist
 When facts change, or sources disagree, the database is edited to align; its earlier states, and thus the disagreement itself, are discarded.
 In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency, not loss. The cleaned value is an artifact of the algorithm; the ambiguity it discarded was itself information.
 
-This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts about the world.
+This is the ordinary condition of the enterprise data store. It works so long as the caller supplies correct facts about the world.
 
 The Ranke-Graph takes the opposite stance.
 It stores only at the third layer: attributed claims.
@@ -58,7 +58,7 @@ This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimu
 
 == Knowledge Systems: Machines Reading and Writing at Scale
 
-Classical knowledge stores — wikis, knowledge graphs, structured databases, plain-text notes — consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves; creating and maintaining this highly structured information causing permanent effort. Large language models consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made — producing fuzziness and hallucinations.
+Classical knowledge stores — wikis, knowledge graphs, structured databases, plain-text notes — consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves. Creating and maintaining this highly structured information requires permanent effort. Large language models consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made — producing fuzziness and hallucinations.
 
 Merging the two approaches is an active research area, with many designs proposed. To understand what such a merge should preserve, we turn to the disciplines that have studied knowledge creation and preservation longest: historical science, archival theory, librarianship.
 
@@ -112,9 +112,9 @@ The Ranke-Graph is append-only: claims accumulate; existing ones are never modif
 
 === Levels of Distillation
 
-This depth can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This depth can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types). Summary nodes condense complex clusters; the semantic abstraction layer expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
-Levels of distillation are what make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
+Levels of distillation make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
 === Taxonomy
 
@@ -234,7 +234,7 @@ Given $cal(U)$ and an id $h$, the instance $"RG"_h := "closure"(h, cal(U))$ is t
 
 == Branches <sec:branches>
 
-A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim with `contribution/branch` references to all contained branches and optionally a `contribution/branches` edge to the previous revision of that table. Both are stored in $cal(U)$ with $B_h$ being the id of the current branch table.
+A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim with `contribution/branch` references to all contained branches. Optionally, it carries a `contribution/branches` edge to the previous revision of that table. Both are stored in $cal(U)$ with $B_h$ being the id of the current branch table.
 
 The branch table's history is itself a chain of `contribution/branches` claims, thus having full provenance.
 
@@ -330,7 +330,7 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 == Scoping <sec:scoping>
 
-Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope — σ propagates through the closure. This allows creating a valid, consolidated subgraph of $"RG"_h$ that e.g. contains only the claims derived from the contributions of a specific contributor, or related to a specific project.
+Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope — σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_h$ — for example, claims derived from one contributor's contributions, or claims related to one project.
 
 The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance, no prune edges. Incremental updates are cheap — apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
 
