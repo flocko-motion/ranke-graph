@@ -209,23 +209,23 @@ Edges point from the `reference` claim to the node owning the edge. For types se
 
 == Claims <sec:claims>
 
-A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$ — a claim cannot predate what it references.
+A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$, so a claim cannot predate what it references.
 
 == Relations (Semantic Claims) <sec:semantic-claims>
 
-Provenance requires acyclicity — content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
+Provenance requires acyclicity: content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
 
-A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim — never another edge — so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities — e.g., `are_friends`.
+A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim (never another edge), so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities, e.g., `are_friends`.
 
 The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
 
 == Ranke-Graph <sec:ranke-graph>
 
-A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references — making it an *initial node* — or carries a `contribution/contributor` edge whose closure resolves to one or more initial nodes (@sec:types).
+A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references (making it an *initial node*) or carries a `contribution/contributor` edge whose closure resolves to one or more initial nodes (@sec:types).
 
 == Universe <sec:universe>
 
-$cal(U)$ — the *universe* — is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
+$cal(U)$, the *universe*, is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
 $"RG"_h subset.eq cal(U)$.
 
 == Closures <sec:head>
@@ -240,7 +240,7 @@ The branch table's history is itself a chain of `contribution/branches` claims, 
 
 == Ranke-Archive <sec:archive>
 
-A *Ranke-Archive* is the tuple $(cal(U), B_h)$ — with $B_h$ being the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
+A *Ranke-Archive* is the tuple $(cal(U), B_h)$, where $B_h$ is the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
 
 A new archive is created by writing the initial node and an empty `contribution/branches` claim referenced as $B_h$.
 
