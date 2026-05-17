@@ -391,12 +391,12 @@ Properties that follow from the structure beyond the desiderata.
 
 == Temporal Knowledge Graphs: Graphiti / Zep
 
-Graphiti (@rasmussen2025graphiti; @zep2025temporal, 2024–2025) is the closest existing system to the Ranke-Graph in the LLM context-management space.
+Graphiti (@rasmussen2025graphiti; @zep2025temporal, 2024–2025) is the closest existing system to the Ranke-Graph in the LLM context-management field.
 It builds temporal, provenance-aware knowledge graphs using FalkorDB or Neo4j, with bidirectional episode indices and temporal validity windows.
 Facts are invalidated rather than deleted.
 
 However, Graphiti performs destructive entity-summary updates, has no content-addressable source archive comparable to the Ranke-Graph, and embeds provenance as annotation on the knowledge graph rather than treating it as the content itself.
-The Ranke-Graph can be understood as an extension of Graphiti's philosophy — adding immutability, first-class sources, and the architectural inversion that makes provenance the substrate rather than an annotation.
+The Ranke-Graph can be understood as an extension of Graphiti's philosophy — adding immutability, sources preserved within the graph itself, and the architectural inversion that makes provenance the substrate rather than an annotation.
 
 == Versioned Knowledge Bases: TerminusDB
 
@@ -418,7 +418,7 @@ Both capture temporal history but not _epistemic_ history — they record _when_
 
 The W3C PROV Data Model (@moreau2013provdm) provides a formal vocabulary for provenance (Entity, Activity, Agent, wasGeneratedBy, wasDerivedFrom, used).
 The Ranke-Graph is semantically compatible with PROV-DM — nodes map to Entities, contributor activities to Activities, contributors to Agents — but does not depend on or implement the W3C stack (RDF, SPARQL, OWL).
-PROV-DM compatibility exists at the conceptual level, enabling potential export or interoperability without architectural coupling.
+PROV-DM compatibility exists at the conceptual level, allowing export or interoperability without architectural coupling.
 
 == Nanopublications
 
