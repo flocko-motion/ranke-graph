@@ -37,7 +37,7 @@ The first is a claim about the world. The second adds an attribution. The third 
 Storing at the first layer is the classic goal of database design.
 Schemas, integrity constraints, and transactions are built to maintain a consistent model of the world; the caller is expected to have applied sound epistemology before writing data.
 When facts change, or sources disagree, the database is edited to align; its earlier states, and thus the disagreement itself, are discarded.
-In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency rather than loss. The cleaned value is an artifact of the algorithm, not a fact about the world; the ambiguity it discarded was itself information.
+In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency, not loss. The cleaned value is an artifact of the algorithm; the ambiguity it discarded was itself information.
 
 This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts about the world.
 
@@ -66,7 +66,7 @@ Merging the two approaches is an active research area, with many designs propose
 
 The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase — history _'wie es eigentlich gewesen'_, 'as it actually was' — has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence — an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
 
-Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is not a layer above the knowledge but the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
+Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
 
 For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
@@ -76,11 +76,11 @@ Throughout this paper we use *provenance* for the chain of derivation back to so
 
 == Two Traditions <sec:two-traditions>
 
-Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer, not in the system. Knowledge is something external to the data.
+Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer. Knowledge is something external to the data.
 
 Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
 
-The Ranke-Graph operates in the intersection. It uses CS primitives — hashes, DAGs, signatures, content-addressing — as substrate for the archival discipline of knowledge. Neither purely algorithmic nor purely narrative, but a deliberate composition of both.
+The Ranke-Graph operates in the intersection. It uses CS primitives — hashes, DAGs, signatures, content-addressing — as substrate for the archival discipline of knowledge.
 
 == The Ranke Graph
 
@@ -98,7 +98,7 @@ Every claim made _about_ the graph is itself a node in the graph, with its own p
 
 The first three describe meaning; the last records creation. All are claims, all are nodes, all carry their own provenance.
 
-*Provenance is not an annotation on the knowledge — it _is_ knowledge.*
+*Provenance _is_ knowledge.*
 
 This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm), with the stronger commitment that provenance is stored in the same graph as content, queryable through the same interface, and subject to the same invariants.
 
@@ -114,7 +114,7 @@ The Ranke-Graph is append-only: claims accumulate; existing ones are never modif
 
 This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
-Levels of distillation are what make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is not _incomplete_ — it is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
+Levels of distillation are what make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
 === Taxonomy
 
@@ -250,7 +250,7 @@ Ranke puts the universe into an archive.
 
 == Validity <sec:validity>
 
-An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction — validity is structural, not a check, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
+An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
 == Consolidation <sec:consolidate>
 
@@ -281,7 +281,7 @@ Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"R
 
 == Immutability <sec:immutability>
 
-Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim, not a modification. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
+Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
 
 #dref[D2, this section]
 
