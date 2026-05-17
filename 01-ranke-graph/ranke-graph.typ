@@ -41,14 +41,14 @@ In database discipline this is called _destructive consolidation_ or _last-write
 
 This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts about the world.
 
-The Ranke-Graph is designed for the opposite stance.
+The Ranke-Graph takes the opposite stance.
 It stores only at the third layer: attributed claims.
 Every node is an observation-of-existence: this artifact, with these bytes, this attribution, added to the graph at this moment, appearing to make the claim its content carries.
 The graph does not record whether Alice likes apples, or whether she wrote the email.
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
+A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
 This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
@@ -68,7 +68,7 @@ The historian Leopold von Ranke (1795–1886) insisted that every historical cla
 
 Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
 
-For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
+For a comprehensive treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
 Centuries of archival practice converged on a small set of principles — provenance, immutability, attribution, dated existence, tolerance for contradiction — not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favour of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
 
@@ -76,7 +76,7 @@ Throughout this paper we use *provenance* for the chain of derivation back to so
 
 == Two Traditions <sec:two-traditions>
 
-Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer. Knowledge is something external to the data.
+Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer. Knowledge is external to the data.
 
 Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
 
@@ -96,7 +96,7 @@ Every claim made _about_ the graph is itself a node in the graph, with its own p
 - an alias ('this node refers to the same person as node Y'),
 - a creation record ('this node was added by contributor X with configuration Y').
 
-The first three describe meaning; the last records creation. All are claims, all are nodes, all carry their own provenance.
+The first three describe meaning; the last records creation. Each is a claim with its own provenance.
 
 *Provenance _is_ knowledge.*
 
@@ -108,17 +108,17 @@ The Ranke-Graph handles provenance — who said what, when, on what basis. Conse
 
 === Immutability and Accumulation
 
-The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system — for example an LLM-based agent — thus has a richer basis: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. This richer basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
+The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system — for example an LLM-based agent — thus has more to draw on: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. The fuller basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
 
 === Levels of Distillation
 
-This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This depth can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
 Levels of distillation are what make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
 === Taxonomy
 
-Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
+Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities relate).
 
 Contributors and entities are deliberately separate. A *contributor* is operational — the actor whose work brought a claim into the graph. An *entity* is semantic — a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection — but they never share a node.
 
@@ -147,7 +147,7 @@ The first five concern how knowledge is gathered — the source-criticism method
 
 *D5. Verifiability — integrity is independently verifiable.*
 
-*D6. Semantic Relations — rich relations between entities can be expressed.*
+*D6. Semantic Relations — relations between entities can be expressed.*
 
 *D7. Open Vocabulary — applications can define their own categories and content schemas.*
 
@@ -217,7 +217,7 @@ Provenance requires acyclicity — content addressing has no fixed point in a gr
 
 A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim — never another edge — so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities — e.g., `are_friends`.
 
-The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The regular *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
+The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
 
 == Ranke-Graph <sec:ranke-graph>
 
@@ -336,7 +336,7 @@ The in-scope claims form a set closed under references; consolidate them (@sec:c
 
 == Pruning <sec:pruning>
 
-Pruning allows creating partial views that hide arbitrary claims by referencing those by an edge of type `contribution/prune` - the immutable way of deletion by addition.
+Pruning creates partial views that hide arbitrary claims via `contribution/prune` edges — the immutable way of deletion by addition.
 
 $op("pruned")(v in "RG"_h) <=>$ some `contribution/prune` edge inside $"closure"(h, cal(U))$ references $v$.
 
