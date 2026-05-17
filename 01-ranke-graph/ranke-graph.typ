@@ -37,7 +37,7 @@ The first is a claim about the world. The second adds an attribution. The third 
 Storing at the first layer is the classic goal of database design.
 Schemas, integrity constraints, and transactions are built to maintain a consistent model of the world; the caller is expected to have applied sound epistemology before writing data.
 When facts change, or sources disagree, the database is edited to align; its earlier states, and thus the disagreement itself, are discarded.
-In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency, not loss. The cleaned value is an artifact of the algorithm; the ambiguity it discarded was itself information.
+In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is commonly considered _data cleaning_, and treated as consistency, not loss. The cleaned value is an artifact of the algorithm; the ambiguity it discarded was itself information.
 
 This is the ordinary condition of the enterprise data store. It works so long as the caller supplies correct facts about the world.
 
