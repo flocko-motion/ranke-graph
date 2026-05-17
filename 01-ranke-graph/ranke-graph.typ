@@ -32,7 +32,7 @@ Consider three statements:
 + _Alice wrote Bob an email saying she likes apples._
 + _A file exists, attributed to Alice by its headers, that appears to be a copy of an email to Bob in which Alice claims to like apples._
 
-The first is a claim about the world. The second adds an attribution. The third is an observation of existence — a file is present, with the stated bytes, metadata, and content.
+The first is a claim about the world. The second adds an attribution. The third is an observation of existence: a file is present, with the stated bytes, metadata, and content.
 
 Storing at the first layer is the classic goal of database design.
 Schemas, integrity constraints, and transactions are built to maintain a consistent model of the world; the caller is expected to have applied sound epistemology before writing data.
@@ -48,9 +48,9 @@ The graph does not record whether Alice likes apples, or whether she wrote the e
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
+A _claim_ in the Ranke-Graph is an attributed record: a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
-This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
+This paper defines the Ranke-Graph as an abstract data type (ADT): the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
 #todo[Self-review: verify that §5 explicitly returns to and validates the three-statements framing — that the paper demonstrates why storing at "the third layer" (attributed claims) yields the emergent properties. Without this payoff, the §1 hook lands without follow-through.]
 
@@ -58,29 +58,29 @@ This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimu
 
 == Knowledge Systems: Machines Reading and Writing at Scale
 
-Classical knowledge stores — wikis, knowledge graphs, structured databases, plain-text notes — consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves. Creating and maintaining this highly structured information requires permanent effort. Large language models (LLMs) consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made — producing fuzziness and hallucinations.
+Classical knowledge stores (wikis, knowledge graphs, structured databases, plain-text notes) consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves. Creating and maintaining this highly structured information requires permanent effort. Large language models (LLMs) consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made, producing fuzziness and hallucinations.
 
 Merging the two approaches is an active research area, with many designs proposed. To understand what such a merge should preserve, we turn to the disciplines that have studied knowledge creation and preservation longest: historical science, archival theory, librarianship.
 
 == Provenance: The Archival Tradition
 
-The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase — history _'wie es eigentlich gewesen'_, 'as it actually was' — has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence — an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
+The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase (history _'wie es eigentlich gewesen'_, 'as it actually was') has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence: an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
 
-Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
+Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus (what to ultimately believe) is downstream from attribution, left to readers and time.
 
-For a comprehensive treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
+For a comprehensive treatment of provenance across 180 years (from _respect des fonds_ through the Semantic Web to the LLM era), we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts (messages, documents, recordings) as sources of subjective views, and derives knowledge by correlation across them.
 
-Centuries of archival practice converged on a small set of principles — provenance, immutability, attribution, dated existence, tolerance for contradiction — not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favour of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
+Centuries of archival practice converged on a small set of principles (provenance, immutability, attribution, dated existence, tolerance for contradiction), not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favour of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
 
 == Two Traditions <sec:two-traditions>
 
-Computer Science treats data and information as primary objects. Bits, structures, algorithms — meaning emerges at the consumer. Knowledge is external to the data.
+Computer Science treats data and information as primary objects. Bits, structures, algorithms: meaning emerges at the consumer. Knowledge is external to the data.
 
 Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
 
-The Ranke-Graph operates in the intersection. It uses CS primitives — hashes, DAGs, signatures, content-addressing — as substrate for the archival discipline of knowledge.
+The Ranke-Graph operates in the intersection. It uses CS primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
 
 == The Ranke Graph
 
@@ -104,60 +104,60 @@ This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2
 
 === Provenance and Consensus
 
-The Ranke-Graph handles provenance — who said what, when, on what basis. Consensus — resolving contradictions into a single statement — is built downstream from the claims the graph preserves.
+The Ranke-Graph handles provenance: who said what, when, on what basis. Consensus (resolving contradictions into a single statement) is built downstream from the claims the graph preserves.
 
 === Immutability and Accumulation
 
-The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system — for example an LLM-based agent — thus has more to draw on: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. The fuller basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
+The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system (for example an LLM-based agent) thus has more to draw on: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. The fuller basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
 
 === Levels of Distillation
 
-This depth can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types). Summary nodes condense complex clusters; the semantic abstraction layer expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This depth can overwhelm an extraction algorithm, flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types). Summary nodes condense complex clusters; the semantic abstraction layer expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
 
-Levels of distillation make the Ranke-Graph tractable for any agent or user operating under finite context — every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
+Levels of distillation make the Ranke-Graph tractable for any agent or user operating under finite context: every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
 === Taxonomy
 
-Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities relate).
+Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes: classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities relate).
 
-Contributors and entities are deliberately separate. A *contributor* is operational — the actor whose work brought a claim into the graph. An *entity* is semantic — a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection — but they never share a node.
+Contributors and entities are deliberately separate. A *contributor* is operational, the actor whose work brought a claim into the graph. An *entity* is semantic, a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection, but they never share a node.
 
 
 #todo[Refresh §A Vision to follow the new spine: predates the §Two Traditions framing and the Phase 6 D-reorder. Could land harder if rewritten as the *application* layer of the two-traditions composition (rather than as a forward-looking AI/agent pitch). Keep the AI examples but ground them in archival continuity.]
 
 == A Vision
 
-The Ranke-Graph is a substrate for systems just becoming possible — AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
+The Ranke-Graph is a substrate for systems just becoming possible: AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
 
 Such systems can evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising or disproving earlier contributions. The graph accumulates; the history is complete, but filterable and queryable. Retrieval systems select what they deem most useful.
 
 = Desiderata <sec:desiderata>
 
-From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties — idempotency of writes, the full set algebra, and the bijection between structural and semantic readings — follow as consequences (see @sec:emergent).
+From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties (idempotency of writes, the full set algebra, and the bijection between structural and semantic readings) follow as consequences (see @sec:emergent).
 
-The first five concern how knowledge is gathered — the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 and D9 are CS-operational concerns: access control and distributed use.
+The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 and D9 are CS-operational concerns: access control and distributed use.
 
-*D1. Provenance — every claim references what it's based on and has a path back to its sources.*
+*D1. Provenance: every claim references what it's based on and has a path back to its sources.*
 
-*D2. Immutability — no claim is ever modified or deleted.*
+*D2. Immutability: no claim is ever modified or deleted.*
 
-*D3. Identity and Authenticity — every claim has a named author whose authorship is verifiable.*
+*D3. Identity and Authenticity: every claim has a named author whose authorship is verifiable.*
 
-*D4. Temporality — every claim's time of existence is provably bounded.*
+*D4. Temporality: every claim's time of existence is provably bounded.*
 
-*D5. Verifiability — integrity is independently verifiable.*
+*D5. Verifiability: integrity is independently verifiable.*
 
-*D6. Semantic Relations — relations between entities can be expressed.*
+*D6. Semantic Relations: relations between entities can be expressed.*
 
-*D7. Open Vocabulary — applications can define their own categories and content schemas.*
+*D7. Open Vocabulary: applications can define their own categories and content schemas.*
 
-*D8. Partial Views — views can expose only chosen subsets of claims.*
+*D8. Partial Views: views can expose only chosen subsets of claims.*
 
-*D9. Distributability — the structure supports distributed use.*
+*D9. Distributability: the structure supports distributed use.*
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-claims), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges): acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-claims), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
 
 == Primitives <sec:primitives>
 
@@ -165,9 +165,9 @@ Let $S$ be a canonical serialization mapping any object (node or edge) to bytes.
 
 Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
 
-Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice — $"Sign"(h) = h$ — is valid for systems without authenticity needs.
+Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice ($"Sign"(h) = h$) is valid for systems without authenticity needs.
 
-Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$ — adopted by the reference implementations.
+Any satisfying choice is acceptable. The reference implementations adopt CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$.
 
 Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
 
@@ -189,9 +189,9 @@ node = {
 ```
 
 - `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
-- `encoding` is a MIME media type (@freed2013rfc6838) — e.g.~`text/plain`, `image/png`, `message/rfc822`.
+- `encoding` is a MIME media type (@freed2013rfc6838), e.g.~`text/plain`, `image/png`, `message/rfc822`.
 - `content_hash` commits to the content bytes; stored in content-hash-addressed storage.
-- `created_at` is the UTC timestamp the claim was added — *not* the time of its origin.
+- `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
 - Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>
