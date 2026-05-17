@@ -1,6 +1,21 @@
 #import "../shared/template.typ": *
 #import "@preview/fletcher:0.5.7" as fletcher: diagram, node, edge
 
+// ─────────────────────────────────────────────────────────────────────
+// Language conventions (not rendered)
+//
+// British English throughout (writer-style PASSES.md, Pass 1).
+//
+// Kept as US / CS-conventional forms by deliberate exception:
+//   - "artifact" (not "artefact"): established usage across CS and
+//     digital-archival literature; both spellings co-exist in BrE
+//     academic writing, the US form dominates the field.
+//   - "serialization" (not "serialisation"): CS technical term;
+//     standard libraries, RFCs, and CS academic literature use -ize.
+//
+// First-level quotation marks: single ('…'); double for nested ("…").
+// ─────────────────────────────────────────────────────────────────────
+
 #show: paper.with(
   title:    "Ranke-Graph: A Provenance-First Data Structure",
   author:   "Florian Metzger-Noel",
@@ -49,13 +64,13 @@ Merging the two approaches is an active research area, with many designs propose
 
 == Provenance: The Archival Tradition
 
-The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence — an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
+The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase — history _'wie es eigentlich gewesen'_, 'as it actually was' — has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence — an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
 
 Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is not a layer above the knowledge but the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
 
 For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
 
-Centuries of archival practice converged on a small set of principles — provenance, immutability, attribution, dated existence, tolerance for contradiction — not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favor of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
+Centuries of archival practice converged on a small set of principles — provenance, immutability, attribution, dated existence, tolerance for contradiction — not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favour of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
 
@@ -76,10 +91,10 @@ The Ranke-Graph is the data structure for this discipline: a graph of _claims_ (
 The Ranke-Graph makes no distinction between data, metadata, and provenance.
 Every claim made _about_ the graph is itself a node in the graph, with its own provenance:
 
-- a classification ("this node belongs to domain X"),
-- a summary ("this is a condensed version of the conversation at node X"),
-- an alias ("this node refers to the same person as node Y"),
-- a creation record ("this node was added by contributor X with configuration Y").
+- a classification ('this node belongs to domain X'),
+- a summary ('this is a condensed version of the conversation at node X'),
+- an alias ('this node refers to the same person as node Y'),
+- a creation record ('this node was added by contributor X with configuration Y').
 
 The first three describe meaning; the last records creation. All are claims, all are nodes, all carry their own provenance.
 
@@ -120,7 +135,7 @@ Such systems can evolve on the same data: selecting views that fit, contributing
 
 From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties — idempotency of writes, the full set algebra, and the bijection between structural and semantic readings — follow as consequences (see @sec:emergent).
 
-The first five concern how knowledge is gathered — the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organized. D8 and D9 are CS-operational concerns: access control and distributed use.
+The first five concern how knowledge is gathered — the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 and D9 are CS-operational concerns: access control and distributed use.
 
 *D1. Provenance — every claim references what it's based on and has a path back to its sources.*
 
@@ -194,7 +209,7 @@ Edges point from the `reference` claim to the node owning the edge. For types se
 
 == Claims <sec:claims>
 
-A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterward. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$ — a claim cannot predate what it references.
+A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$ — a claim cannot predate what it references.
 
 == Relations (Semantic Claims) <sec:semantic-claims>
 
@@ -202,7 +217,7 @@ Provenance requires acyclicity — content addressing has no fixed point in a gr
 
 A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim — never another edge — so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities — e.g., `are_friends`.
 
-The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The regular *structural reading* is acyclic; the _semantic reading_ admits cycles (formalized in @sec:bijection).
+The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The regular *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
 
 == Ranke-Graph <sec:ranke-graph>
 
@@ -235,7 +250,7 @@ Ranke puts the universe into an archive.
 
 == Validity <sec:validity>
 
-An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction — validity is structural, not a check, even for pruned graphs: prune-claims follow the same rules. Queries that honor those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
+An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction — validity is structural, not a check, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
 == Consolidation <sec:consolidate>
 
@@ -309,7 +324,7 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 == Open-Ended Vocabulary <sec:vocabulary>
 
-`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognize.
+`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognise.
 
 #dref[D7, this section]
 
@@ -391,7 +406,7 @@ Its foundational structure is a versioned graph, not a provenance DAG.
 
 == Immutable Databases: Datomic and Fluree
 
-Datomic (@hickey2012datomic) operationalises Pat Helland's "Immutability Changes Everything" thesis (@helland2015immutability) as an append-only database of immutable datoms.
+Datomic (@hickey2012datomic) operationalises Pat Helland's 'Immutability Changes Everything' thesis (@helland2015immutability) as an append-only database of immutable datoms.
 Fluree (@fluree) combines an append-only ledger with a semantic graph database.
 Both capture temporal history but not _epistemic_ history — they record _when_ facts changed but not _how knowledge was derived from sources through processing chains_.
 
@@ -421,7 +436,7 @@ Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
 
-The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realization in the digital substrate.
+The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realisation in the digital substrate.
 
 The computer science tools used here are all established — Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
 
