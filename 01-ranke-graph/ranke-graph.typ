@@ -84,7 +84,7 @@ The Ranke-Graph operates in the intersection. It uses CS primitives — hashes, 
 
 == The Ranke Graph
 
-The Ranke-Graph is the data structure for this discipline: a graph of _claims_ (as defined above), each carrying its full derivation chain. Each node is both a statement and the record of how that statement came to be.
+The Ranke-Graph is the data structure for this discipline: a graph of _claims_, each carrying its full derivation chain. Each node is both a statement and the record of how that statement came to be.
 
 === Everything Is Knowledge <sec:everything-is-knowledge>
 
