@@ -1,6 +1,21 @@
 #import "../shared/template.typ": *
 #import "@preview/fletcher:0.5.7" as fletcher: diagram, node, edge
 
+// ─────────────────────────────────────────────────────────────────────
+// Language conventions (not rendered)
+//
+// British English throughout (writer-style PASSES.md, Pass 1).
+//
+// Kept as US / CS-conventional forms by deliberate exception:
+//   - "artifact" (not "artefact"): established usage across CS and
+//     digital-archival literature; both spellings co-exist in BrE
+//     academic writing, the US form dominates the field.
+//   - "serialization" (not "serialisation"): CS technical term;
+//     standard libraries, RFCs, and CS academic literature use -ize.
+//
+// First-level quotation marks: single ('…'); double for nested ("…").
+// ─────────────────────────────────────────────────────────────────────
+
 #show: paper.with(
   title:    "Ranke-Graph: A Provenance-First Data Structure",
   author:   "Florian Metzger-Noel",
@@ -13,509 +28,375 @@
 
 Consider three statements:
 
-#block(inset: (left: 1.5em, right: 1.5em))[
-  _Alice likes apples._
++ _Alice likes apples._
++ _Alice wrote Bob an email saying she likes apples._
++ _A file exists, attributed to Alice by its headers, that appears to be a copy of an email to Bob in which Alice claims to like apples._
 
-  _Alice wrote Bob an email saying she likes apples._
-
-  _A file exists, attributed to Alice by its headers, that appears to be a copy of an email to Bob in which Alice claims to like apples._
-]
-
-The first is a claim about the world. The second adds an attribution. The third is an observation of existence — a file is present, with the stated bytes, metadata, and content.
+The first is a claim about the world. The second adds an attribution. The third is an observation of existence: a file is present, with the stated bytes, metadata, and content.
 
 Storing at the first layer is the classic goal of database design.
 Schemas, integrity constraints, and transactions are built to maintain a consistent model of the world; the caller is expected to have applied sound epistemology before writing data.
 When facts change, or sources disagree, the database is edited to align; its earlier states, and thus the disagreement itself, are discarded.
-In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is usually considered _data cleaning_, and treated as consistency rather than loss. The cleaned value is an artifact of the algorithm, not a fact about the world; the ambiguity it discarded was itself information.
+In database discipline this is called _destructive consolidation_ or _last-write-wins_; it is commonly considered _data cleaning_, and treated as consistency, not loss. The cleaned value is an artifact of the algorithm; the ambiguity it discarded was itself information.
 
-This is the ordinary condition of the enterprise data store, and works so long as the caller supplies correct facts about the world.
+This is the ordinary condition of the enterprise data store. It works so long as the caller supplies correct facts about the world.
 
-The Ranke-Graph is designed for the opposite stance.
+The Ranke-Graph takes the opposite stance.
 It stores only at the third layer: attributed claims.
 Every node is an observation-of-existence: this artifact, with these bytes, this attribution, added to the graph at this moment, appearing to make the claim its content carries.
 The graph does not record whether Alice likes apples, or whether she wrote the email.
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-#concept("Claim")[
-  A _claim_ in the Ranke-Graph is an attributed record — a piece of content added by a contributor at a specified moment in time. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. The claim and its references are stored together as the atom of the structure: immutable once written, traceable to every claim it references down to the sources.
-]
+A _claim_ in the Ranke-Graph is an attributed record: a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
-This paper defines the Ranke-Graph as an abstract data type (ADT) — the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
+This paper defines the Ranke-Graph as an abstract data type (ADT): the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
 
-#todo[Disambiguation pending: throughout the paper, "the Ranke-Graph" is used both for *the structure* (the ADT) and for *an instance* (a hash-rooted subgraph). Once §4 introduces the substrate $cal(U)$ and the hash-rooted instance $"RG"_h$, sweep prose accordingly. Keep "the Ranke-Graph" only for the ADT itself; switch to $"RG"_h$ for instances and $cal(U)$ for the substrate.]
+#todo[Self-review: verify that §5 explicitly returns to and validates the three-statements framing — that the paper demonstrates why storing at "the third layer" (attributed claims) yields the emergent properties. Without this payoff, the §1 hook lands without follow-through.]
 
 = The Problem and the Position
 
 == Knowledge Systems: Machines Reading and Writing at Scale
 
-Classical knowledge stores — wikis, knowledge graphs, structured databases, plain-text notes — consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves; creating and maintaining this highly structured information causing permanent effort. Large language models consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made — producing fuzziness and hallucinations.
+Classical knowledge stores (wikis, knowledge graphs, structured databases, plain-text notes) consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves. Creating and maintaining this highly structured information requires permanent effort. Large language models (LLMs) consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made, producing fuzziness and hallucinations.
 
 Merging the two approaches is an active research area, with many designs proposed. To understand what such a merge should preserve, we turn to the disciplines that have studied knowledge creation and preservation longest: historical science, archival theory, librarianship.
 
 == Provenance: The Archival Tradition
 
-The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase — history _"wie es eigentlich gewesen"_, "as it actually was" — has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence — an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
+The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase (history _'wie es eigentlich gewesen'_, 'as it actually was') has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence: an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
 
-Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is not a layer above the knowledge but the knowledge itself; consensus — what to ultimately believe — is downstream from attribution, left to readers and time.
+Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus (what to ultimately believe) is downstream from attribution, left to readers and time.
 
-For a rich treatment of provenance across 180 years — from _respect des fonds_ through the Semantic Web to the LLM era — we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts — messages, documents, recordings — as sources of subjective views, and derives knowledge by correlation across them.
+For a comprehensive treatment of provenance across 180 years (from _respect des fonds_ through the Semantic Web to the LLM era), we refer the reader to Talisman's essay (@talisman2026provenance). Following its framing, a modern interpretation treats artifacts (messages, documents, recordings) as sources of subjective views, and derives knowledge by correlation across them.
+
+Centuries of archival practice converged on a small set of principles (provenance, immutability, attribution, dated existence, tolerance for contradiction), not because they were elegant, but because they proved the only stable ground for knowledge under uncertainty, dissent, and change. Digital systems have largely abandoned this ground in favour of current truth and consolidation. The Ranke-Graph is an attempt to bring the proven form into the digital substrate.
 
 Throughout this paper we use *provenance* for the chain of derivation back to sources and contributors, *semantics* for the relations between entities, and *knowledge* for the union of both.
 
+== Two Traditions <sec:two-traditions>
+
+Computer Science treats data and information as primary objects. Bits, structures, algorithms: meaning emerges at the consumer. Knowledge is external to the data.
+
+Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
+
+The Ranke-Graph operates in the intersection. It uses CS primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
+
 == The Ranke Graph
 
-The Ranke-Graph is the data structure for this discipline: a graph of _claims_ (as defined above), each carrying its full derivation chain. Each node is both a statement and the record of how that statement came to be.
+The Ranke-Graph is the data structure for this discipline: a graph of _claims_, each carrying its full derivation chain. Each node is both a statement and the record of how that statement came to be.
 
 === Everything Is Knowledge <sec:everything-is-knowledge>
 
 The Ranke-Graph makes no distinction between data, metadata, and provenance.
 Every claim made _about_ the graph is itself a node in the graph, with its own provenance:
 
-- a classification ("this node belongs to domain X"),
-- a summary ("this is a condensed version of the conversation at node X"),
-- an alias ("this node refers to the same person as node Y"),
-- a creation record ("this node was added by contributor X with configuration Y").
+- a classification ('this node belongs to domain X'),
+- a summary ('this is a condensed version of the conversation at node X'),
+- an alias ('this node refers to the same person as node Y'),
+- a creation record ('this node was added by contributor X with configuration Y').
 
-The first three describe meaning; the last records creation. All are claims, all are nodes, all carry their own provenance.
+The first three describe meaning; the last records creation. Each is a claim with its own provenance.
 
-*Provenance is not an annotation on the knowledge — it _is_ knowledge.*
+*Provenance _is_ knowledge.*
 
 This is compatible with W3C PROV-DM's Entity/Activity/Agent vocabulary (@moreau2013provdm), with the stronger commitment that provenance is stored in the same graph as content, queryable through the same interface, and subject to the same invariants.
 
 === Provenance and Consensus
 
-The Ranke-Graph handles provenance — who said what, when, on what basis. Consensus — resolving contradictions into a single statement — is built downstream from the claims the graph preserves.
+The Ranke-Graph handles provenance: who said what, when, on what basis. Consensus (resolving contradictions into a single statement) is built downstream from the claims the graph preserves.
 
 === Immutability and Accumulation
 
-The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system — for example an LLM-based agent — thus has a richer basis: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. This richer basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
+The Ranke-Graph is append-only: claims accumulate; existing ones are never modified or deleted, since they represent historical artifacts which by the nature of time do not change. A knowledge extraction system (for example an LLM-based agent) thus has more to draw on: it can traverse the full derivation history of a belief, including contradictions, revisions, and competing interpretations. The fuller basis should yield better reasoning than a consolidated summary that lacks provenance and uncertainty.
 
 === Levels of Distillation
 
-This richness can overwhelm an extraction algorithm — flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:classes): summary nodes that condense complex clusters, up to a semantic abstraction layer that expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+This depth can overwhelm an extraction algorithm, flooding it with contradicting claims and long provenance traces. The Ranke-Graph supports _levels of detail_, realised through a class taxonomy (@sec:types). Summary nodes condense complex clusters; the semantic abstraction layer expresses the distilled claims extracted from sources. The full provenance trace back to the source remains available on request.
+
+Levels of distillation make the Ranke-Graph tractable for any agent or user operating under finite context: every agent has bounded context, every human reader has bounded attention. The pattern is iterative: fetch at high abstraction (just the relation types, say), narrow to the interesting candidates, request more detail on those (conviction values, reasoning content, then provenance edges, then source content), repeat. Each round is bounded; the full graph is reachable but never demanded all at once. A short answer at a coarse level is the right slice for a query that doesn't need finer grain. The agent or user decides when to descend.
 
 === Taxonomy
 
-Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes — classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities stand in relation to one another).
+Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes: classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities relate).
 
+Contributors and entities are deliberately separate. A *contributor* is operational, the actor whose work brought a claim into the graph. An *entity* is semantic, a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection, but they never share a node.
+
+
+#todo[Refresh §A Vision to follow the new spine: predates the §Two Traditions framing and the Phase 6 D-reorder. Could land harder if rewritten as the *application* layer of the two-traditions composition (rather than as a forward-looking AI/agent pitch). Keep the AI examples but ground them in archival continuity.]
 
 == A Vision
 
-The Ranke-Graph is a substrate for systems just becoming possible — AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
+The Ranke-Graph is a substrate for systems just becoming possible: AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
 
 Such systems can evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising or disproving earlier contributions. The graph accumulates; the history is complete, but filterable and queryable. Retrieval systems select what they deem most useful.
 
 = Desiderata <sec:desiderata>
 
-Following the motivation in @sec:introduction, we state the obligations any Ranke-Graph must satisfy. The seven items are independent — together they characterise the contract. Other useful properties — traceability, idempotency of writes, mergeability of independent replicas, verifiability of partial views — follow as consequences.
+From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties (idempotency of writes, the full set algebra, and the bijection between structural and semantic readings) follow as consequences (see @sec:emergent).
 
-The desiderata describe what is required; the choice of how to satisfy them is open.
+The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 and D9 are CS-operational concerns: access control and distributed use.
 
-*D1. Provenance.* For every claim recorded in the store, there exists an explicit, queryable path from the claim to the artifacts on which it depends, through every intermediate derivation.
+*D1. Provenance: every claim references what it's based on and has a path back to its sources.*
 
-*D2. Semantic Relations.* Claims of the form _"these entities stand in this relation"_ are recorded as single attributable units. The structure supports binary, $n$-ary, symmetric, and fuzzy-relation cases without requiring a separate construct for each.
+*D2. Immutability: no claim is ever modified or deleted.*
 
-*D3. Immutability.* Once recorded, no claim is modified or deleted by any subsequent operation. Revisions and corrections are themselves new claims that reference what they revise.
+*D3. Identity and Authenticity: every claim has a named author whose authorship is verifiable.*
 
-*D4. Verifiable History.* The state of the store at past points in time is provable to a third party without reliance on the operator.
+*D4. Temporality: every claim's time of existence is provably bounded.*
 
-*D5. Scoped Visibility.* Visibility of a claim follows from the visibility of the claims it references, and can be scoped as required.
+*D5. Verifiability: integrity is independently verifiable.*
 
-*D6. Distributability.* Independent replicas of the store may evolve concurrently and converge to a common state without coordination, and without conflict resolution beyond merging the recorded claims of each replica.
+*D6. Semantic Relations: relations between entities can be expressed.*
 
-*D7. Open-Ended Vocabulary.* The vocabulary admitted by the structure is unbounded; new kinds may be added without modifying the structure or migrating existing data.
+*D7. Open Vocabulary: applications can define their own categories and content schemas.*
+
+*D8. Partial Views: views can expose only chosen subsets of claims.*
+
+*D9. Distributability: the structure supports distributed use.*
 
 = The Data Structure <sec:structure>
 
-The Ranke-Graph is a Merkle DAG (Directed Acyclic Graph) and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges) — acyclic by the atomic creation rule (@sec:atomic), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:relation-direction), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:classes). From this definition, the structural consequences emerge (@sec:emerges).
+The Ranke-Graph is a Merkle DAG and a semantic graph, with a single node type (@sec:nodes) and a single edge type (@sec:edges): acyclic by the atomic creation rule (@sec:claims), Merkle by content-addressed hashing, semantic by the direction tag on edges (@sec:semantic-claims), provenance-and-knowledge by a small fixed content-class taxonomy (@sec:types). From this definition, the structural consequences emerge (@sec:emerges).
 
-Two general primitives are used throughout: a canonical serialization $S$ mapping any record (node or edge) to bytes, and a cryptographic hash $H$ applied to those bytes. $S$ must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly); $H$ must be collision-resistant and self-describing (the id names the hash function used). Any satisfying choice is acceptable — CBOR Deterministic (RFC 8949 §4.2) for $S$ and IPFS multihash for $H$ are well-known examples, adopted by the reference implementations. Identity is the composition: $op("id")(v) = H(S(v))$ for nodes, $op("id")(e) = H(S(e))$ for edges.
+== Primitives <sec:primitives>
+
+Let $S$ be a canonical serialization mapping any object (node or edge) to bytes. It must be deterministic (same record → same bytes), complete (every field contributes), and self-delimiting (parsing recovers the record exactly).
+
+Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
+
+Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice ($"Sign"(h) = h$) is valid for systems without authenticity needs.
+
+Any satisfying choice is acceptable. The reference implementations adopt CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$.
+
+Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
+
+== Content <sec:content>
+
+Content-hash-addressed storage holds any content $c$ as bytes, addressed by $H(c)$.
 
 == Nodes <sec:nodes>
 
 ```
 node = {
   type:         string (class/subtype, e.g. "source/conversation"),
-  content_hash: hash of the content bytes,
-  encoding:     string (class/subtype, e.g. "text/eml"),
+  content_hash: H(content),
+  encoding:     string (MIME media type, e.g. "message/rfc822"),
   created_at:   timestamp (UTC),
-  edges:        set of edge ids,
+  edges:        set of owned edge ids,
   ...:          additional implementation-defined fields
 }
 ```
 
-Two nodes with identical content but different provenance produce different ids.
-
-- `type` and `encoding` follow the `class/subtype` convention (@sec:classes): the first segment is from a fixed set, the second is open vocabulary.
-- `content_hash` commits to the content bytes; the bytes themselves live in implementation-defined storage, addressed by `content_hash`. `encoding` tells how to interpret them.
-- `created_at` is the UTC timestamp the claim was added to the graph — *not* the time of any external artifact the claim may represent.
-- Extension fields participate in $S$ like any other field, so proofs about node identity (@sec:merkle and onward) apply uniformly to any refinement.
+- `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
+- `encoding` is a MIME media type (@freed2013rfc6838), e.g.~`text/plain`, `image/png`, `message/rfc822`.
+- `content_hash` commits to the content bytes; stored in content-hash-addressed storage.
+- `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
+- Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>
 
-Each edge is part of exactly one claim, recoverable as the claim whose node lists the edge's id in its `edges` set.
-
 ```
 edge = {
-  reference:    hash of the referenced claim,
-  type:         string (class/subtype, e.g. "relation/family", "evidence/chunk", "contribution/worker"),
-  content_hash: hash of the content bytes,
+  reference:    id of referenced claim,
+  type:         string (class/subtype, e.g. "relation/family"),
+  content:      string,
   ...:          additional implementation-defined fields
 }
 ```
 
-The owning claim is implicit by necessity: if its id were a field on the edge, $S(e)$ would depend on $S(v)$, which depends on $S(e)$ through the node's `edges` set — no consistent identity would exist.
+Edges point from the `reference` claim to the node owning the edge. For types see @sec:types.
 
-*Structural direction is universal.* Every edge runs from an older claim (its `reference`) to the newer claim that owns it, since the atomic creation rule (@sec:atomic) only allows references to already-existing claims. This is the forward-in-time direction used in build graphs, dependency graphs, and pipelines. Acyclicity (@sec:acyclicity) follows directly.
+== Claims <sec:claims>
 
-As for nodes, `type` follows the `class/subtype` convention (@sec:classes), and `content_hash` commits to the edge's content bytes. Extension fields participate in $S$ like any other field.
+A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$, so a claim cannot predate what it references.
 
-A node carries its edges' ids in its own record, so edges are Merkle-secured through the claim that owns them (@sec:merkle).
+== Relations (Semantic Claims) <sec:semantic-claims>
 
-== Atomic Claim Creation <sec:atomic>
+Provenance requires acyclicity: content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
 
-A *claim* is a node together with all its edges. A claim is created in a single atomic transaction comprising:
+A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim (never another edge), so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities, e.g., `are_friends`.
 
-- $n$ provenance edges (to sources, prior derivations, and the contributor),
-- $m$ relation edges (to the related entities, carrying `relation_direction`).
+The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
 
-Nothing can be added to a claim after creation. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time.
+== Ranke-Graph <sec:ranke-graph>
 
-#todo[Single-head invariant via *throwaway snapshots* (revised 2026-05-07): branch advance is two structural acts — (1) append the new claim with its semantic edges only; (2) generate a fresh *snapshot claim* whose `evidence/head` edges name all currently-open heads of $cal(U)$ at that moment, including the new claim. The branch updates to point at the snapshot.
+A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references (making it an *initial node*) or carries a `contribution/contributor` edge whose closure resolves to one or more initial nodes (@sec:types).
 
-The previous snapshot stays in $cal(U)$ forever (immutability) but the branch lets go of it; only the latest snapshot is the active handle. Snapshots are normal claims (no distinguished node class needed); their topological role is carried entirely by the `evidence/head` subtype. Claims themselves do not have `evidence/head` edges — they are semantic-only. Single-head invariant is preserved because branches always resolve to a snapshot hash with full closure.
+== Universe <sec:universe>
 
-Implementations may handle concurrent writes via sequencing, merge-snapshots, or auto-reference at commit time — details belong to rankedb.]
+$cal(U)$, the *universe*, is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
+$"RG"_h subset.eq cal(U)$.
 
-== Relation Direction <sec:relation-direction>
+== Closures <sec:head>
 
-Provenance requires acyclicity — hash recursion has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph*, where cycles are common: Alice knows Bob; Bob knows Alice. The Ranke-Graph carries both readings on the same $V$ and $E$: the *structural reading* is a strict DAG (used by every proof in @sec:emerges); the *semantic reading* (@sec:semantic-reading) admits cycles. Two additions to the structure enable the semantic reading:
+Given $cal(U)$ and an id $h$, the instance $"RG"_h := "closure"(h, cal(U))$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The id alone suffices to recover it.
 
-+ *Relations are reified as nodes.*#footnote[Reification — expressing a relation as a node with edges to each entity, rather than as a single edge between them — is a known technique; see RDF 1.0's `rdf:Statement` (@lassila1999rdf).] A semantic relation is not a single edge but a _relation node_ with relation edges (those carrying `relation_direction`) to its entities. The relation's type lives on the relation node; entities are the edges' references.
+== Branches <sec:branches>
 
-+ *A `relation_direction` field tags each entity's role in the reading.* Carried on each relation edge, with values
-  $ "relation_direction" in {"from" = +1, "to" = -1}. $
-  The symbolic names map to slots in the natural-language reading; the numeric backing supports aggregation at scale.
+A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim with `contribution/branch` references to all contained branches. Optionally, it carries a `contribution/branches` edge to the previous revision of that table. Both are stored in $cal(U)$ with $B_h$ being the id of the current branch table.
 
-To read a relation, gather the relation node and all its relation edges, forming the triplet
-$ ("from_nodes", "relationship", "to_nodes"), $
-where `from`-tagged edges contribute `from_nodes`, `to`-tagged edges contribute `to_nodes`, and the relation node supplies the relationship. A relation with one slot empty places all entities in the same role — either all on the from-side (each on the action side: _we're all learning from each other_) or all on the to-side (each on the receiving side: _we're all supporting each other_). @fig:relation illustrates the binary case under entity-resolution ambiguity.
+The branch table's history is itself a chain of `contribution/branches` claims, thus having full provenance.
 
-#figure(
-  pad(x: -2.5cm, align(center, diagram(
-    spacing: (4em, 1.2em),
-    node-stroke: 0.5pt,
-    node-shape: rect,
+== Ranke-Archive <sec:archive>
 
-    // Left column: all referenced (older) nodes.
-    // Provenance sources at top.
-    node((0, 0), [Contributor]),
-    node((0, 1), [Source]),
+A *Ranke-Archive* is the tuple $(cal(U), B_h)$, where $B_h$ is the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
 
-    // Visual gap, then entities below.
-    node((0, 3), [Bob 1]),
-    node((0, 4), [Bob 2]),
-    node((0, 5), [Alice]),
+A new archive is created by writing the initial node and an empty `contribution/branches` claim referenced as $B_h$.
 
-    // Right: the relation node (newer; references everything on the left).
-    // Bolder stroke distinguishes it visually; the relation type sits in its label.
-    node((5, 2.5), [`is_brother_of`], stroke: 0.8pt + black),
+Ranke puts the universe into an archive.
 
-    // Edges from Contributor and Source carry no extra fields — the
-    // existence of the reference IS the provenance fact (@sec:edges / @sec:acyclicity).
-    edge((0, 0), (5, 2.5), "->"),
-    edge((0, 1), (5, 2.5), "->"),
+= Discharging the Desiderata <sec:emerges>
 
-    // Semantic: all flow into the relation node (universal convention, @sec:edges).
-    // Labels: rdir = relation_direction, conv = conviction.
-    edge((0, 3), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: +0.7`]]),
-    edge((0, 4), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: from`, `conv: −0.4`]]),
-    edge((0, 5), (5, 2.5), "->", [#text(size: 0.75em)[`rdir: to`, `conv: +1.0`]]),
-  ))),
-  caption: [Binary relation under entity-resolution ambiguity. The plaintext claim "Bob is Alice's brother" reads `(Bob, is_brother_of, Alice)`: Bob on the from-side, Alice on the to-side. Entity resolution found two candidate Bobs; both link to the same `is_brother_of` relation node with `rdir = from`, each carrying its own conviction in $[-1, +1]$. Alice is unambiguous, `rdir = to`, conviction $+1.0$. All edges — provenance and semantic alike — flow left-to-right into the newer (relation) node, the universal structural convention from @sec:edges. Label abbreviations: `rdir` = `relation_direction`, `conv` = `conviction`.],
-) <fig:relation>
+== Validity <sec:validity>
 
-The same pattern scales to $n$-ary relations without changing the edge schema: more entities, more relation edges, each with its own role tag.
+An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
-A relation node of type `are_similar` with all $n$ entities on one side of the triplet represents a *similarity cluster*: a set of entities asserted to be similar, with no distinguished member and per-member conviction. Consumers filter, sort, or weight by conviction; the structure is unchanged from the binary case.
+== Consolidation <sec:consolidate>
 
-Beyond `relation_direction`, edges carry per-edge information through extension fields (@sec:edges). _Conviction_ is a useful example: a real value in $[-1, +1]$ with the endpoints recording full positive and negative conviction, and $0$ recording absence of evidence. The two-sided scale separates _we don't know_ (conviction $approx 0$) from _we know it isn't_ (conviction $< 0$). Conviction lives on the edge because the uncertainty is about role assignment in _this_ relation; the candidate nodes themselves are identified. The ADT does not define `conviction`.
+When an RG has multiple open heads — after independent appends, scoping, pruning, or set operations — a single new head can consolidate them. Define
+$ "consolidate"("RG") := "closure"(h_("new"), cal(U)) $
+where $h_("new")$ is a new `contribution/head` claim with `contribution/head` edges to every currently-open head of RG, contributed by the operator. If RG already has a single open head, $"consolidate"("RG") = "RG"$.
 
-A consequence of reifying relations as nodes: provenance edges have only claims as references, never edges (@sec:edges). This is what gives relations provenance — and what makes $N : N$ relations natural, since every relation inherits the same provenance machinery as every other claim.
+An RG is *consolidated* when it already has a single head:
+$ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
-The reading rule above is formalized in @sec:semantic-reading as the bijection between the structural and semantic readings of the same data.
+== Merkle DAG <sec:merkle>
 
-== Content Classes <sec:classes>
+Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
-The five concepts of @sec:everything-is-knowledge are encoded as the five node classes — `source/*`, `contributor/*`, `derivation/*`, `entity/*`, `relation/*` — together with three edge classes:
+*Standing assumption.* The structure rests on *collision-resistance of $H$* — no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
-- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — provenance edges to contributors involved in the claim's creation.
-- *`evidence/*`* — provenance edges to data the claim processed.
+Under this assumption, standard Merkle-DAG properties hold without further proof: the structure is acyclic; manipulation of any ancestor changes the descendant's id; identical claims produce identical ids. Later sections invoke these as established.
 
-#todo[Update edge taxonomy to *four classes*, grouped into kinds:
+== Provenance <sec:provenance>
 
-*Descriptive (write-side):*
-- *`relation/*`* — semantic relation edges (carry `relation_direction`).
-- *`contribution/*`* — provenance to contributors.
-- *`evidence/*`* — provenance to data the claim references. Includes the topological subtype *`evidence/head`* — used by snapshots to consolidate currently-open heads. Open heads are the *evidence* a new snapshot uses to become the new head; hence the subtype reading. `evidence/head` is structurally normal evidence at the parser level; its distinct epistemic role (topology rather than semantic dependency) is captured by the subtype.
+By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
-*Prescriptive:*
-- *`prune/*`* — view-modifying edges. A `prune/*` edge in claim $c$ with reference $t$ means "exclude $t$ from any view that contains $c$". Per-edge content carries the reason; subtype classifies category (open vocabulary per D7 — `prune/legal-takedown`, `prune/redaction`, `prune/boolean-difference`, etc.).
+Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"RG"_h$ stays complete.
 
-The four classes share the uniform `class/subtype` convention; subtype is open vocabulary across all classes. `evidence/head` is the standard subtype for topology; other `evidence/*` subtypes (`evidence/source`, `evidence/chunk`, etc.) carry semantic dependency.]
-
-*Carrying fields.* `type` (on nodes and edges) follows the convention `class/subtype`: the first segment is from the fixed class set; the second is open vocabulary. `encoding` (on nodes only) follows the same pattern with classes from the MIME-style set (`text`, `image`, `audio`, `video`, `application`) and format-specific subtypes (e.g. `text/eml`, `image/png`).
-
-*Few classes, many subtypes.* The class sets are fixed and small — structural infrastructure. The subtype spaces are open: applications extend them without modifying the ADT.
-
-#todo[Add §4.6 *Instances, Substrate, and Branches*: define foundational notions at the math level.
-
-(1) $cal(U)$ — *the substrate*: the union of all claims that have ever been created. Monotone (only ever extended). Not held by any single party in the math; implementations choose where it lives.
-
-(2) $"RG"_h$ — *a hash-rooted Ranke-Graph*: the closure-set of claims reachable from $h$ (via all edge classes — `relation/*`, `contribution/*`, `evidence/*`, `prune/*`) within $cal(U)$. Every $"RG"_h$ is a finite subgraph of $cal(U)$, identified by its root hash. The bijection theorem (§5.5), set-algebra theorem (§5.4), and visibility theorem (§5.6) all take $"RG"_h$ as their referent.
-
-(3) *Single-head invariant.* Every $"RG"_h$ has a single root $h$. Maintained via *throwaway snapshots* (§4.3): each branch advance generates a fresh snapshot claim whose `evidence/head` edges name all currently-open heads of $cal(U)$. Branches always resolve to a snapshot hash, so $B_x$ is always single-rooted. Multi-head intermediate states may exist transiently in $cal(U)$ during concurrent writes; the snapshot mechanism consolidates them. Old snapshots remain in $cal(U)$ (immutability) but the branch lets go of them — only the latest is the active handle.
-
-(4) $B_x$ — *the branch named $x$*: at any moment, $B_x$ denotes the current graph at branch $x$ — equivalently, $"RG"_h$ where $h$ is the head currently bound to $x$. So $B_x subset.eq cal(U)$ at any frozen moment; mutability lives at the *name-binding* layer (the binding $x arrow.r.bar h$ may be updated as the graph grows). The hash is internal; the user-facing handle is $B_x$. A pure-pointer abstraction at heart; how branches are stored or synchronised is implementation choice (rankedb).
-
-Subsequent sections use $"RG"_h$, $cal(U)$, and $B$ freely as defined here.]
-
-= What Emerges <sec:emerges>
-
-== Acyclicity <sec:acyclicity>
-
-Let $G = (V, E)$ be the graph. Every edge $e in E$ has a reference ($op("reference")(e)$, the claim it points at) and an implicit owning claim (whose node lists $op("id")(e)$ in its `edges` set). Edges are created atomically with their claim (@sec:atomic).
-
-#theorem[$G$ is acyclic.]
-
-#proof[
-  By the atomic creation rule (@sec:atomic), every edge $e$ owned by node $v$ has reference $u$ that existed at $v$'s creation — hence created in an earlier atomic transaction than $v$. The relation "created in an earlier transaction" on $V$ is strict and partial, and admits no cycles.
-]
-
-The proof makes no use of the class taxonomy: every edge runs old → new by the atomic-creation rule, regardless of class. The whole graph $G$ — including any future class — is a DAG.
-
-#corollary[
-  Cycles can appear under the *semantic reading* (@sec:semantic-reading), where `relation/*` edges flip direction by `relation_direction`: e.g. _"Alice knows Bob"_ together with _"Bob knows Alice"_ produce reciprocal relation nodes that close a cycle. The structural reading $G$ remains a DAG.
-]
+#todo[Add a one-liner observation here (or in @sec:validity): multi-root RGs are the federation case — when two archives merge their Universes, the resulting RG has the initial nodes of both as roots. Closes the loop between §Validity's "one or more initial nodes" and the §Distributability merge story.]
 
 #dref[D1, this section]
 
-== Content Addressing and Merkle Integrity <sec:merkle>
+== Immutability <sec:immutability>
 
-Identity is $op("id")(v) = H(S(v))$ for nodes and $op("id")(e) = H(S(e))$ for edges (@sec:structure). Every id is therefore a cryptographic hash, and a node's id depends — through $S(v)$ — on the ids of every edge created with it, which in turn depend on the ids of the claims they reference.
+Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
 
-=== Tampering Detectable at the Root
+#dref[D2, this section]
 
-#theorem[Manipulation of any node $v'$ in the ancestry of $v$ changes $op("id")(v)$.]
+== Idempotency <sec:idempotency>
 
-#proof[
-  By induction on the depth of the DAG.
+By the Merkle-DAG structure, identical claims produce identical ids; under collision-resistance, identical ids imply identical claims. Writes are idempotent; deduplication is free.
 
-  _Base case._ $v' = v$. Changing any field of $v$ changes $op("id")(v)$ directly ($H$ is collision-resistant).
+#dref[D2, this section]
 
-  _Inductive step._ $v'$ is an ancestor of $v$ in $G$. There exists a path $v' arrow.r dots.h.c arrow.r u arrow.r v$ in $G$ (following edges from $v$ back through its references). By the inductive hypothesis, manipulation of $v'$ changes $op("id")(u)$. $op("id")(u)$ is the reference hash used in the computation of some edge $e$ of $v$. Changing $op("id")(u)$ changes $op("id")(e)$. Changing $op("id")(e)$ changes $op("id")(v)$ (since $op("id")(e)$ is part of $v$'s hash computation and $H$ is collision-resistant).
-]
+== Identity and Authenticity <sec:authenticity>
 
-#corollary[
-  Each node hash witnesses the integrity of every node it transitively depends on. Tampering anywhere in the ancestry is detectable at the root.
-]
+Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives) — for the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
 
-=== Idempotency
-
-#theorem[
-  Identical claims produce identical ids:
-  $ forall v_1, v_2 : S(v_1) = S(v_2) arrow.r.double op("id")(v_1) = op("id")(v_2). $
-]
-
-Identical claims are the same claim — writes are idempotent, deduplication is free.
-
-#todo[Add a "Backup from a Hash Root" sub-property: a single root hash plus access to the content store reconstitutes the entire graph and proves its integrity. State as a corollary of Merkle integrity. Lands right after Idempotency while the structure is fresh.]
+When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims — a rotation chain, for example, is a new contributor signed by the old.
 
 #dref[D3, this section]
 
 == Anchoring <sec:anchoring>
 
-#todo[Anchoring is *grounded* on the single-head invariant (revised 2026-05-07). The structural foundation is: every branch advance produces a snapshot, every snapshot is single-rooted, every snapshot's hash witnesses everything reachable from it via the closure of its `evidence/head` edges. So at any moment, a single hash anchors the entire visible state of the branch.
-
-External anchoring (publishing a hash to a tamper-evident medium for third-party proof) is unchanged — pick any snapshot hash, publish it; it anchors everything in its closure. Hashchain emerges from the snapshot sequence: snapshot $S_n$ has `evidence/head` edges to the heads it consolidates, which transitively reach $S_(n-1)$ (since $S_(n-1)$ was a head when $S_n$ was created), so $S_n$ witnesses $S_(n-1)$.
-
-Restate §5.3 around snapshots-as-handles: anchoring is not occasional, it is constant; pick any snapshot in your history and you have a tamper-evident witness of everything reachable from it.]
-
-Snapshots are special nodes whose references are all current heads (nodes with no children in $G$) plus the previous snapshot:
-$
-  s_0 &= H(op("heads")(G, t_0)) \
-  s_n &= H(op("heads")(G, t_n) || s_(n-1))
-$
-
-The snapshot sequence $(s_0, s_1, dots.h.c, s_n)$ is a hashchain.
-Each snapshot witnesses the graph state _and_ all previous snapshots.
-Manipulation of any $s_i$ invalidates all $s_j$ for $j > i$.
-
-Snapshot hashes can be published to any external timestamping service — for instance, in the New York Times or on a public ledger, following the construction of Haber and Stornetta (1991) — to provide third-party proof of graph state at a given point in time.
-
-#todo[Add the *anchoring composition theorem*: publishing a single snapshot hash to a tamper-evident external medium (Bitcoin transaction, NYT classifieds, Sigsum log, etc.) anchors not only that snapshot but the integrity of every node in $G$ at $t_n$, by composition with Merkle integrity (@sec:merkle). Verifiable by any third party in $O("path length")$ Merkle proofs, without trust in the operator. One ~32-byte hash anchors the whole graph state.]
-
-#todo[One-line *compliance angle*: this is a regulatory-grade tamper-resistance guarantee — the kind that medical, financial-audit, and legal-evidence systems spend significant money to approximate (write-once optical, notary services). Falls out structurally here. Do not over-explain; one sentence.]
+Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(h, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $h_1, h_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
 
 #dref[D4, this section]
 
-== Cryptographic Attestation <sec:attestation>
+== Verifiability <sec:verifiability>
 
-#todo[*Emergent capability, not a discharger of any D-item.* Keep this section *short* — point at the possibilities and move on. The deep treatment is the subject of a companion paper (working title _Ranke Cryptography_, see #raw("06-ranke-cryptography/notes.md") for the full development).
-
-*The structure of this paper's mention.* One paragraph stating that the claim machinery enables a complete trust posture as application-layer patterns:
-
-- *Signatures as claims* — `pubkey` in contributor content; signed-by claims reference hashes via `evidence/*`. Multi-sig, web of trust, key rotation all fall out as patterns over normal claims.
-- *Policies as claims* — admission rules live in the graph itself. A graph's governance is determined by the policy claims reachable from its head.
-- *Validity is a function of a graph* — `valid(G, policy)`. Invalid graphs are well-formed; merge is structural composition; validation is a separate operation any party can run at any time.
-- *Full historical auditability* — anyone can replay the validity check against the graph. Violations are recognized via additional claims; self-healing through accumulation, not editing.
-
-Closing trifecta-plus table (one short paragraph + table):
-
-#table(
-  columns: 2,
-  align: (left, left),
-  [*Property*], [*Mechanism*],
-  [Integrity], [hashes + Merkle DAG (§5.2)],
-  [Temporal], [snapshots + external anchoring (§5.3)],
-  [Authenticity], [signatures as claims],
-  [Governance], [policies as claims],
-  [Enforcement verifiability], [validity as a function; replay against the graph],
-)
-
-The operator collapses to commodity storage + commodity gatekeeper. The trust posture is structural, not procedural.
-
-*Length when written:* half a page maximum. The full design (signing schemes, policy DSLs, audit cadence, deployment workflow, regulatory mapping) is out of scope for this paper.]
-
-== Boolean Composability <sec:crdt>
-
-#todo[Section opener (1–2 sentences): the graph admits a full set algebra over its node-id sets — $union$, $inter$, $\\$, $triangle.stroked.small$ — all conflict-free by construction.]
-
-=== Set Algebra Theorem
-
-#todo[Disambiguate: $A$, $B$ here are $"RG"_(h_A)$, $"RG"_(h_B)$ — hash-rooted instances over $cal(U)$. Operations produce a new node-id subset and a new root (snapshot); the result is $"RG"_(h_("op"))$. Re-state once §4.6 lands.]
-
-#todo[Result of a boolean operation is a *single hash* — a snapshot claim whose `evidence/head` edges name the heads of the operand graphs that are part of the result and whose `prune/*` edges name what was excluded by the operation (e.g. set difference). No distinguished node class needed; the result is a normal snapshot claim under the throwaway-snapshot mechanism of §4.3. The earlier "(true_result, handle)" tuple framing dissolves: one hash $h_("op")$ fully describes $"RG"_(h_("op"))$.]
-
-#todo[Theorem: for any two Ranke-Graph instances $A$, $B$, the operations $A union B$, $A inter B$, $A \\ B$, $A triangle.stroked.small B$ over their node-id sets each yield a well-formed Ranke-Graph instance in $O(|V_A| + |V_B|)$ time, with no possibility of conflict.
-
-Proof sketch composes three structural facts:
-(1) content-addressed ids (@sec:structure) make node identity decidable by hash equality (O(1));
-(2) immutability (D3, @sec:atomic) means a given id corresponds to one fixed record — no version disagreement is possible;
-(3) DAG-by-construction (@sec:acyclicity) means any subset of $V$ closed under the edge-reference relation is itself a DAG; closure costs O(|E|).
-
-Each set op produces a node-id subset; closing under reference-traversal yields a well-formed instance.]
-
-=== Cheap Forks
-
-#todo[Corollary: forking is divergence in the node-id set; content blobs are shared via the addressed pool. Storage cost of $N$ forks of a graph $G$ is $O(|V_G|)$ in metadata plus $O(1)$ in the content pool.]
-
-=== Coordination-Free Merge
-
-#todo[Corollary: convergence is $union$. The Ranke-Graph satisfies the join-semilattice condition for CRDTs (@shapiro2011crdt). No coordination protocol, no conflict resolution, no merge algorithm beyond hash-set union.]
-
-=== Operations and Composability
-
-#todo[The Set Algebra Theorem above is the *operational definition* of the ADT's four binary operations. The proof gives the rules: each operation produces a node-id subset by hash-set algebra, then closes under reference-traversal to form a well-formed instance. Worked example: per-project ingestion as throwaway sub-graphs. Spin up an isolated graph for project X's ingestion; on success $"main" := "main" union "project"$; on failure drop the project graph. Selective rollback uses $\\$. Cross-fork agreement uses $inter$. Disagreement diffing uses $triangle.stroked.small$. Strictly stronger guarantee than Git: no merge conflict can ever occur. (Any read or write operation on a Ranke-Graph — whether through a library, a server, or a query layer — composes from these four; the ADT does not prescribe an interface, only the operations it must support.)]
-
-#dref[D6, this section]
-
-== The Semantic Reading <sec:semantic-reading>
-
-#todo[Disambiguate throughout: $"RG"$ here is shorthand for $"RG"_h$ (a hash-rooted instance), not for $cal(U)$. The two readings are over the $V_h$, $E_h$ of one instance. After §4.6 lands, switch notation: $"RG"_h$ and $("RG"_h)^S$.]
-
-The Ranke-Graph admits two readings of the same $V$ and $E$:
-
-- the *structural reading* $"RG" = (V, E)$ — every edge runs reference $arrow.r$ owning claim (older $arrow.r$ newer); acyclic; Merkle-secured (@sec:acyclicity, @sec:merkle).
-- the *semantic reading* $"RG"^S$ — the same $V$ and $E$, with `relation/*` edges reoriented by their `relation_direction` field. Edges of class `contribution/*` and `evidence/*` are unchanged.
-
-For a node $v$, let $op("class")(v)$ denote the first segment of $op("type")(v)$ (@sec:classes). For an edge $e$ with $op("class")(e) = "relation"$, let $op("rdir")(e) in {+1, -1}$ denote `relation_direction` (@sec:relation-direction).
-
-*Observation.* $"RG"$ and $"RG"^S$ share the same $V$ and $E$ as record sets; as directed graphs they differ only in the orientation of `relation/*` edges. In $"RG"^S$, each `relation/*` edge $e$ (owned by relation node $r$, referencing $t$) is oriented:
-
-- $t arrow.r r$ if $op("rdir")(e) = +1$,
-- $r arrow.r t$ if $op("rdir")(e) = -1$.
-
-All other edges are invariant.
-
-*Properties.*
-
-- The two readings are bijective on $V$ and $E$, and switching is computable in $O(|E|)$.
-- Provenance traversal — `contribution/*` and `evidence/*` edges — is identical in both readings; no sign logic is ever needed for it.
-- $"RG"^S$ admits cycles (e.g. _"Bob knows Alice"_ together with _"Alice knows Bob"_); $"RG"$ does not.
-- The structural theorems (@sec:acyclicity, @sec:merkle, @sec:crdt) hold on the underlying $V$ and $E$; both readings inherit them.
-
-*The semantic graph as subgraph.* The semantic graph $"SG"$ — the entity-and-relation portion typically queried by knowledge-graph consumers — is the subgraph of $"RG"^S$ induced by
-
-$ V_("SG") = {v in V : op("class")(v) in {"entity", "relation"}}, quad E_("SG") = {e in E : op("class")(e) = "relation"}. $
-
-$"SG"$ is a subgraph of $"RG"^S$, not a separate structure or a derived view. Reified relation nodes remain as hubs, preserving $N : N$ relations, partially-specified relations, and per-entity attributes (a common pattern: RDF reification, Wikidata statements with qualifiers).
-
-== Auth-Scoped Visibility and Verifiable Partial Views
-
-#todo[Disambiguate: visibility scoping operates over $cal(U)$, returning a smaller $"RG"_h$ to the user. Every user query is $(h, sigma)$ for some scope $sigma$; the server selects $"RG"_h$ from $cal(U)$ filtered by $sigma$. Re-frame this section once §4.6 lands.]
-
-#todo[*Definition (Scope).* A scope is an indicator function $bb(1)_sigma : V arrow.r {0, 1}$, where $sigma$ identifies a subset $Sigma subset.eq V$ of scope-eligible claims; $bb(1)_sigma (v) = 1$ iff $v in Sigma$. The predicate may be expressed as a function over claim fields (with access to fields of the claim's edges); concrete syntax and operator set are implementation choices (rankedb).
-
-*Definition (Pruned set).* For a hash-rooted instance $"RG"_h$, the pruned set is
-$ "pruned"(h) := { t in V : exists e in "closure"(h, cal(U)) "with" "class"(e) = "prune" "and" "reference"(e) = t }. $
-
-*Definition (View).* The view of $"RG"_h$ under scope $sigma$ is
-$ "view"(h, sigma) := lr(("closure"(h, cal(U)) inter Sigma)) \\ "pruned"(h). $
-Equivalently: take the closure, keep scope-eligible claims, subtract pruned claims.
-
-*Property (Scope-resistance of pruning).* The pruned set is computed against the *full closure*, not the post-scope subset, so $sigma$ cannot un-prune a claim. Scope determines what is rendered; pruning determines what is renderable at all. Pruning is structural (about $cal(U)$); scope is per-viewer.
-
-*Property (Pure function).* $"view"(h, sigma)$ is a deterministic function of $(cal(U), h, sigma)$. Caches at the implementation layer are throw-awayable and reconstructible.]
-
-Auth-scoped visibility (a claim derived from a confidential source is automatically confidential) is compatible with the Merkle DAG.
-
-A user receives a verifiable subgraph: full claims with content for everything in scope.
-For branches outside their scope, they see only the hash — enough to verify the integrity of their own subgraph, but no content access.
-
-```
-[hash_only] ← confidential node, user sees only hash
-     ↓
-[full node] ← derived, user has access
-     ↓
-[full node] ← user has access
-```
-
-The user can verify: "my subgraph is intact, it builds on a claim with hash $X$ whose content I don't know."
-Integrity is provable without transparency.
-Only the server sees everything.
-
-Merkle structure is what _enables_ verifiable partial views.
-Auth scoping and Merkle integrity are complementary.
-
-=== Visibility Propagation
-
-#todo[Formalise: a claim is visible to an observer iff all the claims it *semantically depends on* (via its references) are visible. Visibility propagates along edges that carry semantic dependency — class `relation/*`, `contribution/*`, and the semantic subtypes of `evidence/*` (e.g.\ `evidence/source`, `evidence/chunk`). It does *not* propagate along `evidence/head` (topological evidence — a snapshot depends on its heads' content only via hash for Merkle integrity, not semantically) nor along prescriptive edges (`prune/*`, whose references are excluded by design). The refinement is at the subtype level for `evidence/*`, not a new class rule.]
-
-=== Compliance by Architecture
-
-#todo[Brief paragraph: this is compliance by structure rather than by policy. The implementation in a real authentication system is the concern of a downstream paper.]
+The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation — since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
-== Schema-Light, Open-Ended Knowledge
+== Semantic Relations <sec:bijection>
 
-#todo[Explain: the ADT prescribes no vocabulary for `type` (on nodes or edges) and no fixed schema for `content` or `fields_0..n`. A refinement may layer a content-type taxonomy on top, but the ADT itself does not commit to one. Vocabulary extension is therefore a contributor concern, not a structural change.]
+A Ranke-Graph admits two readings of the same $V$ and $E$:
+
+- *Structural reading*: edges run reference $arrow.r$ owner (older $arrow.r$ newer). Acyclic; Merkle-secured.
+- *Semantic reading*: same $V$ and $E$, with `relation/*` edges directed by their `relation_direction`: `from` runs entity $arrow.r$ relation, `to` runs relation $arrow.r$ entity.
+
+Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. The structural reading is acyclic; the semantic admits cycles (e.g. _Alice knows Bob_, _Bob ignores Alice_).
+
+#dref[D6, this section]
+
+== Open-Ended Vocabulary <sec:vocabulary>
+
+`class/*` is open vocabulary: applications add subtypes (`relation/family`, `source/conversation`, `derivation/transcription`, …) without modifying the ADT. Content schemas and extension fields are likewise application-defined; tools pass through what they do not recognise.
 
 #dref[D7, this section]
 
+== Scoping <sec:scoping>
+
+Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope — σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_h$ — for example, claims derived from one contributor's contributions, or claims related to one project.
+
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance, no prune edges. Incremental updates are cheap — apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
+
+== Pruning <sec:pruning>
+
+Pruning creates partial views that hide arbitrary claims via `contribution/prune` edges — the immutable way of deletion by addition.
+
+$op("pruned")(v in "RG"_h) <=>$ some `contribution/prune` edge inside $"closure"(h, cal(U))$ references $v$.
+
+Pruning is a structural directive; implementations enforce it by hiding pruned claims from viewers. This requires that direct id-based access be operator-only — prune edges expose the ids of hidden claims, so users could otherwise bypass pruning by fetching them directly. Users access via branch names; the operator controls which heads they can reach.
+
+An indicator $pi : "RG"_h -> {0, 1}$ marks visibility. Consolidate (@sec:consolidate) the heads with $pi = 1$ and add `contribution/prune` edges to claims with $pi = 0$ on the resulting head $h_p$:
+$ "RG"_(h_p) := "closure"(h_p, cal(U)). $
+
+A pruned view is not a valid Ranke-Graph (@sec:validity): provenance recursion halts at pruned claims, allowing Merkle integrity verification (@sec:merkle) for the visible claims only; pruned claims appear as id-only via `contribution/prune` edges, attesting existence without revealing content.
+
+#dref[D8, this section]
+
+== Set Algebra <sec:set-algebra>
+
+Two set operations over RG node-id sets produce valid sub-RGs by virtue of content-determined ids (@sec:merkle): matching ids ARE the same claim, so set membership is well-defined and decidable by hash equality.
+
+=== Union ($A union B$) <sec:union>
+
+Every claim in either RG. Both inputs are closed under references, so the union is closed. Consolidate (@sec:consolidate) → valid sub-RG. 
+
+=== Intersection ($A inter B$) <sec:intersection>
+
+Claims in both RGs. Both inputs are valid (@sec:validity), so each contains every claim's full provenance. If $v in A inter B$, $v$'s provenance is in both $A$ and $B$ — hence in $A inter B$ — so the intersection is closed under references. No removed claim can be a provenance ancestor of a claim that stays. Consolidate (@sec:consolidate) → valid sub-RG, no pruning needed.
+
+=== Subset Removal ($A \\ B$, $A triangle.stroked.small B$) <sec:removal>
+
+Define a pruning indicator $pi$ so that $pi(v) = 0$ for claims to remove and apply pruning (@sec:pruning) — the result is a pruned view, not a valid sub-RG.
+
+== Distributability <sec:distributability>
+
+Two replicas of a Ranke-Archive converge by union (@sec:set-algebra) — the join-semilattice condition for Conflict-Free Replicated Data Types (CRDTs, @shapiro2011crdt). Replicas can write independently and reconcile by exchanging claim ids; every replica reaches the same state regardless of partition order.
+
+#dref[D9, this section]
+
+= Additional Emergent Properties <sec:emergent>
+
+#todo[Possible dissolution: Forks and Backup are both single-line consequences. Each could become an inline observation in its emerging chapter — Forks at the end of §Branches, Backup at the end of §Verifiability — making §6 redundant. Consider folding and removing the chapter in a future pass.]
+
+Properties that follow from the structure beyond the desiderata.
+
+== Forks <sec:forks>
+
+*Emerges from @sec:branches.* Forking is a new branch entry pointing at $h$ — $O(1)$.
+
+== Backup <sec:hash-backup>
+
+*Emerges from @sec:merkle + @sec:verifiability.* A single id $h$ recovers and verifies $"RG"_h$ from any replica of $cal(U)$.
+
 = Relation to Prior Work <sec:related-work>
+
+#todo[Refresh §7 Related Work for the Phase 2-3 Sign integration and Phase 6 D-reorder. Currently focuses on temporal/versioned/immutable graph systems and provenance vocabularies (PROV-DM, Nanopublications) but doesn't address signature-based identity systems (PGP web of trust, Sigstore, RFC 3161 timestamping in the wild, Merkle-tree-based signing schemes). Add a sub-chapter on "Signature and Timestamping Infrastructure" or fold into existing chapters where the mechanism overlaps.]
 
 == Temporal Knowledge Graphs: Graphiti / Zep
 
-Graphiti (@rasmussen2025graphiti; @zep2025temporal, 2024–2025) is the closest existing system to the Ranke-Graph in the LLM context-management space.
+Graphiti (@rasmussen2025graphiti; @zep2025temporal, 2024–2025) is the closest existing system to the Ranke-Graph in the LLM context-management field.
 It builds temporal, provenance-aware knowledge graphs using FalkorDB or Neo4j, with bidirectional episode indices and temporal validity windows.
 Facts are invalidated rather than deleted.
 
 However, Graphiti performs destructive entity-summary updates, has no content-addressable source archive comparable to the Ranke-Graph, and embeds provenance as annotation on the knowledge graph rather than treating it as the content itself.
-The Ranke-Graph can be understood as an extension of Graphiti's philosophy — adding immutability, first-class sources, and the architectural inversion that makes provenance the substrate rather than an annotation.
+The Ranke-Graph can be understood as an extension of Graphiti's philosophy — adding immutability, sources preserved within the graph itself, and the architectural inversion that makes provenance the substrate rather than an annotation.
 
 == Versioned Knowledge Bases: TerminusDB
 
@@ -525,7 +406,7 @@ Its foundational structure is a versioned graph, not a provenance DAG.
 
 == Immutable Databases: Datomic and Fluree
 
-Datomic (@hickey2012datomic) operationalises Pat Helland's "Immutability Changes Everything" thesis (@helland2015immutability) as an append-only database of immutable datoms.
+Datomic (@hickey2012datomic) operationalises Pat Helland's 'Immutability Changes Everything' thesis (@helland2015immutability) as an append-only database of immutable datoms.
 Fluree (@fluree) combines an append-only ledger with a semantic graph database.
 Both capture temporal history but not _epistemic_ history — they record _when_ facts changed but not _how knowledge was derived from sources through processing chains_.
 
@@ -537,7 +418,7 @@ Both capture temporal history but not _epistemic_ history — they record _when_
 
 The W3C PROV Data Model (@moreau2013provdm) provides a formal vocabulary for provenance (Entity, Activity, Agent, wasGeneratedBy, wasDerivedFrom, used).
 The Ranke-Graph is semantically compatible with PROV-DM — nodes map to Entities, contributor activities to Activities, contributors to Agents — but does not depend on or implement the W3C stack (RDF, SPARQL, OWL).
-PROV-DM compatibility exists at the conceptual level, enabling potential export or interoperability without architectural coupling.
+PROV-DM compatibility exists at the conceptual level, allowing export or interoperability without architectural coupling.
 
 == Nanopublications
 
@@ -546,7 +427,7 @@ They share the Ranke-Graph's commitment to immutability and provenance-per-asser
 
 == CRDTs and Distributed Provenance
 
-#todo[An add-only monotonic DAG is provably a Conflict-Free Replicated Data Type (@shapiro2011crdt) — it can be replicated across distributed nodes and always merged into a consistent state without coordination. This connection between provenance DAGs and CRDTs appears unexplored in the literature; we develop it formally in @sec:crdt and as related work here.]
+#todo[An add-only monotonic DAG is provably a Conflict-Free Replicated Data Type (@shapiro2011crdt) — it can be replicated across distributed nodes and always merged into a consistent state without coordination. This connection between provenance DAGs and CRDTs appears unexplored in the literature; we develop it formally in @sec:distributability and as related work here.]
 
 == The Identified Gap
 
@@ -555,8 +436,36 @@ Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
 
-#todo[A small structure, a long list of consequences. Forward pointers to the implementation paper (working title _RankeDB_) and to subsequent work on workers, retrieval, and orchestration.]
+The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realisation in the digital substrate.
 
-#todo[Closing paragraph: reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.]
+The computer science tools used here are all established — Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
+
+Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.
+
+#todo[Add a closing line / afterthought for §8 reflecting the demarcation line: *"The Ranke-Graph documents; it does not decide."* This is the principle that subsumes the design — signatures document who signed (no decision who may sign), pruning documents what's hidden (no decision who may see), validity documents structural well-formedness (no decision what's true). Anything that would *decide* — policies, governance, consensus — belongs above the ADT, in the application layer. Could land as the closing sentence of §8, after "we invent nothing; we compose." — explains in one line why we drew the boundary where we did.]
+
+= Type Vocabulary <sec:types>
+
+The five concepts of @sec:everything-is-knowledge are encoded as five node classes and three edge classes; subtype vocabulary is open.
+
+*Node classes:*
+
+- *`source/*`* — an external data artifact.
+- *`derivation/*`* — a claim built from other claims as inputs.
+- *`entity/*`* — an identifiable thing in the world.
+- *`relation/*`* — a node representing a relation among entities.
+- *`contribution/*`* — a claim about contributors or their actions on the RG.
+- *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
+
+*Edge classes:*
+
+- *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
+- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
+- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
+  - *`contribution/contributor`* — names the contributor of a claim
+  - *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
+  - *`contribution/branches`* — names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
+  - *`contribution/branch`* — edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/prune`* — view-modifying; excludes a reference from views containing the claim
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")

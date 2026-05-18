@@ -121,7 +121,7 @@ Karpathy's LLM Wiki (gist 442a6bf, 5000+ stars) proposes a three-layer pattern: 
 
 ---
 
-# Part C — Core architecture (Merkle-DAG, snapshots)
+# Part C — Core architecture (Merkle-DAG, heads)
 
 *From `technical-notes.md`. Captured from design discussion, April 2026. Implementation-level architecture extending §2, §3, §7.3 of the paper.*
 
@@ -178,20 +178,20 @@ node_hash = H(
 
 ---
 
-## Snapshots as the Cut Line
+## Heads as the Cut Line
 
-Periodically, a **snapshot node** is created. Its inputs are all current heads (nodes with no children) plus the previous snapshot. Its hash witnesses the entire graph state at that point in time.
+Periodically, a **head claim** is created. Its `contribution/head` edges reference all currently-open heads plus the previous head. Its hash witnesses the entire graph state at that point in time.
 
 ```
-Snapshot_N = H(
-  content_hash: H("snapshot at 2026-04-20T23:45:00Z")
-  input_edges: [head_1, head_2, ..., head_n, snapshot_N-1]
+Head_N = H(
+  content_hash: H("head at 2026-04-20T23:45:00Z")
+  contribution/head edges: [head_1, head_2, ..., head_n, head_N-1]
 )
 ```
 
-The chain of snapshots forms a hashchain: each snapshot includes the previous snapshot's hash as an input. This gives a linear, ordered sequence of graph states.
+The chain of heads forms a hashchain: each head includes the previous head's hash as a `contribution/head` reference. This gives a linear, ordered sequence of graph states.
 
-**Publishing:** The snapshot hash can be published to any external timestamping service — e.g. in the New York Times or a public ledger (Haber & Stornetta, 1991) — to provide third-party proof of graph state at a given point in time.
+**Publishing:** The head hash can be published to any external timestamping service — e.g. in the New York Times or a public ledger (Haber & Stornetta, 1991) — to provide third-party proof of graph state at a given point in time.
 
 ---
 
@@ -200,16 +200,16 @@ The chain of snapshots forms a hashchain: each snapshot includes the previous sn
 | Property | Mechanism |
 |---|---|
 | **Immutable** | Append-only DAG, content-addressed nodes |
-| **Manipulation-proof** | Merkle-DAG + snapshot hashchain + blockchain notarization |
-| **Prune-friendly** | Everything above the last published snapshot is prunable |
+| **Manipulation-proof** | Merkle-DAG + head hashchain + blockchain notarization |
+| **Prune-friendly** | Everything above the last published head is prunable |
 
-**Snapshots are the boundary between immutable and mutable:**
-- Everything *below* a published snapshot is irrevocable — the hash is in the blockchain, the Merkle-DAG witnesses every node.
-- Everything *above* the last snapshot is workspace — experimental workers run here, buggy runs get pruned here.
+**Heads are the boundary between immutable and mutable:**
+- Everything *below* a published head is irrevocable — the hash is in the blockchain, the Merkle-DAG witnesses every node.
+- Everything *above* the last head is workspace — experimental workers run here, buggy runs get pruned here.
 
-**Purge becomes trivial:** "Prune everything since snapshot N" is a single operation. Fork from snapshot N, rebuild with improved workers.
+**Purge becomes trivial:** "Prune everything since head N" is a single operation. Fork from head N, rebuild with improved workers.
 
-**Publish cadence is policy, not architecture:** How often snapshots are published determines the balance between manipulation-proofing and prune flexibility. Daily? After each audit cycle? After each release? Application-layer decision.
+**Publish cadence is policy, not architecture:** How often heads are published determines the balance between manipulation-proofing and prune flexibility. Daily? After each audit cycle? After each release? Application-layer decision.
 
 ---
 
@@ -412,7 +412,7 @@ Each branch has its own Postgres instance (or schema) AND its own S3 bucket. Rea
 
 ### Main S3 grows only at merge
 
-Side branches accumulate blobs in their own S3. Main S3 is never polluted by experimental work. At merge (snapshot publish), missing hashes are copied from side S3 to main S3. Content-addressed means: no duplicate possible, no conflict possible. Pure append.
+Side branches accumulate blobs in their own S3. Main S3 is never polluted by experimental work. At merge (head publish), missing hashes are copied from side S3 to main S3. Content-addressed means: no duplicate possible, no conflict possible. Pure append.
 
 ### Purge = delete side storage
 
@@ -420,22 +420,22 @@ Drop the Postgres branch. Delete the side S3 bucket. Main is untouched. No orpha
 
 ### Dev workflow (Git-like)
 
-1. Publish snapshot N → blockchain notarization
-2. Fork from snapshot N → new Postgres + new S3 bucket (with read-through to main S3)
+1. Publish head N → blockchain notarization
+2. Fork from head N → new Postgres + new S3 bucket (with read-through to main S3)
 3. Run experimental workers → new nodes in branch, new blobs in branch S3
 4. Evaluate results
 5. Good → merge to main: copy Postgres rows, copy missing S3 blobs to main S3
 6. Bad → drop branch: delete Postgres, delete S3 bucket. Zero cost.
 
 ### Merge is trivial
-Nodes are content-addressed. Transferring a node from dev to main means: copy the Postgres row (the hash is the same because the content is the same). Copy the S3 blob if main S3 doesn't have it yet. No conflict resolution needed as long as the inputs exist in the target branch — and they do, because both branches forked from the same snapshot.
+Nodes are content-addressed. Transferring a node from dev to main means: copy the Postgres row (the hash is the same because the content is the same). Copy the S3 blob if main S3 doesn't have it yet. No conflict resolution needed as long as the inputs exist in the target branch — and they do, because both branches forked from the same head.
 
 ### The layering
 
 | Layer | Main | Side Branch |
 |---|---|---|
-| Blockchain | Snapshot hashes | — |
-| Postgres | Production graph | Fork from snapshot N |
+| Blockchain | Head hashes | — |
+| Postgres | Production graph | Fork from head N |
 | S3 | All published blobs | Only new blobs, read-through to main |
 
 ---
@@ -480,46 +480,46 @@ branch-level lineage tracking would be redundant.
 *From `notes.md`.*
 
 The foundation paper commits to: every $\text{RG}_h$ has a single root $h$.
-Throwaway snapshots maintain this — each branch advance generates a fresh
-snapshot claim whose `evidence/head` edges name all currently-open heads;
-the branch updates to point at the snapshot. Implementations must handle
+The head mechanism maintains this — each branch advance generates a fresh
+head claim whose `contribution/head` edges name all currently-open heads;
+the branch updates to point at the new head. Implementations must handle
 concurrent writes:
 
 **Strategy A — Sequenced writes.** A single-writer constraint per branch
 prevents multi-head states from arising at all. Each append happens against
-the current single head, which then advances via a fresh snapshot.
+the current single head, which then advances via a fresh head claim.
 Simplest; throughput-bound at the writer.
 
-**Strategy B — Merge-snapshots on demand.** Concurrent appends produce
-multiple heads transiently in $\mathcal{U}$. On branch advance / read-of-branch,
-the implementation generates a snapshot with `evidence/head` edges to all
-current heads. Concurrent throughput high; brief multi-head intervals
+**Strategy B — Merge-heads on demand.** Concurrent appends produce
+multiple open heads transiently in $\mathcal{U}$. On branch advance / read-of-branch,
+the implementation generates a head claim with `contribution/head` edges to all
+currently-open heads. Concurrent throughput high; brief multi-head intervals
 tolerated.
 
-**Strategy C — Auto-snapshot at commit.** Every appender (atomically) appends
-its claim AND generates a snapshot whose `evidence/head` edges name the
-post-append head set. Requires careful concurrency control to avoid stale
+**Strategy C — Auto-head at commit.** Every appender (atomically) appends
+its claim AND generates a head claim whose `contribution/head` edges name the
+post-append open-head set. Requires careful concurrency control to avoid stale
 head sets racing against just-committed claims; commit retries on
 concurrent-modification likely.
 
 All three preserve the foundation invariant; they trade throughput, latency,
 and coordination cost differently.
 
-## `evidence/head` storage in Neo4j
+## `contribution/head` storage in Neo4j
 
 *From `notes.md`.*
 
-Open implementation question to benchmark — note that as `evidence/*` edges,
-they are uniform with other `evidence/*` edges at the parser level; the
-distinction (topological vs semantic) is in the subtype:
+Open implementation question to benchmark — note that as `contribution/*` edges,
+they are uniform with other `contribution/*` edges at the parser level; the
+distinction (structural vs other) is in the subtype:
 
-**Option Ia — first-class Neo4j edges.** Stored like any other `evidence/*`
+**Option Ia — first-class Neo4j edges.** Stored like any other `contribution/*`
 edge; Cypher queries for semantic content filter them out via
-`WHERE NOT type = 'evidence/head'`. Pro: full structural uniformity, easy
+`WHERE NOT type = 'contribution/head'`. Pro: full structural uniformity, easy
 DAG validation. Con: filter overhead on every semantic query.
 
-**Option Ib — node property.** Store the head hashes as a list property on
-the snapshot node (`heads: [hash, hash, ...]`); reconstruct edge form only
+**Option Ib — node property.** Store the open-head hashes as a list property on
+the head claim (`heads: [hash, hash, ...]`); reconstruct edge form only
 for DAG validation / hash recomputation. Pro: semantic queries automatically
 clean (no filter); lighter storage. Con: violates "everything is edges"
 uniformity at the storage layer; DAG validation walks property-not-edges.
@@ -611,21 +611,21 @@ is the menu the binding picks from.
 closure(h, U)
   ∩ scope.predicate                 -- auth filter (extrinsic)
   ∖ { t : ∃ e ∈ closure with        -- prune filter (intrinsic)
-          e.type ∈ prune/*
-          and e.target = t }
+          e.type = contribution/prune
+          and e.reference = t }
 ```
 
-Single walk over the closure. Collect prune-targets and evaluate scope
+Single walk over the closure. Collect prune-references and evaluate scope
 predicate independently against the *original closure*; then subtract both.
 Order matters in edge cases: pruning is *scope-resistant*. If the scope
 predicate would filter a prune-claim itself, the prune's *effect* still
-applies (the target stays excluded); only the prune-claim's *content* is
+applies (the reference stays excluded); only the prune-claim's *content* is
 hidden from the user. Pruning is a structural decision about $\mathcal{U}$;
 scope is per-viewer.
 
 This means the auth-scope cache mechanism handles pruning for free — the same
-walk that lazy-fills the scoped graph also sweeps `prune/*` edges. No separate
-infrastructure needed.
+walk that lazy-fills the scoped graph also sweeps `contribution/prune` edges.
+No separate infrastructure needed.
 
 ---
 
@@ -664,9 +664,9 @@ The principle that decided the auth-scope architecture (and the rejected
 
 Applied:
 
-- **In $\mathcal{U}$:** ordinary claims, prune-claims (snapshots with
-  `prune/*` edges — genuine write events: a contributor decided to mark
-  hashes unresolvable, with reasons and provenance).
+- **In $\mathcal{U}$:** ordinary claims, prune-claims (claims with
+  `contribution/prune` edges — genuine write events: a contributor decided to
+  mark references unresolvable, with reasons and provenance).
 - **In Postgres:** scope predicates, role-to-scope bindings, user-to-role
   mappings, branch heads, materialized-view caches, access logs.
 
@@ -761,7 +761,7 @@ Key mappings:
 Automated peer review through claim decomposition:
 - AI analysis → worker decomposes into individual claims → each claim a `fact/claim` node → dedicated challenge agent per claim → produces `observation/challenge` node (confirmed, refuted, or unverifiable with reasoning)
 
-The Merkle-DAG + snapshot + external timestamping makes the entire audit trail manipulation-proof. In a liability case, the graph proves: we scanned with *this* tool in *this* version with *these* rules, *this* person made *this* decision based on *this* AI analysis with *this* prompt, and the graph had *this* state at *this* time (externally witnessed).
+The Merkle-DAG + heads + external timestamping makes the entire audit trail manipulation-proof. In a liability case, the graph proves: we scanned with *this* tool in *this* version with *these* rules, *this* person made *this* decision based on *this* AI analysis with *this* prompt, and the graph had *this* state at *this* time (externally witnessed).
 
 ---
 
