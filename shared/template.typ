@@ -136,3 +136,14 @@
 
 // Scaffold placeholder text — easy to spot visually and easy to grep for.
 #let todo(body) = text(fill: rgb("#888"), style: "italic", body)
+
+// Text beside a figure/table/diagram, with an optional full-width
+// continuation below it — a native stand-in for float-style text wrap.
+// Split the prose manually: `lefttext` sits beside `rightimage`,
+// `bottomtext` continues underneath at full width.
+#let imageonside(lefttext, rightimage, bottomtext: none, marginleft: 0em, margintop: 0.5em) = {
+  set par(justify: true)
+  grid(columns: 2, column-gutter: 1em, lefttext, rightimage)
+  set par(justify: false)
+  block(inset: (left: marginleft, top: -margintop), bottomtext)
+}
