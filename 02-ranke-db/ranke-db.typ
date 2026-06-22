@@ -51,31 +51,11 @@ A Ranke Archive stores knowledge for the long term under a fixed set of guarante
 
 The foundation paper (@metzgernoel2026rankegraph) defines the Ranke-Graph as an abstract data type accompanied by a reference implementation in Go. 
 
-This paper specifies RankeDB, a reference database service that stores and serves *Ranke Archives* as defined in the foundation paper. It proposes an 
+The foundation paper proposes an ADT built around the abstract idea of 'attributed claims'. 
+This paper takes that as given and settles what an abstract type can leave open but a running store cannot: how the claims are indexed for query, and whether their bytes still open in thirty years. This paper specifies RankeDB, a reference database service that stores and serves *Ranke Archives* as defined in the foundation paper. It proposes an 
 architecture, a modular persistence stack, read and write paths, a query model, and an authentication model. 
 
-Analysing these use cases yields a set of desired properties, which the body then checks against the architecture. 
-
-= An Epistemological Slice <sec:epistemology>
-
-[Note: this is way to wordy - a condensed version should be written as an onramp]
-The foundation paper opened from the archival tradition — Ranke, _respect des fonds_, Briet — and argued that provenance is the knowledge itself. This paper opens from the adjacent, epistemological slice of the same thought, because it is what motivates the storage model directly.
-
-#todo[Write @sec:epistemology as ~1.5 pages. Source material: notes.md Part A (Talisman, Briet, Wilson, Burke, Cencetti, Cheney 2009) and Part B (the provenance/consensus stance). Do not repeat the foundation paper's archival argument; take the epistemological cut. Cite @talisman2026provenance; pull Briet/Wilson via it. The arc below.]
-
-== Provenance and Consensus Are Orthogonal <sec:orthogonal>
-
-Knowledge systems have long conflated two problems. *Provenance* — who said what, when, on what basis, derived from what — is an attribution problem, solvable by construction: do not throw the chain away. *Consensus* — what observers should agree to treat as true — is a social problem, requiring authority, negotiation, time. *Absolute truth* is incoherent as a stored object and is dropped from the design. The Semantic Web's error was to pre-bake consensus into the substrate; RankeDB handles provenance rigorously as a data problem and defers consensus to the layer above.
-
-#todo[Develop: RankeDB stores _attributed claims_ — communicative acts by someone, at some time, in some context. "Napoleon was born in 1769" is not a fact in the store; it is some source's claim. Consequences (lift from notes Part B): contradiction is normal, not a bug; conviction replaces certainty; the same claim means different things by context; there is no ground-truth layer; ontology emerges per perspective, not globally. Keep the "we do not refuse common truth, we defer it to consumers and provide the substrate" line.]
-
-== The Epistemology Is the Cache Hierarchy <sec:epistemology-architecture>
-
-This is the bridge to the architecture, and the paper's organizing claim:
-
-#concept[Interpretation is downstream of attribution.][Semantic interpretation and consensus are computed _from_ the attributed claims, never prior to them. The architecture honours this directly: the authoritative store — the bottom of the stack (@sec:two-planes) — holds the append-only claims, and every queryable _interpretation_ of them (a semantic-graph projection, a consensus view, a fast index) is a _derived, rebuildable_ layer above it, always recomputable and never itself the ground. Provenance sits at the foundation; interpretation is cache.]
-
-#todo[Make the payoff explicit and forward-reference @sec:architecture: a graph-database projection of the semantic reading is _an interpretation_, hence an upper-layer cache; a consensus view is _an interpretation_, hence a cache; the durable claims at the bottom of the stack are the ground truth. This is why the topology in §4 puts a durable store at the bottom and derived views above it. Tie back to Helland's "the truth is the log; the database is a cache of a subset of the log" (@helland2015immutability), with the nuance that here the bottom _is_ a real store, not an abstraction.]
+*Formats outlive products.* The foundation paper is deliberately format-agnostic: its ADT stores bytes under an encoding tag and cares nothing for which. A store meant to last decades must care — what a format _is_ decides whether its bytes still open. Services are sold or shut down; open, widely-implemented formats endure (@sec:use-cases). Memory institutions reach the same conclusion from the other side: the Library of Congress publishes sustainability assessments and a recommended-formats list (@locformats) spanning hundreds of formats — text, image, audio, moving image, archive — favouring the open and well-documented. RankeDB keeps the ADT's indifference in the store and adds an opinion above it (@sec:extracts): preserve originals as given, with generic-format extracts beside them.
 
 
 == Use Cases and Desired Properties <sec:use-cases>
@@ -156,209 +136,84 @@ _Verification and witnessing._
 
 The engine knows accounts, rights, archives, and stacks; *non-goals*, left to the application layer, are user and identity management, access policy, consensus or truth arbitration, and application logic. @sec:serving demonstrates — rather than proves — that the architecture meets G1–G9.
 
-= From ADT to System: Design Tenets <sec:tenets>
 
-#todo[Short section (~1 page) stating the invariants the implementation holds itself to. Each tenet gets a paragraph.]
-
-== The Mutable/Immutable Boundary <sec:boundary>
-
-Everything in the universe $cal(U)$ is immutable and content-addressed (foundation paper §Universe) — the branch table, branches, and heads among the claims. The _only_ mutable state is (a) the admin layer — service accounts, the archive registry, storage-stack configuration, and rights — and (b) per archive, the single hash $B_h$ that points at its current branch table (foundation paper §Archive). An archive is thus its universe plus one moving hash; advancing it swaps that hash. Drawing the boundary this sharply is what makes backup, forking, and replication cheap: the bulk is append-only and self-verifying; one pointer moves. *[FORCED]* by the ADT; the placement of the boundary is *[FREE]*.
-
-== Dark Storage <sec:dark-storage>
-
-No client enumerates storage. Every access is by id: `GET`/`PUT`/`HEAD` against a hash. Contributors never hold storage credentials; they speak to the service, which is the only storage client. Defining invariant: _if it is not reachable from a marker, it is not there_ — an unreferenced blob is benign (it occupies space but cannot be addressed), so garbage collection is optional. *[FREE]*, but load-bearing for the auth model (@sec:auth).
-
-== The Database Documents; It Does Not Decide <sec:documents>
-
-RankeDB authenticates the services that connect to it, records the signed claims they submit, and enforces the visibility scope bound to each. Signatures _document_ who contributed (the foundation paper makes authorship structural); scope _documents_ what a viewer may see. Decisions of truth — which claims are correct, which contributors are authoritative, what a reader should believe — live above the engine, in the application layer. This is the implementation-level reading of the foundation paper's closing principle. RankeDB therefore offers *mechanisms* — enforceable building blocks such as access control, key lifecycle, and time-stamp witnessing that an application opts into; the policy of who may do what, and why, stays above the engine.
 
 = Architecture <sec:architecture>
 
-This is the core of the paper.
+#todo[Lead. This chapter builds the engine up the way the foundation paper builds the data structure up: start from the atomic store, then add one capability at a time, discharging a design goal (@sec:goals) at each step. Spine — atomic store → stack → replicate → compose → archive → access → verify and witness.]
 
-== Admin Layer and Storage Stack <sec:two-planes>
+== The Atomic Store <sec:atomic>
 
-RankeDB separates a small, mutable *admin layer* from the large, immutable *universe* held in a storage stack.
+A RankeDB instance reduces to one storage engine behind one small API: store and fetch bytes by key.
 
-The *admin layer* is a relational store (the reference implementation uses PostgreSQL). It holds operational state only: service accounts and their secrets; the *archive registry* — each archive's name, its single $B_h$ hash, and its assigned stack; the configuration and connection details of each storage layer; and the rights that bind an account to read, write, or administer a set of archives and stacks. Branch tables, branches, and heads live in $cal(U)$ as claims; the admin layer keeps only the one $B_h$ pointer per archive. Erase it and every claim remains, entire, in the stack — accounts, configuration, and pointers are what is lost. *[FREE]*
+#todo[Define the essential API — `PUT(id, bytes)`, `GET(id)`, `HEAD(id)` — and what flows through it: claims, serialized and content-addressed, $op("id")(v) = "Sign"(H(S(v)))$ (CBOR Deterministic, IPFS multihash, Ed25519 — minimal recap from the foundation paper). Show the atomic write (hash content, serialize, sign, store) and that ids alone let the store deduplicate and verify. Keep the claim/edge schema recap tight.]
 
-The *storage stack* holds the universe: per archive, an ordered stack of storage layers containing $cal(U)$ — every claim, the branch table and heads among them.
+_Discharges G1, G2._ #todo[G1 — the engine assumes only a store of bytes addressed by a key; anything from a USB stick to Amazon S3 qualifies. G2 — that API _is_ the adapter contract, so a new backend is those three calls; show the filesystem adapter inline (~a dozen lines) as proof the contract is tiny.]
 
-#concept[Storage stack][A Ranke Archive is persisted across a _storage stack_: an ordered list of layers $ell_0, ell_1, …, ell_k$, from ground ($ell_0$) to top ($ell_k$). The archive's universe $cal(U)$ — its set of claims — lives in these layers. The ground layer $ell_0$ is the _source of truth_: read-through (@sec:through) terminates there, so it is authoritative and must be durable; whichever supported engine sits at the bottom holds the canonical claims. Each layer above it is a _derived layer_, populated by write-through and read-through, serving as cache, redundancy, or added query capability (@sec:layer-roles). A user may define any number of archives, each with its own stack — for example `S3-remote | S3-local | neo4j` or `S3-remote | local-FS | in-memory`. Each layer names a supported technology and its connection details.]
+#todo[What the store holds, opinionated defaults (fold former §Default Type Vocabulary and §Generic-Format Extracts here): the `source/*` and `derivation/*` default subtypes, MIME-style encodings, and the practice of keeping a generic-format extract beside each original. Mark *[FREE / default]*.]
 
-#todo[Figure: a vertical stack diagram (reuse / adapt drawio/layers.svg) showing ground = truth at the bottom, caches above, read-through arrows going down on miss and filling up, write arrows. Show two example stacks side by side to make "composable / modular" concrete.]
+== Stacking <sec:stack>
 
-== The Layer Contract <sec:layer-contract>
+One engine becomes a _stack_: layers ordered ground-to-top, the ground authoritative, upper layers caches.
 
-Every layer, whatever its technology, must satisfy one minimal contract: content-addressed storage and retrieval of claims by id — `PUT(id, bytes)`, `GET(id)`, `HEAD(id)`. Because ids are content-derived (foundation paper §Primitives), this interface is enough to store, deduplicate, and verify the entire graph.
+#todo[Define the stack and its read paths: read-through (a miss falls to the next layer down and fills on the way back), write-through (or write-ground-then-fill). Cache coherence is trivial — content-addressed bytes are never stale, eviction is always safe, and any upper layer drops and rebuilds from below. The ground is the source of truth because read-through terminates there.]
 
-A layer also declares the *maximum content length* it will hold. A write larger than that limit falls through to the next layer down, so a layer may be _partial_, holding only the size range it serves well — a Cypher/GQL-capable layer, for example, may cap content at a few kilobytes (the reference implementation uses 8 kB for neo4j), staying fast and query-focused while large blobs live in the object store beneath.
+#todo[Figure: vertical stack diagram (adapt drawio/layers.svg) — ground = truth at the bottom, caches above, read-through arrows down on miss filling up, write arrows. Two example stacks side by side (`S3 | S3-local | neo4j`, `S3 | local-FS | in-memory`).]
 
-One layer must be *complete*: the ground layer accepts content of any size, so the stack as a whole loses nothing. A complete layer may itself be _composite_ — several backends presented as one, such as geographically distributed object stores addressed through a routing layer — provided it is complete as a system. A performance layer can thus shard or route across backends while still standing as the source of truth.
+_Discharges G3 (composability)._
 
-Capabilities above that contract are _additive and negotiated by technology_:
+== Replication <sec:replication>
 
-- a Cypher/GQL-capable layer (neo4j) serves the semantic reading natively and unlocks the GQL query endpoint (@sec:query);
-- an object store or filesystem layer provides the minimal contract: durable content-addressed storage;
-- an in-memory layer provides speed for a hot working set.
+A _complete_ layer, once filled, is a full live copy of the archive — so durability is a matter of adding one.
 
-The client-facing query surface for an archive is therefore a function of its stack (@sec:query): the REST interface always, and the /gql endpoint when a Cypher/GQL-capable layer is in the stack. The adapter set is open — additional technologies are new modules implementing the contract. *[FREE]*; the minimal contract is *[FORCED]* by the need to recompute ids.
+#todo[A complete layer added to the stack fills by write-through, or in one pass by a full read-through (the same sweep `verify` uses, @sec:verify). Backup, replication, and portable export then collapse to one operation — add a layer: a remote store, a second region, a detachable SQLite file. Redundancy is one line of configuration.]
 
-#todo[Enumerate the supported adapters and their declared capabilities in a table: technology | durability | query | max content length | typical position. Ship: filesystem (baseline — show it inline, ~a dozen lines, as proof the contract is tiny), in-memory (cache/test), S3-compatible (R2, Backblaze, MinIO), Redis (KV cache tier), SQLite, neo4j (GQL; ~8 kB content cap), IPFS (native CAS). SQLite is motivated by the Library of Congress recommended-formats endorsement and enables a concrete use — *export any archive as a single file*. The adapter set is open; a new adapter is a module implementing the contract.]
+_Discharges G4 (replicability)._
 
-== Layer Roles: Cache, Redundancy, Capability <sec:layer-roles>
+== Composition <sec:composition>
 
-An upper layer earns its place in three ways, and one layer may serve several at once:
+Layers need not be whole or single.
 
-- *Cache* — a faster or nearer store that absorbs reads, such as an in-memory or local layer above a remote ground.
-- *Redundancy* — a write-through layer holds a full live copy of the claims, so it is at once a replica and a backup. Adding a durable store as a mid-layer turns on backup: write-through populates it, and content-addressing guarantees the copy is exact. This reduces use case (3) to a configuration change.
-- *Capability* — a Cypher/GQL-capable layer adds the `/gql` endpoint (@sec:layer-contract).
+#todo[Partial layers: each declares a `max_content_len`; larger writes fall through, so a Cypher/GQL layer can hold only small claims (~8 kB) while blobs live below. The complete-ground rule: one layer accepts content of any size, so the stack loses nothing. A complete layer may be _composite_ — several backends behind a routing layer, complete as a system — which admits geographic distribution and read-scaling. Note this as a direction; the reference implementation keeps a single ground.]
 
-#todo[Spell out the redundancy role with the `S3 | S3 | neo4j` example: the middle S3 is a write-through backup target that fills automatically. Connect to @sec:distribution — a write-through replica _is_ the replication story.]
+== The Archive <sec:archive>
 
-#todo[Briefly note (out of scope for the reference implementation) richer stack shapes: a layer with alternative parallel servers offering routing paths, e.g. `(S3-root) | (S3-US, S3-Europe) | (neo4j-local)`, where geographic mid-layer servers carry read load and spare the root. A scaling direction the stack model admits, deliberately left for later.]
+The stack holds the universe; an _archive_ adds the one mutable thing.
 
-== Read-Through, Write-Through, Verification <sec:through>
+#todo[An archive is its universe (in the stack) plus a single mutable hash $B_h$, the id of its current branch table (foundation paper §Archive). Branches, heads, and the branch table are themselves claims in the universe; the admin layer (PostgreSQL, in the reference implementation) holds only accounts, the archive registry (name → $B_h$ → stack), stack configuration, and rights. Reads and writes name a *branch*, resolved through $B_h$ to a head; raw-id access is operator-only.]
 
-*Reads* are read-through: a query hits the top layer; on a miss it falls to the next layer down, and the recovered claims fill the layers it passed. *Writes* are either write-through (write every layer) or write-to-ground-then-read-through (write $ell_0$, let subsequent reads populate caches) — a per-archive policy. *Verification* read-throughs every claim in a closure to recompute its id chain (@sec:verify); as a side effect it fully warms every cache. *[FREE]*
+#todo[Concurrency: the owning server is the sole *sequencer* — it advances $B_h$ by compare-and-swap, so the archive keeps a single head. Concurrency-safety is then free: content-addressing makes claim writes idempotent and order-independent; only the one pointer is sequenced. Two servers advancing the same archive fork, and reconcile by union (a CRDT join; foundation paper §Distributability).]
 
-== Cache Coherence Is Trivial <sec:coherence>
+== Access <sec:access>
 
-Content-addressing removes the hardest part of a cache hierarchy: invalidation. The bytes at id $h$ are the bytes at $h$ forever, so a cached claim can never be stale. Cache fill is a pure function; eviction is always safe; the policy reduces to plain LRU. Any upper layer can be dropped and rebuilt from below at any time with no loss of truth — the ground always suffices to repopulate it. *[FORCED]* by content-addressing (foundation paper §Immutability, §Idempotency).
+With the archive in place, the access goals layer on.
 
-#todo[State the consequence cleanly: every layer _above_ the ground is literally a cache — droppable and rebuildable from below — while the ground layer is the durable truth. Cross-reference @sec:epistemology-architecture: a semantic-graph projection is one such rebuildable upper-layer cache, never the source of truth.]
+#todo[*Query interface and bounded reads (G5).* A REST API on every stack — closure/provenance reads, writes, `verify`, each carrying a scope; a `/gql` endpoint when a Cypher/GQL-capable layer is in the stack. Every read resolves to $"closure"(h, cal(U))$ under scope and prune in one read-through sweep; progressive disclosure returns coarse first and drills down, for bounded-context consumers. _Discharges G5._]
 
-= Claims and Blobs <sec:representation>
+#todo[*Access control (G6).* A scope supplied by the application and enforced by the server bounds reads and writes — a base `allow-all`/`deny-all` plus ordered wildcard exceptions over field/edge names and types. The scope is bound to the authenticated account, not chosen at request time; no elevation path. Verifiable partial views: out-of-scope references appear as hash-only stubs, Merkle-verifiable without disclosure. _Discharges G6._]
 
-== Representing Claims and Edges <sec:claim-rep>
+#todo[*Key lifecycle (G7).* Rotation, revocation, and expiry as contributor-replacement claims; the server refuses new claims signed by a retired key, forward-only — past claims stay valid. The application sets policy (who may retire whom); the engine enforces. _Discharges G7._]
 
-#todo[Recap the foundation paper's node/edge schema only as far as the implementation needs it (keep the recap minimal). node = (type, content_hash, encoding, created_at, edges); edge = (reference, type, content). id(v) = Sign(H(S(v))). Serialization S = CBOR Deterministic (RFC 8949 §4.2); H = IPFS multihash (self-describing); Sign = Ed25519 / ECDSA-RFC6979. Self-describing hash and signature are what give crypto-agility for use case (1) — show a multihash/multicodec id can name its own algorithm, so the store can hold claims under several schemes during a decades-long migration.]
+#todo[Authentication: a connecting service authenticates with a shared secret (token/JWT) for access; claim signing stays with the application, the engine only verifies signatures at write. Two roles, kept separate.]
 
-== Content Blobs <sec:blobs>
+== Verification and Witnessing <sec:verify>
 
-Content bytes are stored whole, addressed by $H(c)$: a blob is a single object, however large. Identical content resolves to one id and is therefore stored once — deduplication is intrinsic to addressing by hash. How a source is divided into claims is the application's decision (@sec:documents); the store holds whatever claims it is given. *[FREE]*
+The build closes with two checks — one internal, one external.
 
-== Default Type Vocabulary <sec:default-types>
+#todo[*Verification on demand (G8) — comes cheap.* A generic server operation, no per-backend work: read-through the closure of $h$ and recompute the id chain at a chosen depth — completeness (every reference and blob present), record correctness (signatures and id chain), or full content (rehash every blob). Tiered cost; warms caches as a side effect. _Discharges G8._]
 
-The foundation paper keeps the subtype vocabulary open. RankeDB ships a small _default_ set of subtypes for the common records case (conversations, media, records, structured data, bulk containers) alongside the cognitive derivations (classification, observation, summary, fact), so a fresh stack is immediately useful and applications extend from a sensible base. This is one of the few concrete choices, at this paper's altitude, that the foundation paper leaves to implementations.
-
-#todo[Pull the opinionated taxonomy from notes Part H: the `source/*` and `derivation/*` default subtypes, the encoding convention (MIME-style `class/format`, e.g. `text/eml`, `image/png`, `application/pdf`), and the 'few types, many encodings' principle. Present as RankeDB defaults, application-extensible. Mark *[FREE / default]*.]
-
-== Recommended Practice: Generic-Format Extracts <sec:extracts>
-
-The format asymmetry of @sec:use-cases shapes how best to fill an archive: keep each original in whatever format it arrived, and store a generic-format extract beside it — Markdown or plain text for documents, JSON for structured data. The extract is a derivation claim citing its source, so the long-lived generic copy carries full provenance back to the original; when the original's format lapses, the extract still opens. This is application-layer guidance — the store holds whatever claims it is given (@sec:blobs). *[FREE]*
-
-== Two Readings, Two Indexes <sec:readings>
-
-#todo[Map the foundation paper's structural vs semantic readings onto layers. The structural (provenance, acyclic, Merkle) reading is served by any layer (it is reachability over derivation/contribution edges). The semantic (relation, possibly cyclic) reading is served natively by a Cypher/GQL-capable layer or by in-engine traversal over a minimal stack. Same claim set, two traversal indexes. Note: the semantic projection is a cache (@sec:coherence), rebuildable from the claims.]
-
-= The Write Path <sec:write>
-
-== Atomic Claim Creation <sec:atomic-write>
-
-#todo[A claim (node + content + its edges) is created in one atomic transaction; id is final at creation (foundation paper §Claims). Describe the API call and what the service does: compute $H(c)$, PUT content, compute $S(v)$, $H$, sign → id, write the claim through the stack, update the marker. Monotonicity check: $"created_at"(v) >= max("created_at"(u))$ over references. [FORCED].]
-
-== Idempotency and Deduplication <sec:dedup>
-
-#todo[Writes are idempotent by id: re-PUTting an existing claim is a no-op; identical content yields one blob. Deduplication is free and coordination-free (foundation paper §Idempotency). [FORCED]. This is the backbone of use case (3).]
-
-== Concurrency: The Single Sequencer <sec:single-head>
-
-An archive advances by one mutable hash, $B_h$ (@sec:boundary). The server that owns an archive is its sole *sequencer*: concurrent write requests are serialized at the atomic swap of $B_h$, so the archive always has a single head. Two servers advancing the same archive are two sequencers; unaware of each other, they fork — reconciled later by union (@sec:distribution).
-
-#todo[Detail the commit: append the claim(s) to the stack (content-addressed, idempotent), write the new branch-table claim, then compare-and-swap $B_h$, retrying on a losing CAS. This is the whole of concurrency control — one pointer, one sequencer — superseding the multi-strategy framing in the working notes. [FREE].]
-
-== Branch Markers, Pruning, Forking <sec:markers>
-
-#todo[Branch advance updates the branch table ($B_h$); a branch is a name → head (foundation paper §Branches), now an in-graph `contribution/*` claim, held in the graph rather than a Postgres row (correct the stale notes here). Pruning = appending contribution/prune claims (foundation paper §Pruning). Forking = a new branch entry pointing at an existing head — O(1) (foundation paper §Forks). All three are ordinary writes plus a marker move. Mention purge (drop a branch + its non-shared blobs) as the destructive admin escape hatch; the workflow itself sits in the application layer.]
-
-= The Read Path and Query Model <sec:read>
-
-== One Primitive: Closure Under Scope and Prune <sec:closure>
-
-Every read reduces to one operation: materialize $"closure"(h, cal(U))$ filtered by a visibility scope and the prune set, in a single read-through sweep.
-
-#todo[Give the combined-view formula from notes Part F: closure(h) ∩ scope.predicate ∖ prune-referenced. One walk; collect prune references and evaluate the scope predicate against the original closure; subtract both. State the P-then-S ordering subtlety (pruning is scope-resistant: a pruned reference stays excluded even if the prune-claim itself is out of scope; only the prune-claim's content is hidden). This single primitive serves ordinary reads, audit reads (use case 2/4 = closure + time/contributor filter), and partial views.]
-
-== Progressive Disclosure <sec:disclosure>
-
-#todo[The foundation paper's "levels of distillation" as a read mechanism for bounded-context consumers (use case 1, agents). The read API returns at a coarse level (relation types, summaries) and drills down on request (conviction, reasoning, provenance edges, source content). Each round is bounded; the full graph is reachable but never demanded at once. The engine provides the mechanism; the _strategy_ for choosing levels sits in the application layer.]
-
-== The verify Operation <sec:verify>
-
-#todo[Define `verify(h)`: read-through the closure of $h$ and recompute the id chain — for each claim recompute $S(v)$, $H$, and check $op("id")(v) = "Sign"(H(S(v)))$, and recompute each `content_hash`. One recomputation checks record integrity and authorship together (foundation paper §Verifiability). State complexity ($O(n)$ over the closure) and the side effect (warms every cache, @sec:through). Use cases (2) and (4) lean on this; the trust posture built atop it sits above the engine.]
-
-== Query Interfaces <sec:query>
-
-RankeDB exposes two client interfaces; which are available follows from the stack:
-
-- A *simple REST API*, available on every stack. It serves the closure/provenance reads of @sec:closure, the write operations of @sec:write, and `verify` (@sec:verify), and carries the scope predicate (@sec:scope-dsl) as a parameter. It reduces to the minimal layer contract plus in-engine traversal.
-- A `/gql` endpoint, available when a Cypher/GQL-capable layer (neo4j) is in the stack. It serves GQL pattern queries over the semantic reading, pushed down to that layer.
-
-The REST interface covers every stack; a Cypher/GQL-capable layer adds the /gql endpoint on top. *[FREE]*
-
-= The Scope Predicate DSL <sec:scope-dsl>
-
-Both interfaces of @sec:query share one small filter language: the scope predicate that fixes what a viewer may see.
-
-#todo[From notes Part F. A small expression language over node/edge fields: = ≠ < > ≤ ≥ ∃ ∧ ∨ ¬. Canonicalized to an AST encoded in CBOR Deterministic (same serialization as the ADT). The leaf predicate composes with the structural visibility-propagation rule: a claim is visible iff it satisfies the predicate AND all its provenance ancestors are visible — so the DSL needs no traversal operators. Content-addressed: scope_id = H(canonical(predicate)); editing a predicate yields a different scope_id, hence a different (empty) cache (mirror of @sec:coherence one layer up).]
-
-#todo[Add one worked REST read example (closure + scope predicate) and one GQL example over the semantic reading, grounding the two interfaces of @sec:query. The semantic surface is GQL as the Cypher/GQL-capable layer provides it; the structural surface is the REST API.]
-
-= Authentication and Visibility <sec:auth>
-
-== Service Authentication and Signature Verification <sec:service-auth>
-
-RankeDB's authentication governs _access_. A connecting service — an application talking to the database — presents a shared secret (a bearer token, JWT, or equivalent) and receives the read/write access bound to it, as a conventional database authenticates a connecting service. The admin layer (@sec:two-planes) holds the account registry and the binding from an authenticated secret to its rights and scope (@sec:scope-enforce). End-user identity and authorization belong to the application layer.
-
-Claim authorship is handled where the content lives: the application signs each claim, holding its own private keys (foundation paper §Authenticity). RankeDB's part in signing is verification — on write it recomputes $op("id")(v) = "Sign"(H(S(v)))$ and admits the claim only when the signature checks, so every stored claim is valid by construction. Access secrets govern who may speak to the database; signatures govern who authored a claim; the two stay independent. Multi-sig and web-of-trust are application patterns; *key lifecycle* (rotation, revocation, expiry) is a building block RankeDB enforces — a contributor-replacement claim retires a key, and the database refuses new claims signed by it thereafter, while *who* may retire *whom* stays application policy. *[FREE]* for access; write-time verification is *[FORCED]* by validity.
-
-#todo[Keep the two roles crisp: (1) connection secret → access (read/write), held in the admin layer; (2) claim signature → authorship, produced by the application and verified by the database at write time. Make the database-role analogy precise: secret → role → privileges, mirrored as token → role → scope.]
-
-== Server-Enforced Access <sec:scope-enforce>
-
-A scope bounds both reads and writes, and the client does not choose it at request time: an authenticated identity resolves through the admin layer to its scope, which the server applies.
-
-#todo[Define the scope config format: a base policy (`allow-all` or `deny-all`) plus an ordered list of exceptions matching field/edge names and types with wildcards, separately for read and write. Relate it to the predicate DSL of @sec:scope-dsl (the config is the operator-facing surface; the predicate is what it canonicalizes to). From notes Part F: no elevation path — a different scope is a different binding, hence a different (content-addressed) cache. Vocabulary (what scopes exist) vs binding (which scope is forced on whom); binding is mandatory.]
-
-== Verifiable Partial Views <sec:partial-views>
-
-#todo[From notes "Auth-Scoped Visibility and Merkle Compatibility". A scoped reader gets full content for in-scope claims and hash-only stubs for out-of-scope references — enough to verify the integrity of their own subgraph without seeing hidden content, exactly as a Merkle proof reveals sibling hashes without revealing their content. Auth scoping and Merkle integrity are complementary: the Merkle structure is what _enables_ verifiable partial views. This is the security payoff and a distinctive property.]
-
-= Distribution and Replication <sec:distribution>
-
-== Layers Are Replication <sec:layers-replication>
-
-#todo[The stack model already _is_ replication: a write-through mid-layer is a live replica (@sec:layer-roles), so `S3 | S3 | neo4j` already runs a backup. Caching, redundancy, and replication are one mechanism here. Make this the framing for the section.]
-
-== Convergence as Set Union (CRDT) <sec:crdt>
-
-#todo[From the foundation paper §Distributability. Idempotent writes + content-addressed ids make a universe a join-semilattice; two replicas converge by union, regardless of partition order — a CRDT (@shapiro2011crdt, @bftcrdtmerkle). Sync = exchange of ids + transfer of missing claims (read-through across replicas). The one non-trivial bit is marker reconciliation (branch heads): resolved by minting a head claim over both heads (@sec:single-head). Federation = union of universes → multi-root RG.]
+#todo[*Time-stamp witnessing (G9) — likely a plugin.* Publish the head hash to an external timestamp authority (RFC 3161); because the head commits to the whole closure, one timestamp attests the archive's full content at a moment. Probably a plugin interface — state what the reference implementation provides and leave the rest open. _Discharges G9._]
 
 = Conformance <sec:conformance>
 
-#todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: any storage-layer adapter must satisfy the content-addressed contract (@sec:layer-contract) and declare its query capability; give the adapter test battery. ADT-level conformance — serialization determinism, id chains, closure/scope/prune semantics — is inherited from the foundation paper's binary conformance suite; reference it here rather than restate it.]
+#todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: an adapter satisfies the content-addressed contract (@sec:atomic) and declares its capability and `max_content_len`; give the adapter test battery. ADT-level conformance (serialization determinism, id chains, closure/scope/prune semantics) is inherited from the foundation paper's binary conformance suite.]
 
 = Related Work <sec:related>
 
-#todo[Engine-flavoured prior art only; the foundation paper carries the conceptual prior art (provenance vocabularies, TMS, archival theory). Cover, briefly: Datomic (@hickey2012datomic) and Fluree (@fluree) as immutable stores; TerminusDB (@terminusdb) as a versioned graph; IPFS/IPLD (@ipfs) and git as content-addressed Merkle stores; restic/borg/Perkeep as CAS backup systems (use case 3 precedent); SPADE and Quit Store as split-store / git-backed provenance engines; Neo4j and FalkorDB as the graph engines used as layers; the tiered-storage / cache-hierarchy literature for the stack model. The distinctive composition: a pluggable stack of content-addressed stores whose ground layer is the source of truth and whose upper layers serve as cache, redundancy, or query capability.]
-
-= Serving the Use Cases <sec:serving>
-
-#todo[Mirror the foundation paper's 'Discharging the Desiderata', informally — prose, no theorems. Revisit the design goals G1–G9 (@sec:goals) and show the architecture meets each:
-- G1–G2 storage agnosticism, easy adapters ← the minimal layer contract (@sec:layer-contract).
-- G3 composability ← the pluggable, ordered stack (@sec:layer-contract, @sec:layer-roles).
-- G4 replicability ← read/write-through plus a full `verify` filling a complete layer (@sec:through, @sec:verify).
-- G5 query interface and bounded reads ← REST/GQL (@sec:query) + progressive disclosure (@sec:disclosure).
-- G6 access control ← server-enforced scope over reads and writes (@sec:scope-enforce) + verifiable partial views (@sec:partial-views).
-- G7 key lifecycle ← contributor-replacement claims, enforced at write (@sec:service-auth).
-- G8 verification on demand ← `verify` at chosen depth (@sec:verify).
-- G9 time-stamp witnessing ← publishing the head hash to a timestamp authority (@sec:markers); since the head commits to the whole closure, one external timestamp attests the archive's full content as of that moment.
-Note a free consequence, not a goal: concurrency safety — content-addressing makes concurrent claim writes idempotent and order-independent, leaving only the single archive pointer to sequence (@sec:single-head); independent servers fork and reconcile by union (@sec:crdt).
-Then one line per named use case (institutional record = verify + witness; software provenance = bulk claims + attribution; backup = add a redundant layer; personal archive = portability + semantic reading + progressive disclosure). Keep it demonstration, lighter than the foundation paper's proofs.]
+#todo[Engine-flavoured prior art only; the foundation paper carries the conceptual lineage. Datomic (@hickey2012datomic) and Fluree (@fluree) as immutable stores; TerminusDB (@terminusdb) as a versioned graph; IPFS/IPLD (@ipfs) and git as content-addressed Merkle stores; restic/borg/Perkeep as CAS backup; SPADE and Quit Store as split-store / git-backed provenance; Neo4j and FalkorDB as graph engines used as layers; the tiered-storage / cache-hierarchy literature. Distinctive composition: a pluggable stack of content-addressed stores, ground = truth, upper layers cache / redundancy / capability.]
 
 = Conclusion <sec:conclusion>
 
-#todo[Tie back to the epistemological bridge (@sec:epistemology-architecture) and the design goals (@sec:goals). The architecture is a composition of established parts — content-addressed storage, cache hierarchies, signature-based identity, CRDT merge — arranged so that the ground store holds the claims and every layer above it is a rebuildable derivation — cache, redundancy, or interpretation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
+#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a goal, through G9. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
