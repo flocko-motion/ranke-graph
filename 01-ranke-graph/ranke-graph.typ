@@ -250,11 +250,11 @@ Ranke puts the universe into an archive.
 
 == Validity <sec:validity>
 
-An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph — broken construction, missing initial node, unresolved references — is structurally just an arbitrary graph $G$, not a Ranke-Graph.
+An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction, even for pruned graphs: prune-claims follow the same rules. Queries that honour those markers may hide claims from a viewer, but the underlying graph stays valid and complete. An invalid graph (broken construction, missing initial node, unresolved references) is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
 == Consolidation <sec:consolidate>
 
-When an RG has multiple open heads — after independent appends, scoping, pruning, or set operations — a single new head can consolidate them. Define
+When an RG has multiple open heads (after independent appends, scoping, pruning, or set operations), a single new head can consolidate them. Define
 $ "consolidate"("RG") := "closure"(h_("new"), cal(U)) $
 where $h_("new")$ is a new `contribution/head` claim with `contribution/head` edges to every currently-open head of RG, contributed by the operator. If RG already has a single open head, $"consolidate"("RG") = "RG"$.
 
@@ -265,7 +265,7 @@ $ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
 Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
-*Standing assumption.* The structure rests on *collision-resistance of $H$* — no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
+*Standing assumption.* The structure rests on *collision-resistance of $H$*: no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
 Under this assumption, standard Merkle-DAG properties hold without further proof: the structure is acyclic; manipulation of any ancestor changes the descendant's id; identical claims produce identical ids. Later sections invoke these as established.
 
@@ -293,9 +293,9 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 == Identity and Authenticity <sec:authenticity>
 
-Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives) — for the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
+Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
 
-When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims — a rotation chain, for example, is a new contributor signed by the old.
+When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims. A rotation chain, for example, is a new contributor signed by the old.
 
 #dref[D3, this section]
 
@@ -307,7 +307,7 @@ Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closur
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation — since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation: since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
@@ -330,17 +330,17 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 == Scoping <sec:scoping>
 
-Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope — σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_h$ — for example, claims derived from one contributor's contributions, or claims related to one project.
+Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope; σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_h$, for example claims derived from one contributor's contributions, or claims related to one project.
 
-The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance, no prune edges. Incremental updates are cheap — apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance, no prune edges. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
 
 == Pruning <sec:pruning>
 
-Pruning creates partial views that hide arbitrary claims via `contribution/prune` edges — the immutable way of deletion by addition.
+Pruning creates partial views that hide arbitrary claims via `contribution/prune` edges: the immutable way of deletion by addition.
 
 $op("pruned")(v in "RG"_h) <=>$ some `contribution/prune` edge inside $"closure"(h, cal(U))$ references $v$.
 
-Pruning is a structural directive; implementations enforce it by hiding pruned claims from viewers. This requires that direct id-based access be operator-only — prune edges expose the ids of hidden claims, so users could otherwise bypass pruning by fetching them directly. Users access via branch names; the operator controls which heads they can reach.
+Pruning is a structural directive; implementations enforce it by hiding pruned claims from viewers. This requires that direct id-based access be operator-only: prune edges expose the ids of hidden claims, so users could otherwise bypass pruning by fetching them directly. Users access via branch names; the operator controls which heads they can reach.
 
 An indicator $pi : "RG"_h -> {0, 1}$ marks visibility. Consolidate (@sec:consolidate) the heads with $pi = 1$ and add `contribution/prune` edges to claims with $pi = 0$ on the resulting head $h_p$:
 $ "RG"_(h_p) := "closure"(h_p, cal(U)). $
@@ -359,15 +359,15 @@ Every claim in either RG. Both inputs are closed under references, so the union 
 
 === Intersection ($A inter B$) <sec:intersection>
 
-Claims in both RGs. Both inputs are valid (@sec:validity), so each contains every claim's full provenance. If $v in A inter B$, $v$'s provenance is in both $A$ and $B$ — hence in $A inter B$ — so the intersection is closed under references. No removed claim can be a provenance ancestor of a claim that stays. Consolidate (@sec:consolidate) → valid sub-RG, no pruning needed.
+Claims in both RGs. Both inputs are valid (@sec:validity), so each contains every claim's full provenance. If $v in A inter B$, $v$'s provenance is in both $A$ and $B$ (hence in $A inter B$), so the intersection is closed under references. No removed claim can be a provenance ancestor of a claim that stays. Consolidate (@sec:consolidate) → valid sub-RG, no pruning needed.
 
 === Subset Removal ($A \\ B$, $A triangle.stroked.small B$) <sec:removal>
 
-Define a pruning indicator $pi$ so that $pi(v) = 0$ for claims to remove and apply pruning (@sec:pruning) — the result is a pruned view, not a valid sub-RG.
+Define a pruning indicator $pi$ so that $pi(v) = 0$ for claims to remove and apply pruning (@sec:pruning); the result is a pruned view, not a valid sub-RG.
 
 == Distributability <sec:distributability>
 
-Two replicas of a Ranke-Archive converge by union (@sec:set-algebra) — the join-semilattice condition for Conflict-Free Replicated Data Types (CRDTs, @shapiro2011crdt). Replicas can write independently and reconcile by exchanging claim ids; every replica reaches the same state regardless of partition order.
+Two replicas of a Ranke-Archive converge by union (@sec:set-algebra), the join-semilattice condition for Conflict-Free Replicated Data Types (CRDTs, @shapiro2011crdt). Replicas can write independently and reconcile by exchanging claim ids; every replica reaches the same state regardless of partition order.
 
 #dref[D9, this section]
 
@@ -379,7 +379,7 @@ Properties that follow from the structure beyond the desiderata.
 
 == Forks <sec:forks>
 
-*Emerges from @sec:branches.* Forking is a new branch entry pointing at $h$ — $O(1)$.
+*Emerges from @sec:branches.* Forking is a new branch entry pointing at $h$ ($O(1)$).
 
 == Backup <sec:hash-backup>
 
@@ -396,19 +396,19 @@ It builds temporal, provenance-aware knowledge graphs using FalkorDB or Neo4j, w
 Facts are invalidated rather than deleted.
 
 However, Graphiti performs destructive entity-summary updates, has no content-addressable source archive comparable to the Ranke-Graph, and embeds provenance as annotation on the knowledge graph rather than treating it as the content itself.
-The Ranke-Graph can be understood as an extension of Graphiti's philosophy — adding immutability, sources preserved within the graph itself, and the architectural inversion that makes provenance the substrate rather than an annotation.
+The Ranke-Graph can be understood as an extension of Graphiti's philosophy, adding immutability, sources preserved within the graph itself, and the architectural inversion that makes provenance the substrate rather than an annotation.
 
 == Versioned Knowledge Bases: TerminusDB
 
 TerminusDB (@terminusdb) provides Git-like versioning (branch, merge, time-travel) over an RDF knowledge graph using append-only delta encoding.
-It captures _what_ changed across versions but not _why_ — there is no derivation chain, no source archive, and no concept of contributors as provenance-tracked agents.
+It captures _what_ changed across versions but not _why_: there is no derivation chain, no source archive, and no concept of contributors as provenance-tracked agents.
 Its foundational structure is a versioned graph, not a provenance DAG.
 
 == Immutable Databases: Datomic and Fluree
 
 Datomic (@hickey2012datomic) operationalises Pat Helland's 'Immutability Changes Everything' thesis (@helland2015immutability) as an append-only database of immutable datoms.
 Fluree (@fluree) combines an append-only ledger with a semantic graph database.
-Both capture temporal history but not _epistemic_ history — they record _when_ facts changed but not _how knowledge was derived from sources through processing chains_.
+Both capture temporal history but not _epistemic_ history: they record _when_ facts changed but not _how knowledge was derived from sources through processing chains_.
 
 == Merkle Structures and Content Addressing
 
@@ -417,13 +417,13 @@ Both capture temporal history but not _epistemic_ history — they record _when_
 == W3C PROV-DM
 
 The W3C PROV Data Model (@moreau2013provdm) provides a formal vocabulary for provenance (Entity, Activity, Agent, wasGeneratedBy, wasDerivedFrom, used).
-The Ranke-Graph is semantically compatible with PROV-DM — nodes map to Entities, contributor activities to Activities, contributors to Agents — but does not depend on or implement the W3C stack (RDF, SPARQL, OWL).
+The Ranke-Graph is semantically compatible with PROV-DM (nodes map to Entities, contributor activities to Activities, contributors to Agents), but does not depend on or implement the W3C stack (RDF, SPARQL, OWL).
 PROV-DM compatibility exists at the conceptual level, allowing export or interoperability without architectural coupling.
 
 == Nanopublications
 
 Nanopublications (@kuhn2014trustyuris; @nanopubs2025knowledgeprov) are immutable, content-addressable scholarly assertions with embedded provenance.
-They share the Ranke-Graph's commitment to immutability and provenance-per-assertion but are a flat collection of independent assertions — they do not form a derivation DAG connecting assertions through chains of processing, and they do not support a semantic graph layer.
+They share the Ranke-Graph's commitment to immutability and provenance-per-assertion but are a flat collection of independent assertions: they do not form a derivation DAG connecting assertions through chains of processing, and they do not support a semantic graph layer.
 
 == CRDTs and Distributed Provenance
 
@@ -438,9 +438,9 @@ Each component has mature prior art; the architectural composition is novel.
 
 The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realisation in the digital substrate.
 
-The computer science tools used here are all established — Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
+The computer science tools used here are all established: Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
 
-Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite — example graphs and operations with expected hashes — accompanies them and makes conformance to the ADT decidable for any implementation.
+Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite (example graphs and operations with expected hashes) accompanies them and makes conformance to the ADT decidable for any implementation.
 
 #todo[Add a closing line / afterthought for §8 reflecting the demarcation line: *"The Ranke-Graph documents; it does not decide."* This is the principle that subsumes the design — signatures document who signed (no decision who may sign), pruning documents what's hidden (no decision who may see), validity documents structural well-formedness (no decision what's true). Anything that would *decide* — policies, governance, consensus — belongs above the ADT, in the application layer. Could land as the closing sentence of §8, after "we invent nothing; we compose." — explains in one line why we drew the boundary where we did.]
 
@@ -450,22 +450,22 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 
 *Node classes:*
 
-- *`source/*`* — an external data artifact.
-- *`derivation/*`* — a claim built from other claims as inputs.
-- *`entity/*`* — an identifiable thing in the world.
-- *`relation/*`* — a node representing a relation among entities.
-- *`contribution/*`* — a claim about contributors or their actions on the RG.
-- *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
+- *`source/*`*: an external data artifact.
+- *`derivation/*`*: a claim built from other claims as inputs.
+- *`entity/*`*: an identifiable thing in the world.
+- *`relation/*`*: a node representing a relation among entities.
+- *`contribution/*`*: a claim about contributors or their actions on the RG.
+- *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
 
 *Edge classes:*
 
-- *`derivation/*`* — provenance edges that cite the inputs a claim was derived from.
-- *`relation/*`* — relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`* — edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
-  - *`contribution/contributor`* — names the contributor of a claim
-  - *`contribution/head`* — consolidates currently-open content claims (see @sec:head)
-  - *`contribution/branches`* — names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
-  - *`contribution/branch`* — edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
-  - *`contribution/prune`* — view-modifying; excludes a reference from views containing the claim
+- *`derivation/*`*: provenance edges that cite the inputs a claim was derived from.
+- *`relation/*`*: relation edges of a relation node (carry `relation_direction`).
+- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines five subtypes:
+  - *`contribution/contributor`*: names the contributor of a claim
+  - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
+  - *`contribution/branches`*: names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
+  - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/prune`*: view-modifying; excludes a reference from views containing the claim
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
