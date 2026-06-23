@@ -121,24 +121,61 @@ RankeDB sits one level above the ADT and one below any application: it supplies 
 
 _Storage._
 - *G1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
-- *G2 — Easy adapters.* Supporting a new backend is cheap.
+- *G2 — Thin adapters.* Supporting a new persistence backend is easy to implement.
 - *G3 — Composability.* Persistence composes from mixable, layered backends.
 - *G4 — Replicability.* Copying, replicating, and backing up an archive is cheap.
 
-_Access._
-- *G5 — Query interface and bounded reads.* The archive is queryable, and reads can be bounded for finite consumers.
+_Database Access._
+- *G5 — Query interface.* The archive is queryable through filters and a result limit.
 - *G6 — Access control.* A caller-supplied scope is enforced for both reads and writes.
-- *G7 — Key lifecycle.* A contributor's key can be rotated, revoked, or expired.
 
-_Verification and witnessing._
-- *G8 — Verification on demand.* Integrity is checkable on demand, at a depth the caller chooses.
+_Content Verification and Witnessing._
+- *G7 — Verification on add.* The validity of any contributions is automatically verified on addition and supports key rotation, revokation, or expiration.
+- *G8 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
 - *G9 — Time-stamp witnessing.* Prove externally that the archive's entire content existed at a given moment.
 
-The engine knows accounts, rights, archives, and stacks; *non-goals*, left to the application layer, are user and identity management, access policy, consensus or truth arbitration, and application logic. @sec:architecture demonstrates — rather than proves — that the architecture meets G1–G9.
-
+The database knows service accounts, their access rights, persistence stacks and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G9 capability by capability — demonstration rather than proof.
 
 
 = Architecture <sec:architecture>
+
+A Ranke Archive consists of claims; each claim is persisted in content-addressed storage, and the content bytes it carries are stored content-addressed too. The fundamental building block of the system is therefore the storage of a single claim.
+
+A *claim* is an attributed record — a node bearing a type, an encoding, a creation time, the hash of its content, and a set of edges to the claims it was derived from — addressed by its id, $op("id")(v) = "Sign"(H(S(v)))$: a signature over the hash of its canonical serialization, so the id fixes both the record and its author (foundation paper §Primitives). Its content bytes are held separately, addressed by their own hash and size.
+
+```
+Claim — a node with its edges; immutable, content-addressed
+
+  id()            → Id            its content address
+  node()          → Node          its own data: type, encoding, created-at, content hash + size, pubkey
+  edges(…filters) → Edge[]        references to the claims it derives from — its provenance
+  contributor()   → Contributor   the claim that attributes and signs it
+  encode()        → bytes         canonical serialization — the bytes the store persists by id
+
+  ...                             closure materialization, validation
+```
+
+The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges — its full provenance, back to the initial nodes (foundation paper §Closures). A claim carries meaning only with its closure: a single id recovers a whole closure, and a complete, mergeable state is always one.
+
+All claims of a closure (that includes their content bytes) are stored in a common *Universe*. Any number of closures can 
+
+We define the interface of a storage adapter as:
+
+```
+Universe — a storage adapter; bulk and content-addressed
+
+  getClaims(ids: Id[])             → Claim[]    positional; a missing id fails the call
+  putClaims(claims: Claim[])                    idempotent
+  hasClaims(ids: Id[])             → bool[]     presence; drives delta sync
+
+  getContents(refs: ContentRef[])  → bytes[]
+  putContents(blobs: ContentBlob[])             idempotent
+  hasContents(hashes: Id[])        → bool[]
+
+  ...                                           copy/merge, streaming, lifecycle — derived from the above
+```
+
+These six bulk primitives are the architectural contract. Every derived operation folded into the `…` — store-to-store copy and merge (the basis of stacking and replication), a streaming read for large content, lifecycle, and single-item wrappers — ships with a shared default built on the six, so a backend inherits the lot for a fast start and reimplements one only when a worthwhile speedup justifies the work. The reference library provides these defaults with filesystem and in-memory adapters in its `adapter` package, and renders the contract as a Go interface (Go now, Python next).
 
 #todo[Lead. This chapter builds the engine up the way the foundation paper builds the data structure up: start from the atomic store, then add one capability at a time, discharging a design goal (@sec:goals) at each step. Spine — atomic store → stack → replicate → compose → archive → access → verify and witness.]
 
@@ -146,7 +183,7 @@ The engine knows accounts, rights, archives, and stacks; *non-goals*, left to th
 
 A RankeDB instance reduces to one storage engine behind one small API: store and fetch bytes by key.
 
-#todo[Define the essential API — `PUT(id, bytes)`, `GET(id)`, `HEAD(id)` — and what flows through it: claims, serialized and content-addressed, $op("id")(v) = "Sign"(H(S(v)))$ (CBOR Deterministic, IPFS multihash, Ed25519 — minimal recap from the foundation paper). Show the atomic write (hash content, serialize, sign, store) and that ids alone let the store deduplicate and verify. Keep the claim/edge schema recap tight.]
+#todo[Show the atomic write — hash content, serialize, sign, store — and the filesystem adapter inline (~a dozen lines) as the G2 proof. Claims, ids, and closure are defined at the chapter opening; don't repeat them here. Note the serialization choices once (CBOR Deterministic, IPFS multihash, Ed25519).]
 
 _Discharges G1, G2._ #todo[G1 — the engine assumes only a store of bytes addressed by a key; anything from a USB stick to Amazon S3 qualifies. G2 — that API _is_ the adapter contract, so a new backend is those three calls; show the filesystem adapter inline (~a dozen lines) as proof the contract is tiny.]
 
@@ -188,7 +225,7 @@ The stack holds the universe; an _archive_ adds the one mutable thing.
 
 With the archive in place, the access goals layer on.
 
-#todo[*Query interface and bounded reads (G5).* A REST API on every stack — closure/provenance reads, writes, `verify`, each carrying a scope; a `/gql` endpoint when a Cypher/GQL-capable layer is in the stack. Every read resolves to $"closure"(h, cal(U))$ under scope and prune in one read-through sweep; progressive disclosure returns coarse first and drills down, for bounded-context consumers. _Discharges G5._]
+#todo[*Query interface (G5).* A REST API on every stack — closure/provenance reads, writes, `verify`, each carrying a scope; a `/gql` endpoint when a Cypher/GQL-capable layer is in the stack. Every read resolves to $"closure"(h, cal(U))$ under scope and prune in one read-through sweep, exposed through filters and a result limit so any read is bounded. Coarse-first progressive disclosure is then an application strategy over filters and limit, not a built-in. _Discharges G5._]
 
 #todo[*Access control (G6).* A scope supplied by the application and enforced by the server bounds reads and writes — a base `allow-all`/`deny-all` plus ordered wildcard exceptions over field/edge names and types. The scope is bound to the authenticated account, not chosen at request time; no elevation path. Verifiable partial views: out-of-scope references appear as hash-only stubs, Merkle-verifiable without disclosure. _Discharges G6._]
 
