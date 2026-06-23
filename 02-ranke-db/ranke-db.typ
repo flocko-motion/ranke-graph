@@ -139,6 +139,11 @@ The database knows service accounts, their access rights, persistence stacks and
 
 = Architecture <sec:architecture>
 
+To implement the database, we first build the Ranke Archive it serves; only then do we expose it through an API as a single service.
+
+== Ranke Archive <sec:ranke-archive> 
+
+
 A Ranke Archive consists of claims; each claim is persisted in content-addressed storage, and the content bytes it carries are stored content-addressed too. The fundamental building block of the system is therefore the storage of a single claim.
 
 A *claim* is an attributed record — a node bearing a type, an encoding, a creation time, the hash of its content, and a set of edges to the claims it was derived from — addressed by its id, $op("id")(v) = "Sign"(H(S(v)))$: a signature over the hash of its canonical serialization, so the id fixes both the record and its author (foundation paper §Primitives). Its content bytes are held separately, addressed by their own hash and size.
@@ -146,40 +151,68 @@ A *claim* is an attributed record — a node bearing a type, an encoding, a crea
 ```
 Claim — a node with its edges; immutable, content-addressed
 
-  id()            → Id            its content address
-  node()          → Node          its own data: type, encoding, created-at, content hash + size, pubkey
-  edges(…filters) → Edge[]        references to the claims it derives from — its provenance
-  contributor()   → Contributor   the claim that attributes and signs it
-  encode()        → bytes         canonical serialization — the bytes the store persists by id
-
-  ...                             closure materialization, validation
+  id()                     → Id:string             its content address
+  node()                   → Node                  its own data: type, encoding, created-at, content hash + size, pubkey
+  edges(filters: Filter[]) → Edge[]                references to the claims it derives from — its provenance
+  contributor()            → Contributor:Claim     the claim that attributes and signs it
+  encode()                 → SerializedClaim:bytes canonical serialization — the bytes the store persists by id
+  ...                                              closure materialization, validation
 ```
 
 The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges — its full provenance, back to the initial nodes (foundation paper §Closures). A claim carries meaning only with its closure: a single id recovers a whole closure, and a complete, mergeable state is always one.
 
-All claims of a closure (that includes their content bytes) are stored in a common *Universe*. Any number of closures can 
-
-We define the interface of a storage adapter as:
+All claims — and the content they carry — live in one content-addressed store. Storing them reduces to a single thing: a *blob store* — three operations over immutable, keyed bytes.
 
 ```
-Universe — a storage adapter; bulk and content-addressed
+Blob store — content-addressed; immutable
 
-  getClaims(ids: Id[])             → Claim[]    positional; a missing id fails the call
-  putClaims(claims: Claim[])                    idempotent
-  hasClaims(ids: Id[])             → bool[]     presence; drives delta sync
-
-  getContents(refs: ContentRef[])  → bytes[]
-  putContents(blobs: ContentBlob[])             idempotent
-  hasContents(hashes: Id[])        → bool[]
-
-  ...                                           copy/merge, streaming, lifecycle — derived from the above
+  put(key: Id, blob: bytes)             idempotent — a key's bytes never change
+  get(key: Id)            → bytes       a missing key fails the call
+  has(key: Id)            → bool        presence; drives delta sync
 ```
 
-These six bulk primitives are the architectural contract. Every derived operation folded into the `…` — store-to-store copy and merge (the basis of stacking and replication), a streaming read for large content, lifecycle, and single-item wrappers — ships with a shared default built on the six, so a backend inherits the lot for a fast start and reimplements one only when a worthwhile speedup justifies the work. The reference library provides these defaults with filesystem and in-memory adapters in its `adapter` package, and renders the contract as a Go interface (Go now, Python next).
+Each is keyed by its content address — a claim by its id, the content it carries by its hash — and the store interprets neither; to it both are opaque bytes under a key. Because keys are content addresses, any number of closures share one store without coordination: identical claims collapse to a single key, and a claim present for one closure is present for all.
+
+This is the entire theoretical contract, and the whole of what a backend must provide; the in-memory adapter that implements exactly these three operations (plus lifecycle) is 37 lines. Everything above them is convenience and performance optimization for bulk operations. The reference library exposes this store as a typed `Universe` that decodes serialized claims into records (`getClaims`), batches reads and writes in bulk, streams large content lazily with its size, and copies and merges store-to-store — crucial to a working engine, none of it enlarging the contract. `NewBlobUniverse` lifts any blob store into a full `Universe` for free, and a backend reimplements one of those operations only when a native bulk path (S3 batch, SQL bulk) runs faster.
+
+The lift is mechanical — the content operations *are* the blob primitives, the claim operations wrap them with decode and encode:
+
+```
+Universe over a Blob store — the default lift (NewBlobUniverse)
+
+  getClaim(id: Id)                  → Claim    decodeClaim(get(id))
+  putClaim(claim: Claim)                       put(claim.id(), claim.encode())
+  hasClaim(id: Id)                  → bool     has(id)
+
+  getContent(hash: Id)              → bytes    get(hash)
+  putContent(hash: Id, blob: bytes)            put(hash, blob)
+  hasContent(hash: Id)              → bool     has(hash)
+```
+
+The shipped interface takes these in bulk — `getClaims`, `putClaims`, … — so a backend can use a native batch path: throughput, not a larger contract.
+
+A *branch table* is the archive's index of named lines: each entry binds a name to a head, and a head is a whole Ranke-Graph — its closure, with all the provenance behind it. One entry names one entire graph. The table is itself a claim, so its revisions form a history the way claims do — each new table references the one it replaced — carrying its version history as its own provenance, never a side log. The foundation paper fixes that format (a `contribution/branches` claim with `contribution/branch` edges to each named head) and the archive $(cal(U), B_h)$ that wraps it (foundation paper §Branches, §Ranke-Archive). We don't restate it; we build it.
+
+== Sequencer <sec:sequencer>
+
+What the ADT leaves to the implementation is one mechanism: the one that holds and advances $B_h$. It looks trivial — store a single id — yet it is the most consequential component in the system. We name it the *Sequencer*: it owns the archive's single linearization point, the moment at which a write becomes part of the present. Every claim is content-addressed, so claim writes are idempotent and order-independent; $B_h$ is the only value that must be sequenced, and the Sequencer advances it by a compare-and-swap on the durable cell that holds it. That cell's survival is the whole game: $B_h$ is the only value that lives outside $cal(U)$ — everything else is content-addressed and immutable, so this one key is the system's entire mutable state. $cal(U)$ may hold every claim ever written, but lose $B_h$ and you lose the present: which head is current, the pointer to the entire closure.
+
+```
+BranchTableHead — the durable cell the Sequencer advances
+
+  load()       → Id  id of the current branch-table claim (none → empty archive)
+  save(id: Id)       compare-and-swap to the new present
+```
+
+Because that one value is fatal to lose, the reference implementation keeps it as an append-only history rather than a single overwritten cell — every committed $B_h$ is retained. A head is sound only if its branch-table closure is fully present and verifies (@sec:verify); should a silent persistence failure leave the latest head pointing at a state that is not wholly durable, recovery rolls back to the most recent $B_h$ that verifies. Since $cal(U)$ only ever grows, an older head's closure was complete when committed and cannot have lost claims since, so rolling back costs at most a few unconfirmed writes, never the archive. Commit order secures it from the other side: a write makes its claims — and the new branch table — durable in the source of truth before the Sequencer advances $B_h$.
+
+Keeping the sequenced step this small is where performance and redundancy come from. Since everything but the final commit is order-independent, a replica can prepare a whole side branch — many claims — warm its caches, and feed them into the source-of-truth universe, all off the critical path; merging that work into the main graph is then a *single* claim added at the Sequencer, one compare-and-swap. Two servers advancing the same $B_h$ fork and reconcile by union (a CRDT join, foundation paper §Distributability). The reference implementation keeps the plain single-Sequencer path, but the structure invites the prepared-branch optimization when throughput demands it.
+
+A Ranke Archive composes the two — `Archive(universe: Universe, head: BranchTableHead)` — and its richer views (`Branch`, `BranchTable`, and their histories) are read-only projections over the claim chain, exactly as the typed `Universe` projects over the blob store. With the universe, the Sequencer that guards $B_h$, and the projections over them, the world is ready; the rest of the chapter is the engine that serves it.
 
 #todo[Lead. This chapter builds the engine up the way the foundation paper builds the data structure up: start from the atomic store, then add one capability at a time, discharging a design goal (@sec:goals) at each step. Spine — atomic store → stack → replicate → compose → archive → access → verify and witness.]
 
-== The Atomic Store <sec:atomic>
+== Storage Layer <sec:atomic>
 
 A RankeDB instance reduces to one storage engine behind one small API: store and fetch bytes by key.
 
@@ -189,7 +222,7 @@ _Discharges G1, G2._ #todo[G1 — the engine assumes only a store of bytes addre
 
 #todo[What the store holds, opinionated defaults (fold former §Default Type Vocabulary and §Generic-Format Extracts here): the `source/*` and `derivation/*` default subtypes, MIME-style encodings, and the practice of keeping a generic-format extract beside each original. Mark *[FREE / default]*.]
 
-== Stacking <sec:stack>
+== Stacking Storage <sec:stack>
 
 One engine becomes a _stack_: layers ordered ground-to-top, the ground authoritative, upper layers caches.
 
@@ -199,7 +232,7 @@ One engine becomes a _stack_: layers ordered ground-to-top, the ground authorita
 
 _Discharges G3 (composability)._
 
-== Replication <sec:replication>
+== Replicating Storage <sec:replication>
 
 A _complete_ layer, once filled, is a full live copy of the archive — so durability is a matter of adding one.
 
@@ -212,14 +245,6 @@ _Discharges G4 (replicability)._
 Layers need not be whole or single.
 
 #todo[Partial layers: each declares a `max_content_len`; larger writes fall through, so a Cypher/GQL layer can hold only small claims (~8 kB) while blobs live below. The complete-ground rule: one layer accepts content of any size, so the stack loses nothing. A complete layer may be _composite_ — several backends behind a routing layer, complete as a system — which admits geographic distribution and read-scaling. Note this as a direction; the reference implementation keeps a single ground.]
-
-== The Archive <sec:archive>
-
-The stack holds the universe; an _archive_ adds the one mutable thing.
-
-#todo[An archive is its universe (in the stack) plus a single mutable hash $B_h$, the id of its current branch table (foundation paper §Archive). Branches, heads, and the branch table are themselves claims in the universe; the admin layer (PostgreSQL, in the reference implementation) holds only accounts, the archive registry (name → $B_h$ → stack), stack configuration, and rights. Reads and writes name a *branch*, resolved through $B_h$ to a head; raw-id access is operator-only.]
-
-#todo[Concurrency: the owning server is the sole *sequencer* — it advances $B_h$ by compare-and-swap, so the archive keeps a single head. Concurrency-safety is then free: content-addressing makes claim writes idempotent and order-independent; only the one pointer is sequenced. Two servers advancing the same archive fork, and reconcile by union (a CRDT join; foundation paper §Distributability).]
 
 == Access <sec:access>
 
