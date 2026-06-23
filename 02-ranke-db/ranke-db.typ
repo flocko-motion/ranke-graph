@@ -55,7 +55,7 @@ The foundation paper proposes an ADT built around the abstract idea of 'attribut
 This paper takes that as given and settles what an abstract type can leave open but a running store cannot: how the claims are indexed for query, and whether their bytes still open in thirty years. This paper specifies RankeDB, a reference database service that stores and serves *Ranke Archives* as defined in the foundation paper. It proposes an 
 architecture, a modular persistence stack, read and write paths, a query model, and an authentication model. 
 
-*Formats outlive products.* The foundation paper is deliberately format-agnostic: its ADT stores bytes under an encoding tag and cares nothing for which. A store meant to last decades must care — what a format _is_ decides whether its bytes still open. Services are sold or shut down; open, widely-implemented formats endure (@sec:use-cases). Memory institutions reach the same conclusion from the other side: the Library of Congress publishes sustainability assessments and a recommended-formats list (@locformats) spanning hundreds of formats — text, image, audio, moving image, archive — favouring the open and well-documented. RankeDB keeps the ADT's indifference in the store and adds an opinion above it (@sec:extracts): preserve originals as given, with generic-format extracts beside them.
+*Formats outlive products.* The foundation paper is deliberately format-agnostic: its ADT stores bytes under an encoding tag and cares nothing for which. A store meant to last decades must care — what a format _is_ decides whether its bytes still open. Services are sold or shut down; open, widely-implemented formats endure (@sec:use-cases). Memory institutions reach the same conclusion from the other side: the Library of Congress publishes sustainability assessments and a recommended-formats list (@locformats) spanning hundreds of formats — text, image, audio, moving image, archive — favouring the open and well-documented. RankeDB keeps the ADT's indifference in the store and adds an opinion above it (@sec:atomic): preserve originals as given, with generic-format extracts beside them.
 
 
 == Use Cases and Desired Properties <sec:use-cases>
@@ -97,7 +97,7 @@ Across all four, the archive carries more than its records: a semantic layer of 
   ],
 )
 
-#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:layer-contract).]
+#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
 
 === Inherited Guarantees <sec:inherited>
 
@@ -134,7 +134,7 @@ _Verification and witnessing._
 - *G8 — Verification on demand.* Integrity is checkable on demand, at a depth the caller chooses.
 - *G9 — Time-stamp witnessing.* Prove externally that the archive's entire content existed at a given moment.
 
-The engine knows accounts, rights, archives, and stacks; *non-goals*, left to the application layer, are user and identity management, access policy, consensus or truth arbitration, and application logic. @sec:serving demonstrates — rather than proves — that the architecture meets G1–G9.
+The engine knows accounts, rights, archives, and stacks; *non-goals*, left to the application layer, are user and identity management, access policy, consensus or truth arbitration, and application logic. @sec:architecture demonstrates — rather than proves — that the architecture meets G1–G9.
 
 
 
