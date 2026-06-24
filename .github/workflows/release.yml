@@ -20,12 +20,14 @@ jobs:
         with:
           typst-version: '0.14.2'
 
-      - name: Build paper 01
-        run: make 01
+      - name: Build papers
+        run: make 01 02
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
-          files: pdf/01-ranke-graph.pdf
+          files: |
+            pdf/01-ranke-graph.pdf
+            pdf/02-ranke-db.pdf
