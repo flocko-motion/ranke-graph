@@ -123,23 +123,23 @@ Above the goals sits one guiding principle — _agnosticism by adapter_. Every e
 
 The design goals divide into three groups.
 
-_Storage._
+_Storage and Distribution._
 - *G1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
 - *G2 — Thin adapters.* Supporting a new persistence backend is easy to implement.
 - *G3 — Composability.* Persistence composes from mixable, layered backends.
 - *G4 — Replicability.* Copying, replicating, and backing up an archive is cheap.
-- *G10 — Coordination.* Multiple servers accept writes to one archive and reconcile to a single head.
-- *G12 — Deletion.* Claims in mutable storage are deleted on a planned retention date or a requested one, purged by date with an edge left to explain the absence; add-only storage is permanent by choice.
+- *G5 — Coordination.* Multiple servers accept writes to one archive and reconcile to a single head.
+- *G6 — Deletion.* Claims in mutable storage are deleted on a planned retention date or a requested one, purged by date with an edge left to explain the absence; add-only storage is permanent by choice.
 
 _Content Verification and Witnessing._
-- *G7 — Verification on add.* The validity of any contributions is automatically verified on addition and supports key rotation, revokation, or expiration.
-- *G8 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
-- *G11 — Trustworthy timestamps.* Each claim's self-asserted time is bounded by a server-witnessed transaction window — provable time and a definite total order, with no reassignment.
-- *G9 — External Witnessing.* Prove externally that the archive's entire content existed at a given moment.
+- *G7 — Trustworthy timestamps.* Each claim's self-asserted time is bounded by a server-witnessed transaction window — provable time and a definite total order, with no reassignment.
+- *G8 — Verification on add.* The validity of any contribution is automatically verified on addition, and supports key rotation, revocation, or expiration.
+- *G9 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
+- *G10 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
 
 _Database Access._
-- *G5 — Filtered queries.* The archive is queryable through filters and a result limit.
-- *G6 — Access control.* A caller-supplied scope is enforced for both reads and writes.
+- *G11 — Filtered queries.* The archive is queryable through a conjunction of filters under a result limit.
+- *G12 — Access control.* A caller-supplied scope is enforced for both reads and writes.
 
 
 The database knows service accounts, their access rights, persistence stacks and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G12 capability by capability — demonstration rather than proof.
@@ -224,45 +224,47 @@ A Ranke Archive composes the two — `Archive(universe: Universe, head: BranchTa
 
 == Storage Layer <sec:atomic>
 
-A RankeDB instance reduces to one storage engine behind one small API: store and fetch bytes by key.
+A storage layer is an adapter on the content-addressed contract of @sec:ranke-archive — those few operations, nothing more — and that smallness is what makes the engine beholden to no technology. The minimal adapter is a few dozen lines: the in-memory backend is a `map` behind `get`, `put`, and `has`. So a new backend is a weekend's work, anything that stores bytes under a key qualifies — a `map`, a directory, a SQL table, an S3 bucket — and the reference library ships a range of them already, which turns "runs on anything" from a claim into a file listing. Performance is opt-in: a backend may implement the bulk and native paths of @sec:ranke-archive and declare the capability, while the floor stays the same few calls. _Discharges G1 and G2._
 
-#todo[Show the atomic write — hash content, serialize, sign, store — and the filesystem adapter inline (~a dozen lines) as the G2 proof. Claims, ids, and closure are defined at the chapter opening; don't repeat them here. Note the serialization choices once (CBOR Deterministic, IPFS multihash, Ed25519).]
+#todo[Show the in-memory or filesystem adapter inline (~a dozen lines) as the visible G2 proof; recap the serialization choices once — CBOR Deterministic, IPFS multihash, Ed25519 — pointing to the foundation paper rather than re-deriving.]
 
-_Discharges G1, G2._ #todo[G1 — the engine assumes only a store of bytes addressed by a key; anything from a USB stick to Amazon S3 qualifies. G2 — that API _is_ the adapter contract, so a new backend is those three calls; show the filesystem adapter inline (~a dozen lines) as proof the contract is tiny.]
+What a layer should *hold* is the engine's one opinion above the bytes, in a place the ADT deliberately keeps none. The foundation stores bytes under an encoding tag and is indifferent to which; a store meant to outlive its own software cannot afford that indifference, because the format decides whether the bytes still open in thirty years. So the default is to preserve each original exactly as received and keep a *generic-format extract* beside it — the same content re-encoded into a widely-implemented, well-documented format, the kind memory institutions converge on (the Library of Congress's recommended-formats and sustainability work is the reference, @locformats). Originals carry fidelity, extracts carry longevity; an application may keep one, the other, or both, so this is a default, not a rule — mark it *[FREE / default]*.
 
-#todo[What the store holds, opinionated defaults (fold former §Default Type Vocabulary and §Generic-Format Extracts here): the `source/*` and `derivation/*` default subtypes, MIME-style encodings, and the practice of keeping a generic-format extract beside each original. Mark *[FREE / default]*.]
+#todo[Detail the default vocabulary folded in here — the `source/*` and `derivation/*` subtypes and MIME-style encodings — and note SQLite's place on the LoC recommended list. A per-adapter `max_content_len` lets a size-limited layer hold only small claims while larger blobs fall through to a layer below — the partial-layer mechanism of @sec:composition.]
 
 == Stacking Storage <sec:stack>
 
-One engine becomes a _stack_: layers ordered ground-to-top, the ground authoritative, upper layers caches.
+A single layer is the floor; a *stack* is layers ordered ground-to-top, the ground authoritative and every layer above it a cache. A read is *read-through*: it asks the top layer and, on a miss, falls to the next layer down, filling each layer it passed on the way back up, so hot claims migrate toward the top. A write is *write-through*: it lands in the ground — the source of truth — and populates the layers above. The ground is authoritative for one structural reason: read-through terminates there, so a claim absent from the ground is absent from the archive.
 
-#todo[Define the stack and its read paths: read-through (a miss falls to the next layer down and fills on the way back), write-through (or write-ground-then-fill). Cache coherence is trivial — content-addressed bytes are never stale, eviction is always safe, and any upper layer drops and rebuilds from below. The ground is the source of truth because read-through terminates there.]
+Cache coherence, the usual hard part of a layered store, is trivial here because the keys are content addresses. A cached blob cannot be stale — its key *is* the hash of its bytes, so the bytes either match the key or were never that claim — so eviction is always safe, and any upper layer may be dropped and rebuilt from the layer below with no invalidation protocol. A cache that cannot go stale needs no coherence.
 
-#todo[Figure: vertical stack diagram (adapt drawio/layers.svg) — ground = truth at the bottom, caches above, read-through arrows down on miss filling up, write arrows. Two example stacks side by side (`S3 | S3-local | neo4j`, `S3 | local-FS | in-memory`).]
+#todo[Figure: vertical stack diagram (adapt drawio/layers.svg) — ground = truth at the bottom, caches above, read-through arrows falling on a miss and filling upward, write-through arrows. Two example stacks side by side, e.g. `S3 | S3-local | neo4j` and `S3 | local-FS | in-memory`.]
 
 _Discharges G3 (composability)._
 
 == Replicating Storage <sec:replication>
 
-A _complete_ layer, once filled, is a full live copy of the archive — so durability is a matter of adding one.
+Replication is not a separate mechanism; it is what a *complete* layer already is. A layer that holds the whole archive, once filled, is a full live copy — so durability becomes a matter of adding one. A new complete layer fills either by write-through as fresh claims arrive or, in one pass, by a full read-through sweep — the same traversal `verify` uses (@sec:verify) — after which it tracks the archive for as long as it stays in the stack.
 
-#todo[A complete layer added to the stack fills by write-through, or in one pass by a full read-through (the same sweep `verify` uses, @sec:verify). Backup, replication, and portable export then collapse to one operation — add a layer: a remote store, a second region, a detachable SQLite file. Redundancy is one line of configuration.]
+This collapses three operations usually built separately into one act. *Backup* is a complete layer kept off-site; *replication* is a complete layer in another region, filled and then live; *portable export* is a complete layer on a detachable medium — a SQLite file you copy and carry. Each is the same thing: add a layer. Redundancy is then one line of configuration rather than a subsystem, and because every layer is content-addressed, a copy verifies against the original by id alone, with no trust placed in the transport that carried it.
 
 _Discharges G4 (replicability)._
 
 == Coordinating Storage <sec:coordinate>
 
-A single Sequencer is one writer; coordination lets many servers accept writes to one archive without giving up its single head.
+A single Sequencer is one writer. Coordination lets many servers accept writes to one archive without surrendering the single head that keeps its state unambiguous.
 
-#todo[Each server runs as a _subsequencer_: it accepts writes locally and accumulates a side branch off the critical path (the prepared-branch path of @sec:sequencer), then merges that branch up to the central Sequencer and rebases on the latest $B_h$. The central Sequencer stays the single linearization point; concurrent merges fork into two heads that the next merge consolidates (additive — no rejected write, no lost update). Most write work is local and parallel; only the periodic merge touches the central point, so write throughput scales out while the archive keeps one head. The reference implementation keeps a single sequencer and leaves the hierarchy depth open.]
+Each server runs as a *subsequencer*: it accepts writes locally and accumulates them as a side branch off the critical path — the prepared-branch path of @sec:sequencer — feeding the claims into the source-of-truth universe as it goes, so the only act left at commit is to mint one head. It then merges that branch up to the central Sequencer and rebases on the latest $B_h$ it returns. The central Sequencer remains the single linearization point; between merges the subsequencers diverge, and when two merge concurrently they fork into two heads that the next merge consolidates — additive reconciliation by union (a CRDT join, foundation paper §Distributability), so no write is rejected and none is lost. Because nearly all the work is local and parallel and only the brief merge touches the central point, write throughput scales out while the archive keeps its single head. The reference implementation runs one sequencer and leaves the hierarchy's depth — subsequencers beneath subsequencers — open as a direction.
 
-_Discharges G10._
+_Discharges G5._
 
 == Composition <sec:composition>
 
-Layers need not be whole or single.
+Layers need not be whole, and the ground need not be single. A layer may be *partial*: it declares a `max_content_len`, and a write larger than that falls through to the layer below — so a Cypher/GQL store can hold the small claims it indexes well while large blobs live beneath it. The stack loses nothing as long as one layer accepts content of any size; that *complete-ground* rule is the single invariant a stack must satisfy.
 
-#todo[Partial layers: each declares a `max_content_len`; larger writes fall through, so a Cypher/GQL layer can hold only small claims (~8 kB) while blobs live below. The complete-ground rule: one layer accepts content of any size, so the stack loses nothing. A complete layer may be _composite_ — several backends behind a routing layer, complete as a system — which admits geographic distribution and read-scaling. Note this as a direction; the reference implementation keeps a single ground.]
+The ground that satisfies it may itself be *composite* — several backends behind a routing layer, complete as a system though no single backend is. That is the seam through which geographic distribution and read-scaling enter: a router over regional object stores, each partial, complete in aggregate. And it generalises, because a stack is itself a `Universe` (@sec:ranke-archive) — composition is closure under the interface, so a layer may be another stack, a partition that routes by a claim property (the erasability split of @sec:deletion is one), or a remote archive reached through a `rest` adapter, nesting without limit. The reference implementation keeps a single ground and notes the rest as the room the contract leaves.
+
+#todo[Figure or worked example: a composite ground — `(S3-EU | S3-US) -> router` — beneath a `neo4j` index layer, illustrating partial layers and the complete-ground rule.]
 
 == Deletion <sec:deletion>
 
@@ -278,7 +280,7 @@ Mutability propagates upward: any layer above a mutable partition must itself be
 
 Erasure leaves a scar, by design. An edge that references a claim carrying `deleteBy` copies that date into itself — one hop, no cascade — so when the content is purged the edge remains and records that something was here and lawfully went. Verification reads the gap correctly: completeness (@sec:verify) holds when every reference is present or tombstoned, so erasure is never taken for corruption. It is the physical counterpart to the foundation's `contribution/prune`, which hides a claim behind an id-only stub; deletion removes the bytes and leaves the edge — both absence with an explanation.
 
-_Discharges G12._
+_Discharges G6._
 
 == Timestamping <sec:timestamp>
 
@@ -296,19 +298,19 @@ The chain of signed merges is, by construction, a transparency log — each refe
 
 Distinct from all of this is _height_: `height(c) = 1 + max` over a claim's references (roots at 0), a Lamport-style logical clock read straight from the DAG — causal depth, not chronology, and an index recomputable from structure rather than a primitive. An implementation may order by `(height, id)` where causal order is wanted, verifiable by recomputation.
 
-_Discharges G11._
+_Discharges G7._
 
 == Verification and Witnessing <sec:verify>
 
 The build closes the trust story: contributions are checked as they are written, the whole archive is checkable on demand, and an external witness anchors it in time.
 
-_Verification on add (G7)._ Every contribution is checked as it is written — its signature and id chain verified against its contributor's key before the merge commits. Key lifecycle rides the same check, and it is expressed entirely in claims, needing no addition to the foundation's schema. A key carries a `validUntil` beside its pubkey — a scheduled expiry after which the engine refuses new claims signed by it. Early revocation is the on-demand counterpart: a newer contributor _revision_ claim names the keys it retires with `expiry` edges (one revision can retire many at once), and may instead, or also, `supersede` a predecessor to continue the identity under a fresh key. A key's effective end is the earliest of its `validUntil` and any `expiry` edge pointing at it; validity is judged at the claim's witnessed time (@sec:timestamp), forward-only — everything signed while the key was live stays valid, and the contributor claim is kept forever as the verification anchor. A revision is admitted only when it carries a valid signature from a contributor authorized to manage contributors (@sec:authority); `expiry` and `supersede` are the engine's reserved reading over the foundation's open edge mechanism, not new schema. Because it is all claims, a server follows the `supersede` chain to the current revision on its own, advancing which identity it signs as without manual intervention, and the full key history is auditable and verifiable offline. The application sets policy (who may retire whom); the engine enforces. _Discharges G7._
+_Verification on add (G8)._ Every contribution is checked as it is written — its signature and id chain verified against its contributor's key before the merge commits. Key lifecycle rides the same check, and it is expressed entirely in claims, needing no addition to the foundation's schema. A key carries a `validUntil` beside its pubkey — a scheduled expiry after which the engine refuses new claims signed by it. Early revocation is the on-demand counterpart: a newer contributor _revision_ claim names the keys it retires with `expiry` edges (one revision can retire many at once), and may instead, or also, `supersede` a predecessor to continue the identity under a fresh key. A key's effective end is the earliest of its `validUntil` and any `expiry` edge pointing at it; validity is judged at the claim's witnessed time (@sec:timestamp), forward-only — everything signed while the key was live stays valid, and the contributor claim is kept forever as the verification anchor. A revision is admitted only when it carries a valid signature from a contributor authorized to manage contributors (@sec:authority); `expiry` and `supersede` are the engine's reserved reading over the foundation's open edge mechanism, not new schema. Because it is all claims, a server follows the `supersede` chain to the current revision on its own, advancing which identity it signs as without manual intervention, and the full key history is auditable and verifiable offline. The application sets policy (who may retire whom); the engine enforces. _Discharges G8._
 
 #todo[Open detail: the precise authorization rule — which signatures may create, `supersede`, or `expire` a contributor, and how it chains to the create-contributor right (@sec:authority). To be specified with the contributor-rights model.]
 
-#todo[*Verification on demand (G8) — comes cheap.* A generic server operation, no per-backend work: read-through the closure of $h$ and recompute the id chain at a chosen depth — completeness (every reference and blob present), record correctness (signatures and id chain), or full content (rehash every blob). Tiered cost; warms caches as a side effect. _Discharges G8._]
+_Verification on demand (G9)._ Integrity is checkable at any time, at a depth the caller chooses, as a generic server operation that needs no per-backend work: read through the closure of a head and recompute as much of it as asked. Three depths answer three questions. *Completeness* asks only whether every referenced claim and content blob is present — a `has` sweep, the cheapest. *Record correctness* re-canonicalises each claim, recomputes its id chain, and checks the signatures, proving the records authentic and unmodified. *Full content* additionally re-hashes every blob, proving the bytes intact down to the last byte of the largest file. Cost rises with depth and with how much of the closure the caller scopes in, and because the check reads through the stack it warms the upper layers as it goes — verification doubles as cache priming. _Discharges G9._
 
-#todo[*Time-stamp witnessing (G9) — likely a plugin.* Publish the head hash to an external timestamp authority (RFC 3161); because the head commits to the whole closure, one timestamp attests the archive's full content at a moment. Probably a plugin interface — state what the reference implementation provides and leave the rest open. _Discharges G9._]
+_External witnessing (G10)._ Verification proves the archive internally consistent; witnessing anchors it to the outside world. Publishing a head's hash to an external time-stamp authority (RFC 3161) records that the head — and, because the head commits to its whole closure, every claim beneath it — existed at that moment; two such anchors bracket everything between them in real time, regardless of any self-asserted `created_at`. The engine already keeps an internal transparency log for free — the chain of signed merges (@sec:timestamp) — so external witnessing is the independent, third-party overlay upon it. The reference implementation exposes it through a plugin interface: it ships one authority binding and leaves the rest to the deployment. _Discharges G10._
 
 == Filtered Queries <sec:query>
 
@@ -322,15 +324,15 @@ Because filters are data, a result is checkable even for a query the reference c
 
 Membership is the robust guarantee, surviving any superset; ordering is fragile, since a backend that imposes its own ranking selects a different first-$N$ than the fundamental order. The contract follows the honest line: limit and ordering are fully verifiable for a pure-fundamental query; once a superset ordering is in play, verification drops to set membership and cardinality, not which $N$ survived the limit.
 
-_Discharges G5._
+_Discharges G11._
 
 == Access <sec:access>
 
-What remains is to bound who may read and write.
+What remains is to bound who may read and write — and to keep that bound separate from who *authored* what.
 
-#todo[*Access control (G6).* A scope supplied by the application and enforced by the server bounds reads and writes — a base `allow-all`/`deny-all` plus ordered wildcard exceptions over field/edge names and types. The scope is bound to the authenticated account, not chosen at request time; no elevation path. Verifiable partial views: out-of-scope references appear as hash-only stubs, Merkle-verifiable without disclosure. _Discharges G6._]
+*Access control (G12).* A *scope* supplied by the application and enforced by the server bounds every read and write: a base posture — `allow-all` or `deny-all` — followed by an ordered list of wildcard exceptions over field and edge names and types. The scope is bound to the authenticated account, not chosen per request, and there is no path to widen it from inside a request; an application builds whatever role model it needs by issuing accounts with different scopes. Reads honour the scope without breaking verifiability: an out-of-scope reference is returned as a hash-only stub rather than dropped, so the visible subgraph still Merkle-verifies — the same shape as the foundation's pruned views — while the withheld content stays undisclosed. _Discharges G12._
 
-#todo[Authentication: a connecting service authenticates with a shared secret (token/JWT) for access; claim signing stays with the application, the engine only verifies signatures at write. Two roles, kept separate.]
+Authentication is the other half, and deliberately not the same half. A connecting service authenticates with a shared secret — a token or JWT — for *access*; signing *claims* stays with the application, which holds the contributor keys, and the engine only verifies those signatures at write. Two roles kept apart: the access credential says which scope a caller may exercise, the contributor key says whose claim this is — and the server's own signing identity (@sec:sequencer), which attests commits rather than content, is a third, distinct again.
 
 = Infrastructure <sec:infrastructure>
 
@@ -389,6 +391,6 @@ A write is wrapped in a transaction whose token is a *stateless* credential — 
 
 = Conclusion <sec:conclusion>
 
-#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a goal, through G9. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
+#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a goal, through G12. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
