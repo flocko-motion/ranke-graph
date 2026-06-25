@@ -22,7 +22,7 @@ PDFS := \
   $(PDF_DIR)/05-retrieval-coordination.pdf \
   $(PDF_DIR)/06-ranke-cryptography.pdf
 
-.PHONY: all clean 01 02 03 04 05 06 watch-01 watch-02 watch-03 watch-04 watch-05 watch-06
+.PHONY: all clean 01 02 03 04 05 06 watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 release major minor patch breaking feature fix
 
 all: $(PDFS)
 
@@ -69,3 +69,14 @@ watch-06:
 
 clean:
 	rm -rf $(PDF_DIR)
+
+# Cut a release: clean tree → merge to the default branch via PR → tag the
+# merged tip → push the tag (which triggers release.yml) → return to your
+# branch. Usage: make release <major|minor|patch> (aliases: breaking|feature|fix).
+release:
+	@./scripts/release.sh $(filter major minor patch breaking feature fix,$(MAKECMDGOALS))
+
+# Absorb the positional bump word in `make release <bump>` so it isn't treated
+# as a missing target.
+major minor patch breaking feature fix:
+	@:
