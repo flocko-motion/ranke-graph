@@ -45,24 +45,19 @@
 
 = Introduction <sec:introduction>
 
-[Todo] a short introduction to what Ranke-Graph and Ranke Archive is. Hint at broad scope of possible use cases, as RG serves  a universal need when documenting/building an archive.
+The *foundation paper* (@metzgernoel2026rankegraph) defines the *Ranke Archive* as a concept and an abstract data type (ADT), built around a single unit: the *claim* — an attributed record of content, added by a contributor at a stated moment and citing the sources it derives from. Where a conventional database consolidates its sources into one current, contradiction-free state and overwrites it as understanding changes, a Ranke Archive keeps the whole history of claims, disagreements intact — each immutable, each attributable to an author and a time, each independently verifiable. Its aim is preservation with full provenance, for the long term and across applications.
 
-A Ranke Archive stores knowledge for the long term under a fixed set of guarantees: it is application-independent and format-agnostic; every claim is immutable and attributable to an author and a creation time; integrity is independently provable; and records are readable by humans and machines alike. Where many database designs maintain a single consolidated state — contradiction-free, overwritten as understanding changes — that represents the current truth, a Ranke Archive preserves the history of claims about the world, each made by an identified author and citing sources held in the archive. Such claims may contradict one another and may change over time; the archive keeps every version, with its disagreements intact. The goal is preservation with full provenance. 
+This paper specifies *RankeDB*, a reference database service that stores and serves Ranke Archives: taking the ADT as given, it proposes how Ranke Archives can be persisted, composed, replicated, queried, verified, and bounded for access. What follows is the architecture that answers those questions.
 
-The foundation paper (@metzgernoel2026rankegraph) defines the Ranke-Graph as an abstract data type accompanied by a reference implementation in Go. 
+Data in an organisation, or a personal life, is scattered. An enterprise spreads it across separate services' data, artifacts on file servers, source in repositories, CI logs, access logs, documents, specifications, and correspondence; a household, across messengers, mailboxes, call logs, cloud photo albums, and files on local and remote drives. Each store keeps its slice in its own format — some open, like JPEG or plain text, much of it locked inside the application that wrote it.
 
-The foundation paper proposes an ADT built around the abstract idea of 'attributed claims'. 
-This paper takes that as given and settles what an abstract type can leave open but a running store cannot: how the claims are indexed for query, and whether their bytes still open in thirty years. This paper specifies RankeDB, a reference database service that stores and serves *Ranke Archives* as defined in the foundation paper. It proposes an 
-architecture, a modular persistence stack, read and write paths, a query model, and an authentication model. 
+Both applications and formats have finite lives: products are discontinued, sometimes overnight, and a format outlives its tools only if it is open and widely implemented. So the more services one depends on, the more data loss one should expect — and backups guard only the bytes: a copy is unreadable without the application version that wrote it, and rarely searchable across the application-specific shapes it preserves.
 
-*Formats outlive products.* The foundation paper is deliberately format-agnostic: its ADT stores bytes under an encoding tag and cares nothing for which. A store meant to last decades must care — what a format _is_ decides whether its bytes still open. Services are sold or shut down; open, widely-implemented formats endure (@sec:use-cases). Memory institutions reach the same conclusion from the other side: the Library of Congress publishes sustainability assessments and a recommended-formats list (@locformats) spanning hundreds of formats — text, image, audio, moving image, archive — favouring the open and well-documented. RankeDB keeps the ADT's indifference in the store and adds an opinion above it (@sec:atomic): preserve originals as given, with generic-format extracts beside them.
-
+A Ranke Archive bridges these stores. Conventional databases stay the right tool for fast persistence in live systems; a Ranke Archive extends what they hold along two axes. In *time*, it keeps data immutable in a generic, application-independent, human-readable form that outlives the tool that wrote it. In *breadth*, it aims to draw the scattered silos into one searchable store, where each fact carries its history — who recorded it, when, and citing what.
 
 == Use Cases and Desired Properties <sec:use-cases>
 
-A Ranke Archive is a unifying archive for long-term preservation. It sits between two familiar poles. On one side, operational infrastructure — git, CI pipelines, test systems, documentation, employee databases — is powerful day to day but fragmented across many systems, and free to mutate or disappear. On the other, classical backup — tape, cold storage — is durable but inert: fit for emergency reconstruction, rather than everyday use. A Ranke Archive may occupy the middle: as durable and tamper-evident as cold storage, yet as queryable and live as the systems it preserves — one store to trust for decades and use every day.
-
-Possible use cases for a Ranke Archive include:
+Four use cases make the idea concrete; between them they name the properties the system must provide:
 
 + *Institutional Record.* An immutable, manipulation-resistant, provably timestamped record of who did what and when — approvals, audits, sign-offs, and operational decisions — anchored so it stands up to an outside auditor or a court.
 + *Software Provenance.* One store binding a project's otherwise-scattered outputs — build-time repository snapshots, release artifacts, test results, code reviews, security scans, and CVE triage — into one structured whole. While git's branches and tags can be rewritten or deleted, a Ranke Archive keeps a snapshot bound to its artifacts and results.
@@ -71,16 +66,22 @@ Possible use cases for a Ranke Archive include:
 
 Across all four, the archive carries more than its records: a semantic layer of entities and relations — CVEs, contributors, customers, repositories, test runs — sits over them, turning the archive into a queryable knowledge graph that answers cross-entity questions such as _which releases came from this repository?_ or _which reviews did this engineer sign off?_ The cases share one shape across domains and scales, the personal archive being the same machinery at personal scale.
 
+== Data Longevity <sec:longevity> 
+
+Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle 
+and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face 
+and for which they developed strategies. 
+
 #imageonside(
   [
-    Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardization — CSV waited thirty-three years — shows the working form long preceding the formal one, and WAV endures with no formal standard at all.
+    Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardisation — CSV waited 33 years — shows the working form long preceding the formal one, and WAV endures with no formal standard at all.
   ],
   table(
     columns: 3,
     align: (left, center, center),
     inset: (x: 0.8em, y: 0.35em),
     stroke: 0.5pt + gray,
-    table.header([*Format*], [*Introduced*], [*Standardized*]),
+    table.header([*Format*], [*Introduced*], [*Standardised*]),
     [Plain text (ASCII)], [1963], [1972],
     [CSV],                [1972], [2005],
     [WAV (audio)],        [1991], [—],
@@ -121,7 +122,7 @@ RankeDB sits one level above the ADT and one below any application: it supplies 
 
 Above the goals sits one guiding principle — _agnosticism by adapter_. Every external technology the engine touches — the storage that holds claims, the secrets that guard them, the configuration that assembles the system — is reached through a thin, exchangeable adapter, so RankeDB is bound to no product or vendor and any part can be swapped. The only fixed thing is the small contract each adapter satisfies, and composability follows from it for free, since a small uniform contract is closed under composition. The principle is real only in proportion to how _small_ that contract is: an adapter that takes a hundred thousand lines is exchangeable in name only — no one ever rewrites it — so the floor is kept trivial, and performance lives in _optional_ parts of the interface that a capable backend may implement and declare, never weighing on the minimum. Storage is the template (@sec:atomic): a few-line blob store is the entire requirement, while native bulk and batch paths are opt-in. The goals below are the concrete capabilities; this is the stance they share — G1 and G2 are it made concrete for storage, and the secret and configuration stores extend it unchanged.
 
-The design goals divide into three groups.
+Beyond the guarantees it inherits, the use cases ask three further things of the implementation, and those three are the groups of goals that follow. The data must *survive and scale*: a personal archive has to outlive the services that filled it, a backup is worth keeping only if another copy is cheap, an institutional record must be retained — or lawfully erased — on schedule, and any of them may outgrow a single machine; this asks for storage bound to no technology, composable, replicable, distributable across servers, and erasable on command (_Storage and Distribution_). The record must be *provable*: one that stands up to an auditor or a court must fix when each claim was made, let any party recheck its integrity to a chosen depth, and — where the archive's own word will not do — carry an external witness (_Content Verification and Witnessing_). And it must be *usable*: the semantic layer over every case, with the cross-entity questions it invites, earns its keep only if the archive can be queried and its reach bounded to who may see it (_Database Access_).
 
 _Storage and Distribution._
 - *G1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
@@ -142,7 +143,7 @@ _Database Access._
 - *G12 — Access control.* A caller-supplied scope is enforced for both reads and writes.
 
 
-The database knows service accounts, their access rights, persistence stacks and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G12 capability by capability — demonstration rather than proof.
+The database knows service accounts, their access rights, persistence stacks, and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G12 capability by capability — demonstration rather than proof.
 
 
 = Architecture <sec:architecture>
@@ -228,7 +229,7 @@ A storage layer is an adapter on the content-addressed contract of @sec:ranke-ar
 
 #todo[Show the in-memory or filesystem adapter inline (~a dozen lines) as the visible G2 proof; recap the serialization choices once — CBOR Deterministic, IPFS multihash, Ed25519 — pointing to the foundation paper rather than re-deriving.]
 
-What a layer should *hold* is the engine's one opinion above the bytes, in a place the ADT deliberately keeps none. The foundation stores bytes under an encoding tag and is indifferent to which; a store meant to outlive its own software cannot afford that indifference, because the format decides whether the bytes still open in thirty years. So the default is to preserve each original exactly as received and keep a *generic-format extract* beside it — the same content re-encoded into a widely-implemented, well-documented format, the kind memory institutions converge on (the Library of Congress's recommended-formats and sustainability work is the reference, @locformats). Originals carry fidelity, extracts carry longevity; an application may keep one, the other, or both, so this is a default, not a rule — mark it *[FREE / default]*.
+What a layer should *hold* is the engine's one opinion above the bytes, in a place the ADT deliberately keeps none. The foundation stores bytes under an encoding tag and is indifferent to which; a store meant to outlive its own software cannot afford that indifference, because the format decides whether the bytes still open in 30 years. So the default is to preserve each original exactly as received and keep a *generic-format extract* beside it — the same content re-encoded into a widely-implemented, well-documented format, the kind memory institutions converge on (the Library of Congress's recommended-formats and sustainability work is the reference, @locformats). Originals carry fidelity, extracts carry longevity; an application may keep one, the other, or both, so this is a default, not a rule — mark it *[FREE / default]*.
 
 #todo[Detail the default vocabulary folded in here — the `source/*` and `derivation/*` subtypes and MIME-style encodings — and note SQLite's place on the LoC recommended list. A per-adapter `max_content_len` lets a size-limited layer hold only small claims while larger blobs fall through to a layer below — the partial-layer mechanism of @sec:composition.]
 
