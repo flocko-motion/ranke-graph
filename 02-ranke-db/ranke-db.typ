@@ -102,73 +102,36 @@ adapters surface keeps them small, generic and mainttainable. A minimal blob sto
 
 == Implementation Requirements <sec:requirements-impl>
 
-
-
-RankeDB is therefore bound to no product or vendor, and any part can be swapped. The only fixed thing is the small contract each adapter satisfies, from which composability follows, since a small uniform contract is closed under composition. The principle is real only in proportion to how _small_ that contract is. An adapter that takes a hundred thousand lines is exchangeable in name only, since no one ever rewrites it, so the floor is kept trivial. Performance lives in _optional_ parts of the interface that a capable backend may implement and declare, never weighing on the minimum. Storage is the template (@sec:atomic): a few-line blob store is the entire requirement, while native bulk and batch paths are opt-in. The requirements below are the concrete capabilities, and this is the stance they share. R1 and R2 make it concrete for storage, and the secret and configuration stores extend it unchanged.
-
-Beyond the guarantees it inherits, the use cases ask three further things of the implementation, and those three are the groups of requirements that follow. The data must *survive and scale*: a personal archive has to outlive the services that filled it, a backup is worth keeping only if another copy is cheap, an institutional record must be retained — or lawfully erased — on schedule, and any of them may outgrow a single machine; this asks for storage bound to no technology, composable, replicable, distributable across servers, and erasable on command (_Storage and Distribution_). The record must be *provable*: one that stands up to an auditor or a court must fix when each claim was made, let any party recheck its integrity to a chosen depth, and — where the archive's own word will not do — carry an external witness (_Content Verification and Witnessing_). And it must be *usable*: the semantic layer over every case, with the cross-entity questions it invites, earns its keep only if the archive can be queried and its reach bounded to who may see it (_Database Access_).
+From the above observerations emerges this list of requirements:
 
 _Storage and Distribution._
-- *R1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
+- *R1 — Persistence agnosticism.* Run on a wide range of persistence backends, beholden to none.
 - *R2 — Thin adapters.* Supporting a new persistence backend is easy to implement.
-- *R3 — Composability.* Persistence composes from mixable, layered backends.
-- *R4 — Replicability.* Copying, replicating, and backing up an archive is cheap.
-- *R5 — Coordination.* Multiple servers accept writes to one archive and reconcile to a single head.
-- *R6 — Deletion.* Claims in mutable storage are deleted on a planned retention date or a requested one, purged by date with an edge left to explain the absence; add-only storage is permanent by choice.
+- *R3 — Replicability.* Copying, replicating, and backing up an archive must be simple and reliable.
+- *R4 — Composability.* Persistence backends can be composed for redundancy, performance, or added capabilities.
+- *R5 — Coordination.* Multiple servers accept writes to one archive and converge on a single authoritative state.
+- *R6 — Deletion.* When law overrides the ADT's immutability, a claim may be deleted, but only in a documented, attributed way that records who removed it, when, and why, and leaves a verifiable gap.
 
-_Content Verification and Witnessing._
-- *R7 — Trustworthy timestamps.* Each claim's self-asserted time is bounded by a server-witnessed transaction window: provable time and a definite total order, with no reassignment.
-- *R8 — Verification on add.* The validity of any contribution is automatically verified on addition, and supports key rotation, revocation, or expiration.
+_Verification and Witnessing._
+- *R7 — Trustworthy timestamps.* Each claim's time is provable and its place in the total order fixed, neither open to reassignment.
+- *R8 — Verification on add.* Every contribution is verified as it is added, so a valid archive remains valid.
 - *R9 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
-- *R10 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
+- *R10 — Key lifecycle.* Signing keys are central to an archive's authenticity, so their rotation, revocation, and expiration are verifiably enforced by the service.
+- *R11 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
 
-_Database Access._
-- *R11 — Filtered queries.* The archive is queryable through a conjunction of filters under a result limit.
-- *R12 — Access control.* A caller-supplied scope is enforced for both reads and writes.
+_Access._
+- *R12 — Filtered queries.* The archive is queryable through a conjunction of filters, with pagination and a result limit.
+- *R13 — Multi-tenancy.* Each instance manages its own system accounts, separate from the user accounts of the applications built on it.
+- *R14 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top.
 
 
-The database knows service accounts, their access rights, persistence stacks, and Ranke Archives as content; *out of scope*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet R1–R12 capability by capability: demonstration rather than proof.
+== Out of Scope <sec:out-of-scope>
 
-== Data Longevity <sec:longevity>
-
-#todo[Relocate: this format-longevity material is a detail, not part of the intro spine. Final home (a format-choice detail section near @sec:atomic, or an appendix) to be settled once the post-Requirements chapters are tamed.]
-
-Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle
-and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
-and for which they developed strategies.
-
-#imageonside(
-  [
-    Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardisation — CSV waited 33 years — shows the working form long preceding the formal one, and WAV endures with no formal standard at all.
-  ],
-  table(
-    columns: 3,
-    align: (left, center, center),
-    inset: (x: 0.8em, y: 0.35em),
-    stroke: 0.5pt + gray,
-    table.header([*Format*], [*Introduced*], [*Standardised*]),
-    [Plain text (ASCII)], [1963], [1972],
-    [CSV],                [1972], [2005],
-    [WAV (audio)],        [1991], [—],
-    [HTML],               [1991], [1995],
-    [UTF-8 text],         [1992], [1996],
-    [JPEG],               [1992], [1994],
-    [MPEG (video)],       [1993], [1993],
-    [PDF],                [1993], [2008],
-    [JSON],               [2001], [2006],
-    [Markdown],           [2004], [2014],
-  ),
-  bottomtext: [
-    Mature players read every codec ever shipped, so even video, for all its churn, stays openable decades on. Memory institutions reach the same conclusion: the Library of Congress maintains recommended-format and format-sustainability guidance favouring open, well-documented formats for long-term preservation.
-  ],
-)
-
-#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
-
+Left to the application layer are user and identity management, user access policy, consensus or truth arbitration, and further application logic.
 
 = Architecture <sec:architecture>
 
-To implement the database, we first build the Ranke Archive it serves; only then do we expose it through an API as a single service.
+The architecture is built up to meet R1–R14 capability by capability: demonstration rather than proof. To implement the database, we first build the Ranke Archive it serves; only then do we expose it through an API as a single service.
 
 == Ranke Archive <sec:ranke-archive> 
 
@@ -261,7 +224,7 @@ Cache coherence, the usual hard part of a layered store, is trivial here because
 
 #todo[Figure: vertical stack diagram (adapt drawio/layers.svg) — ground = truth at the bottom, caches above, read-through arrows falling on a miss and filling upward, write-through arrows. Two example stacks side by side, e.g. `S3 | S3-local | neo4j` and `S3 | local-FS | in-memory`.]
 
-_Discharges R3 (composability)._
+_Discharges R4 (composability)._
 
 == Replicating Storage <sec:replication>
 
@@ -269,7 +232,7 @@ Replication is not a separate mechanism; it is what a *complete* layer already i
 
 This collapses three operations usually built separately into one act. *Backup* is a complete layer kept off-site; *replication* is a complete layer in another region, filled and then live; *portable export* is a complete layer on a detachable medium — a SQLite file you copy and carry. Each is the same thing: add a layer. Redundancy is then one line of configuration rather than a subsystem, and because every layer is content-addressed, a copy verifies against the original by id alone, with no trust placed in the transport that carried it.
 
-_Discharges R4 (replicability)._
+_Discharges R3 (replicability)._
 
 == Coordinating Storage <sec:coordinate>
 
@@ -325,13 +288,15 @@ _Discharges R7._
 
 The build closes the trust story: contributions are checked as they are written, the whole archive is checkable on demand, and an external witness anchors it in time.
 
-_Verification on add (R8)._ Every contribution is checked as it is written — its signature and id chain verified against its contributor's key before the merge commits. Key lifecycle rides the same check, and it is expressed entirely in claims, needing no addition to the foundation's schema. A key carries a `validUntil` beside its pubkey — a scheduled expiry after which the engine refuses new claims signed by it. Early revocation is the on-demand counterpart: a newer contributor _revision_ claim names the keys it retires with `expiry` edges (one revision can retire many at once), and may instead, or also, `supersede` a predecessor to continue the identity under a fresh key. A key's effective end is the earliest of its `validUntil` and any `expiry` edge pointing at it; validity is judged at the claim's witnessed time (@sec:timestamp), forward-only — everything signed while the key was live stays valid, and the contributor claim is kept forever as the verification anchor. A revision is admitted only when it carries a valid signature from a contributor authorized to manage contributors (@sec:authority); `expiry` and `supersede` are the engine's reserved reading over the foundation's open edge mechanism, not new schema. Because it is all claims, a server follows the `supersede` chain to the current revision on its own, advancing which identity it signs as without manual intervention, and the full key history is auditable and verifiable offline. The application sets policy (who may retire whom); the engine enforces. _Discharges R8._
+_Verification on add (R8)._ Every contribution is checked as it is written — its signature and id chain verified against its contributor's key before the merge commits. Key lifecycle rides the same check, and it is expressed entirely in claims, needing no addition to the foundation's schema. A key carries a `validUntil` beside its pubkey — a scheduled expiry after which the engine refuses new claims signed by it. Early revocation is the on-demand counterpart: a newer contributor _revision_ claim names the keys it retires with `expiry` edges (one revision can retire many at once), and may instead, or also, `supersede` a predecessor to continue the identity under a fresh key. A key's effective end is the earliest of its `validUntil` and any `expiry` edge pointing at it; validity is judged at the claim's witnessed time (@sec:timestamp), forward-only — everything signed while the key was live stays valid, and the contributor claim is kept forever as the verification anchor. A revision is admitted only when it carries a valid signature from a contributor authorized to manage contributors (@sec:authority); `expiry` and `supersede` are the engine's reserved reading over the foundation's open edge mechanism, not new schema. Because it is all claims, a server follows the `supersede` chain to the current revision on its own, advancing which identity it signs as without manual intervention, and the full key history is auditable and verifiable offline. The application sets policy (who may retire whom); the engine enforces. _Discharges R8 and R10._
+
+#todo[This passage now answers two requirements — R8 (a contribution is verified on add) and R10 (key lifecycle: rotation, revocation, expiration). Split the key-lifecycle half into its own subsection discharging R10 when this chapter is tamed.]
 
 #todo[Open detail: the precise authorization rule — which signatures may create, `supersede`, or `expire` a contributor, and how it chains to the create-contributor right (@sec:authority). To be specified with the contributor-rights model.]
 
 _Verification on demand (R9)._ Integrity is checkable at any time, at a depth the caller chooses, as a generic server operation that needs no per-backend work: read through the closure of a head and recompute as much of it as asked. Three depths answer three questions. *Completeness* asks only whether every referenced claim and content blob is present — a `has` sweep, the cheapest. *Record correctness* re-canonicalises each claim, recomputes its id chain, and checks the signatures, proving the records authentic and unmodified. *Full content* additionally re-hashes every blob, proving the bytes intact down to the last byte of the largest file. Cost rises with depth and with how much of the closure the caller scopes in, and because the check reads through the stack it warms the upper layers as it goes — verification doubles as cache priming. _Discharges R9._
 
-_External witnessing (R10)._ Verification proves the archive internally consistent; witnessing anchors it to the outside world. Publishing a head's hash to an external time-stamp authority (RFC 3161) records that the head — and, because the head commits to its whole closure, every claim beneath it — existed at that moment; two such anchors bracket everything between them in real time, regardless of any self-asserted `created_at`. The engine already keeps an internal transparency log for free — the chain of signed merges (@sec:timestamp) — so external witnessing is the independent, third-party overlay upon it. The reference implementation exposes it through a plugin interface: it ships one authority binding and leaves the rest to the deployment. _Discharges R10._
+_External witnessing (R11)._ Verification proves the archive internally consistent; witnessing anchors it to the outside world. Publishing a head's hash to an external time-stamp authority (RFC 3161) records that the head — and, because the head commits to its whole closure, every claim beneath it — existed at that moment; two such anchors bracket everything between them in real time, regardless of any self-asserted `created_at`. The engine already keeps an internal transparency log for free — the chain of signed merges (@sec:timestamp) — so external witnessing is the independent, third-party overlay upon it. The reference implementation exposes it through a plugin interface: it ships one authority binding and leaves the rest to the deployment. _Discharges R11._
 
 == Filtered Queries <sec:query>
 
@@ -345,13 +310,13 @@ Because filters are data, a result is checkable even for a query the reference c
 
 Membership is the robust guarantee, surviving any superset; ordering is fragile, since a backend that imposes its own ranking selects a different first-$N$ than the fundamental order. The contract follows the honest line: limit and ordering are fully verifiable for a pure-fundamental query; once a superset ordering is in play, verification drops to set membership and cardinality, not which $N$ survived the limit.
 
-_Discharges R11._
+_Discharges R12._
 
 == Access <sec:access>
 
 What remains is to bound who may read and write — and to keep that bound separate from who *authored* what.
 
-*Access control (R12).* A *scope* supplied by the application and enforced by the server bounds every read and write: a base posture — `allow-all` or `deny-all` — followed by an ordered list of wildcard exceptions over field and edge names and types. The scope is bound to the authenticated account, not chosen per request, and there is no path to widen it from inside a request; an application builds whatever role model it needs by issuing accounts with different scopes. Reads honour the scope without breaking verifiability: an out-of-scope reference is returned as a hash-only stub rather than dropped, so the visible subgraph still Merkle-verifies — the same shape as the foundation's pruned views — while the withheld content stays undisclosed. _Discharges R12._
+*Access control (R14).* A *scope* supplied by the application and enforced by the server bounds every read and write: a base posture — `allow-all` or `deny-all` — followed by an ordered list of wildcard exceptions over field and edge names and types. The scope is bound to the authenticated account, not chosen per request, and there is no path to widen it from inside a request; an application builds whatever role model it needs by issuing accounts with different scopes. Reads honour the scope without breaking verifiability: an out-of-scope reference is returned as a hash-only stub rather than dropped, so the visible subgraph still Merkle-verifies — the same shape as the foundation's pruned views — while the withheld content stays undisclosed. _Discharges R14._
 
 Authentication is the other half, and deliberately not the same half. A connecting service authenticates with a shared secret — a token or JWT — for *access*; signing *claims* stays with the application, which holds the contributor keys, and the engine only verifies those signatures at write. Two roles kept apart: the access credential says which scope a caller may exercise, the contributor key says whose claim this is — and the server's own signing identity (@sec:sequencer), which attests commits rather than content, is a third, distinct again.
 
@@ -402,6 +367,43 @@ A write is wrapped in a transaction whose token is a *stateless* credential — 
 #todo[The managed-building-block deployment: managed Postgres as the control plane, object storage as the durable ground, a KMS or Vault as the secret-store adapter, an optional managed graph database as a Cypher-capable layer. The distributed central-protection shape: central Sequencer and keyholder network-isolated, user-facing replicas in front. The operational shell — container images, compose files for single-node, orchestration manifests for a fleet, run scripts — and how a stack's composition (@sec:composition) maps onto it.]
 
 
+= Data Longevity <sec:longevity>
+
+#todo[Reframe as user-facing guidance: a recommendation on _how to use_ the system (favour durable, open formats), not an engine property. Consider retitling (e.g. "Choosing Durable Formats"). Tie the SQLite note back to the storage adapters at @sec:atomic.]
+
+Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle
+and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
+and for which they developed strategies.
+
+#imageonside(
+  [
+    Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardisation — CSV waited 33 years — shows the working form long preceding the formal one, and WAV's base format endures with no formal standard of its own.
+  ],
+  table(
+    columns: 3,
+    align: (left, center, center),
+    inset: (x: 0.8em, y: 0.35em),
+    stroke: 0.5pt + gray,
+    table.header([*Format*], [*Introduced*], [*Standardised*]),
+    [Plain text (ASCII)], [1963], [1972],
+    [CSV],                [1972], [2005],
+    [WAV (audio)],        [1991], [—],
+    [HTML],               [1991], [1995],
+    [UTF-8 text],         [1992], [1996],
+    [JPEG],               [1992], [1994],
+    [MPEG (video)],       [1993], [1993],
+    [PDF],                [1993], [2008],
+    [JSON],               [2001], [2006],
+    [Markdown],           [2004], [2014],
+  ),
+  bottomtext: [
+    Mature players read every codec ever shipped, so even video, for all its churn, stays openable decades on. Memory institutions reach the same conclusion: the Library of Congress maintains recommended-format and format-sustainability guidance favouring open, well-documented formats for long-term preservation.
+  ],
+)
+
+#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
+
+
 = Conformance <sec:conformance>
 
 #todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: an adapter satisfies the content-addressed contract (@sec:atomic) and declares its capability and `max_content_len`; give the adapter test battery. ADT-level conformance (serialization determinism, id chains, closure/scope/prune semantics) is inherited from the foundation paper's binary conformance suite.]
@@ -412,6 +414,6 @@ A write is wrapped in a transaction whose token is a *stateless* credential — 
 
 = Conclusion <sec:conclusion>
 
-#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a requirement, through R12. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
+#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a requirement, through R14. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
