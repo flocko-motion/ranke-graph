@@ -67,8 +67,10 @@ watch-05:
 watch-06:
 	$(TYPST) watch --root . 06-ranke-cryptography/ranke-cryptography.typ $(PDF_DIR)/06-ranke-cryptography.pdf
 
+# Remove the built PDFs but keep the directory itself, so an open viewer or
+# file watch holding its inode survives a clean.
 clean:
-	rm -rf $(PDF_DIR)
+	rm -f $(PDF_DIR)/*.pdf
 
 # Pre-release gate: every paper must compile. Extend with more checks later
 # (linting, link-checking, …); release depends on this passing.

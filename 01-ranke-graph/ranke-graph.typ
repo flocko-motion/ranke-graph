@@ -21,7 +21,11 @@
   author:   "Florian Metzger-Noel",
   date:     "2026-05-03",
   status:   "scaffold",
-  abstract: todo[One paragraph: a small data structure from which a list of properties — provenance, immutability, verifiable history, auth-scoped visibility, distributability, open-ended vocabulary — emerges as consequence rather than as feature. Close with: reference implementations in Go and Python accompany the paper, with a binary conformance suite. To be written after the body settles.],
+  abstract: [Whenever a database updates a record, a knowledge base resolves its sources into one accepted version, or a model folds a corpus into its weights, the effect is the same: statements from various times and origins are consolidated into a single current truth. The provenance, the history of each datum as it is added or merged, is discarded or set aside as 'metadata', and the earlier values are often lost to the reader as well.
+Drawing on the archival tradition, the *Ranke-Graph* takes the opposite stance: what consolidation discards, data and provenance alike, was itself knowledge, and it preserves both, the data unaltered and its provenance a first-class part of the record.
+The Ranke-Graph is a Merkle DAG of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
+This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as identity. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
+The structural form is old, refined over centuries of archival practice; what is new is its realisation in the digital substrate, where systems consolidate by default and provenance is the first thing dropped. Reference implementations in Go and Python accompany the paper, with a binary conformance suite that makes conformance decidable.],
 )
 
 = Introduction <sec:introduction>
@@ -240,11 +244,9 @@ The branch table's history is itself a chain of `contribution/branches` claims, 
 
 == Ranke-Archive <sec:archive>
 
-A *Ranke-Archive* is the tuple $(cal(U), B_h)$, where $B_h$ is the mutable marker pointing at the latest branch table. From this, all branches, their history and all their graphs can be derived. Multiple archives can share $cal(U)$; each with its own $B_h$.
+A *Ranke-Archive* is the Ranke-Graph whose head is a branch-table claim, with the previous branch tables in its provenance. It can be expressed by the tuple $(cal(U), B_h)$, where $B_h$ is the mutable marker pointing at that claim. From it all branches, their history, and all their graphs derive. Multiple archives can share $cal(U)$; each with its own $B_h$.
 
 A new archive is created by writing the initial node and an empty `contribution/branches` claim referenced as $B_h$.
-
-Ranke puts the universe into an archive.
 
 = Discharging the Desiderata <sec:emerges>
 
