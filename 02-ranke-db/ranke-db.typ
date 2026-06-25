@@ -69,11 +69,58 @@ Four use cases make the idea concrete; between them they name the properties the
 
 All four point at one quality: a Ranke Archive stores data as history. Every entry carries its provenance and its author, perhaps predecessors, and may reference others. Where a conventional database holds the state of a single application, a Ranke Archive tries to hold the history and interrelation of data across many.
 
-== Data Longevity <sec:longevity> 
+== Inherited Guarantees <sec:inherited>
 
-Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle 
-and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face 
-and for which they developed strategies. 
+The use cases demand familiar properties — faithful records, verifiable history, clear attribution, openness. The foundation paper already proves these for any Ranke-Graph, as its desiderata D1–D9; RankeDB inherits them by implementing the ADT faithfully:
+
+- *D1 — Provenance.* Every claim references what it builds on and has a path back to its sources.
+- *D2 — Immutability.* Claims are append-only; each persists unchanged.
+- *D3 — Identity and authenticity.* Every claim has a named author whose authorship is verifiable.
+- *D4 — Temporality.* Every claim's time of existence is provably bounded.
+- *D5 — Verifiability.* Integrity is independently verifiable.
+- *D6 — Semantic relations.* Relations between entities can be expressed.
+- *D7 — Open vocabulary.* Applications define their own categories and content schemas.
+- *D8 — Partial views.* A view can expose a chosen subset of claims.
+- *D9 — Distributability.* The structure supports distributed use.
+
+These are given. What remains for the implementation — the design goals this paper is accountable for, and the architecture that meets them — follows.
+
+== Design Goals <sec:goals>
+
+RankeDB sits one level above the ADT and one below any application: it supplies simple, enforceable building blocks, and the application decides whether and why to use them.
+
+Above the goals sits one guiding principle, _agnosticism by adapter_. Every external technology the engine touches, whether the storage that holds claims, the secrets that guard them, or the configuration that assembles the system, is reached through a thin, exchangeable adapter. RankeDB is therefore bound to no product or vendor, and any part can be swapped. The only fixed thing is the small contract each adapter satisfies, from which composability follows, since a small uniform contract is closed under composition. The principle is real only in proportion to how _small_ that contract is. An adapter that takes a hundred thousand lines is exchangeable in name only, since no one ever rewrites it, so the floor is kept trivial. Performance lives in _optional_ parts of the interface that a capable backend may implement and declare, never weighing on the minimum. Storage is the template (@sec:atomic): a few-line blob store is the entire requirement, while native bulk and batch paths are opt-in. The goals below are the concrete capabilities, and this is the stance they share. G1 and G2 make it concrete for storage, and the secret and configuration stores extend it unchanged.
+
+Beyond the guarantees it inherits, the use cases ask three further things of the implementation, and those three are the groups of goals that follow. The data must *survive and scale*: a personal archive has to outlive the services that filled it, a backup is worth keeping only if another copy is cheap, an institutional record must be retained — or lawfully erased — on schedule, and any of them may outgrow a single machine; this asks for storage bound to no technology, composable, replicable, distributable across servers, and erasable on command (_Storage and Distribution_). The record must be *provable*: one that stands up to an auditor or a court must fix when each claim was made, let any party recheck its integrity to a chosen depth, and — where the archive's own word will not do — carry an external witness (_Content Verification and Witnessing_). And it must be *usable*: the semantic layer over every case, with the cross-entity questions it invites, earns its keep only if the archive can be queried and its reach bounded to who may see it (_Database Access_).
+
+_Storage and Distribution._
+- *G1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
+- *G2 — Thin adapters.* Supporting a new persistence backend is easy to implement.
+- *G3 — Composability.* Persistence composes from mixable, layered backends.
+- *G4 — Replicability.* Copying, replicating, and backing up an archive is cheap.
+- *G5 — Coordination.* Multiple servers accept writes to one archive and reconcile to a single head.
+- *G6 — Deletion.* Claims in mutable storage are deleted on a planned retention date or a requested one, purged by date with an edge left to explain the absence; add-only storage is permanent by choice.
+
+_Content Verification and Witnessing._
+- *G7 — Trustworthy timestamps.* Each claim's self-asserted time is bounded by a server-witnessed transaction window: provable time and a definite total order, with no reassignment.
+- *G8 — Verification on add.* The validity of any contribution is automatically verified on addition, and supports key rotation, revocation, or expiration.
+- *G9 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
+- *G10 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
+
+_Database Access._
+- *G11 — Filtered queries.* The archive is queryable through a conjunction of filters under a result limit.
+- *G12 — Access control.* A caller-supplied scope is enforced for both reads and writes.
+
+
+The database knows service accounts, their access rights, persistence stacks, and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G12 capability by capability: demonstration rather than proof.
+
+== Data Longevity <sec:longevity>
+
+#todo[Relocate: this format-longevity material is a detail, not part of the intro spine. Final home (a format-choice detail section near @sec:atomic, or an appendix) to be settled once the post-Goals chapters are tamed.]
+
+Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle
+and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
+and for which they developed strategies.
 
 #imageonside(
   [
@@ -102,51 +149,6 @@ and for which they developed strategies.
 )
 
 #todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
-
-=== Inherited Guarantees <sec:inherited>
-
-The use cases demand familiar properties — faithful records, verifiable history, clear attribution, openness. The foundation paper already proves these for any Ranke-Graph, as its desiderata D1–D9; RankeDB inherits them by implementing the ADT faithfully:
-
-- *D1 — Provenance.* Every claim references what it builds on and has a path back to its sources.
-- *D2 — Immutability.* Claims are append-only; each persists unchanged.
-- *D3 — Identity and authenticity.* Every claim has a named author whose authorship is verifiable.
-- *D4 — Temporality.* Every claim's time of existence is provably bounded.
-- *D5 — Verifiability.* Integrity is independently verifiable.
-- *D6 — Semantic relations.* Relations between entities can be expressed.
-- *D7 — Open vocabulary.* Applications define their own categories and content schemas.
-- *D8 — Partial views.* A view can expose a chosen subset of claims.
-- *D9 — Distributability.* The structure supports distributed use.
-
-These are given. What remains for the implementation — the design goals this paper is accountable for, and the architecture that meets them — follows.
-
-=== Design Goals <sec:goals>
-
-RankeDB sits one level above the ADT and one below any application: it supplies simple, enforceable building blocks, and the application decides whether and why to use them.
-
-Above the goals sits one guiding principle, _agnosticism by adapter_. Every external technology the engine touches, whether the storage that holds claims, the secrets that guard them, or the configuration that assembles the system, is reached through a thin, exchangeable adapter. RankeDB is therefore bound to no product or vendor, and any part can be swapped. The only fixed thing is the small contract each adapter satisfies, from which composability follows, since a small uniform contract is closed under composition. The principle is real only in proportion to how _small_ that contract is. An adapter that takes a hundred thousand lines is exchangeable in name only, since no one ever rewrites it, so the floor is kept trivial. Performance lives in _optional_ parts of the interface that a capable backend may implement and declare, never weighing on the minimum. Storage is the template (@sec:atomic): a few-line blob store is the entire requirement, while native bulk and batch paths are opt-in. The goals below are the concrete capabilities, and this is the stance they share. G1 and G2 make it concrete for storage, and the secret and configuration stores extend it unchanged.
-
-Beyond the guarantees it inherits, the use cases ask three further things of the implementation, and those three are the groups of goals that follow. The data must *survive and scale*: a personal archive has to outlive the services that filled it, a backup is worth keeping only if another copy is cheap, an institutional record must be retained — or lawfully erased — on schedule, and any of them may outgrow a single machine; this asks for storage bound to no technology, composable, replicable, distributable across servers, and erasable on command (_Storage and Distribution_). The record must be *provable*: one that stands up to an auditor or a court must fix when each claim was made, let any party recheck its integrity to a chosen depth, and — where the archive's own word will not do — carry an external witness (_Content Verification and Witnessing_). And it must be *usable*: the semantic layer over every case, with the cross-entity questions it invites, earns its keep only if the archive can be queried and its reach bounded to who may see it (_Database Access_).
-
-_Storage and Distribution._
-- *G1 — Storage agnosticism.* Run on a wide range of storage backends, beholden to none.
-- *G2 — Thin adapters.* Supporting a new persistence backend is easy to implement.
-- *G3 — Composability.* Persistence composes from mixable, layered backends.
-- *G4 — Replicability.* Copying, replicating, and backing up an archive is cheap.
-- *G5 — Coordination.* Multiple servers accept writes to one archive and reconcile to a single head.
-- *G6 — Deletion.* Claims in mutable storage are deleted on a planned retention date or a requested one, purged by date with an edge left to explain the absence; add-only storage is permanent by choice.
-
-_Content Verification and Witnessing._
-- *G7 — Trustworthy timestamps.* Each claim's self-asserted time is bounded by a server-witnessed transaction window: provable time and a definite total order, with no reassignment.
-- *G8 — Verification on add.* The validity of any contribution is automatically verified on addition, and supports key rotation, revocation, or expiration.
-- *G9 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
-- *G10 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
-
-_Database Access._
-- *G11 — Filtered queries.* The archive is queryable through a conjunction of filters under a result limit.
-- *G12 — Access control.* A caller-supplied scope is enforced for both reads and writes.
-
-
-The database knows service accounts, their access rights, persistence stacks, and Ranke Archives as content; *non-goals*, left to the application layer, are user and identity management, user access policy, consensus or truth arbitration, and further application logic. The architecture (@sec:architecture) is built up to meet G1–G12 capability by capability: demonstration rather than proof.
 
 
 = Architecture <sec:architecture>

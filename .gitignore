@@ -1,2 +1,7 @@
 /pdf
 .DS_Store
+.todos/
+
+# sindri hub artifacts (agent worktrees + hub state) — not for the repo
+.sindri/
+.worktrees/
