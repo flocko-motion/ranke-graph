@@ -1,4 +1,5 @@
 #import "../shared/template.typ": *
+#import "@preview/wrap-it:0.1.1": wrap-content
 
 // ─────────────────────────────────────────────────────────────────────
 // Language conventions (not rendered)
@@ -133,22 +134,47 @@ _Access._
 
 Left to the application layer are user and identity management, user access policy, consensus or truth arbitration, and further application logic.
 
-= Architecture <sec:architecture>
+= Adapters and Contracts <sec:contracts>
 
-The architecture is built up to meet R1–R14 capability by capability: demonstration rather than proof. To implement the database, we first build the Ranke Archive it serves; only then do we expose it through an API as a single service.
+RankeDB rests on a small number of contracts, each kept narrow enough that the technology behind it stays replaceable. This chapter fixes the three the rest of the paper builds on. The atom is the *claim*: a Ranke-Graph is a graph of claims (foundation paper §Claims), so the engine's lowest obligation is to hold one and return it intact. A claim needs somewhere to live — a *blob store*, a content-addressed store of immutable bytes — and a typed view over that store — a *Universe* — that reads and writes claims as records rather than as bytes. The three together are the whole persistence contract. They are not special: every external technology RankeDB depends on enters through an adapter of the same slim shape, and the diagram that follows shows the engine as exactly that — a small core behind a handful of replaceable contracts.
 
-== Ranke Archive <sec:ranke-archive> 
+The shape is hexagonal: a small core bounded on every side by ports, each a contract narrow enough that the technology behind it stays replaceable. A port earns its existence only under genuine *variation pressure* — diverse external things the engine must integrate with. Storage has it: data already lives in object stores, databases, plain directories. Endpoints have it: applications, agents, and operators reach the system through different protocols. Where there is no such variation there is no adapter — configuration, authored rather than integrated, is a file, not a port (@sec:configuration).
 
+Two kinds of port face opposite ways. *Driven* ports are the ones the core calls out to — storage, the sequencer's durable state, an optional secret store; the engine drives them. *Driving* ports call into the core — endpoints: a transport and an authenticator through which a client speaks (@sec:endpoints). The contracts that follow immediately (@sec:claim, @sec:blob, @sec:universe) are the driven, persistence-facing ports; the driving, client-facing ones come later in the chapter.
 
-A Ranke Archive consists of claims; each claim is persisted in content-addressed storage, and the content bytes it carries are stored content-addressed too. The fundamental building block of the system is therefore the storage of a single claim.
+The core itself divides along a second line: *mechanism* versus *policy*. The graph engine — the foundation paper's reference library — expresses a graph and nothing more: claims, the operations over them, and the scope-and-prune mechanism that yields a partial view from an indicator σ (foundation paper §Scoping, §Pruning). It is blind to *who* asks and *which* graph they may see. RankeDB is the server that wraps it: it binds service accounts to scopes, authenticates callers, and assembles the whole from configuration — the policy the engine deliberately holds none of. The engine supplies the mechanism; the server decides who gets which σ (@sec:engine-server).
 
-A *claim* is an attributed record — a node bearing a type, an encoding, a creation time, the hash of its content, and a set of edges to the claims it was derived from — addressed by its id, $op("id")(v) = "Sign"(H(S(v)))$: a signature over the hash of its canonical serialization, so the id fixes both the record and its author (foundation paper §Primitives). Its content bytes are held separately, addressed by their own hash and size.
+#[
+  #show figure: it => grid(
+    columns: (2fr, 1fr),
+    column-gutter: 1.2em,
+    align(center + horizon, it.body),
+    align(left + horizon, text(size: 0.92em, it.caption)),
+  )
+  #figure(
+    image("drawio/architecture.drawio.png", width: 100%),
+    caption: [RankeDB as a hexagonal core wrapping the ranke-graph library: six independent adapter ports, each shown with the backends the reference implementation ships, and configuration entering as the launch artifact rather than a port.],
+  ) <fig:adapters>
+]
+
+== The Claim <sec:claim>
+
+A *claim* is the atom of the Ranke-Graph: a node — a type, an encoding, a creation time, and the hash of its content — together with the edges to the claims it derives from, addressed by its identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization that fixes both the record and its author (foundation paper §Primitives). The content bytes are held apart, addressed by their own hash and size.
+
+The foundation paper fixes those core fields and leaves room beside them: a node may carry _additional implementation-defined fields_, and because they participate in the serialization $S$ like any other field, the hash and signature cover them with no special handling (foundation paper §Nodes). RankeDB uses that room for two fields the engine needs, each read only by the claims that carry it:
+
+- `validUntil` — on a *contributor* claim, beside its public key: the moment after which the engine accepts no further claims signed by that key (key lifecycle, @sec:verify).
+- `deleteBy` — on a claim born with a retention limit: the date past which its content may lawfully be erased (@sec:deletion).
+
+Both are *[FREE]* extensions — the ADT neither requires nor forbids them, and a graph that omits them is still a Ranke-Graph — yet because each sits in the signed content, a claim's own signature attests its retention limit and a key's own claim attests its expiry; neither can be altered after the fact.
+
+Operationally a claim exposes its identity, its node, its edges, and its contributor, and it encodes itself — `encode()` yields the exact bytes the store persists under `id()`, the bridge from claim to persistence:
 
 ```
 Claim — a node with its edges; immutable, content-addressed
 
   id()                     → Id:string             its content address
-  node()                   → Node                  its own data: type, encoding, created-at, content hash + size, pubkey
+  node()                   → Node                  type, encoding, created-at, content hash + size, pubkey, extensions
   edges(filters: Filter[]) → Edge[]                references to the claims it derives from — its provenance
   contributor()            → Contributor:Claim     the claim that attributes and signs it
   encode()                 → SerializedClaim:bytes canonical serialization — the bytes the store persists by id
@@ -157,7 +183,9 @@ Claim — a node with its edges; immutable, content-addressed
 
 The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges — its full provenance, back to the initial nodes (foundation paper §Closures). A claim carries meaning only with its closure: a single id recovers a whole closure, and a complete, mergeable state is always one.
 
-All claims — and the content they carry — live in one content-addressed store. Storing them reduces to a single thing: a *blob store* — three operations over immutable, keyed bytes.
+== The Blob Store <sec:blob>
+
+A claim, and the content it carries, live in one content-addressed store. Storing them reduces to a single thing: a *blob store* — three operations over immutable, keyed bytes.
 
 ```
 Blob store — content-addressed; immutable
@@ -167,11 +195,13 @@ Blob store — content-addressed; immutable
   has(key: Id)            → bool        presence; drives delta sync
 ```
 
-Each is keyed by its content address — a claim by its id, the content it carries by its hash — and the store interprets neither; to it both are opaque bytes under a key. Because keys are content addresses, any number of closures share one store without coordination: identical claims collapse to a single key, and a claim present for one closure is present for all.
+Each entry is keyed by its content address — a claim by its id, the content it carries by its hash — and the store interprets neither; to it both are opaque bytes under a key. Because keys are content addresses, a stored value cannot be stale: the key *is* the hash of the bytes, and bytes that did not produce it were never that claim. Any number of closures therefore share one store without coordination — identical claims collapse to a single key, and a claim present for one closure is present for all. Deduplication and sharing fall out of the addressing, not from any feature of the store.
 
-This is the entire theoretical contract, and the whole of what a backend must provide; the in-memory adapter that implements exactly these three operations (plus lifecycle) is 37 lines. Everything above them is convenience and performance optimization for bulk operations. The reference library exposes this store as a typed `Universe` that decodes serialized claims into records (`getClaims`), batches reads and writes in bulk, streams large content lazily with its size, and copies and merges store-to-store — crucial to a working engine, none of it enlarging the contract. `NewBlobUniverse` lifts any blob store into a full `Universe` for free, and a backend reimplements one of those operations only when a native bulk path (S3 batch, SQL bulk) runs faster.
+This is the entire contract a backend must provide; the in-memory adapter that implements exactly these three operations (plus lifecycle) is 37 lines. Everything above them is convenience and performance.
 
-The lift is mechanical — the content operations *are* the blob primitives, the claim operations wrap them with decode and encode:
+== The Universe <sec:universe>
+
+The reference library exposes a blob store as a typed *Universe* that reads and writes claims and content as records, decoding and encoding at the boundary, and adds the bulk reads and writes, lazy streaming of large content, and store-to-store copy and merge a working engine needs — none of it enlarging the contract. The lift is mechanical: the content operations *are* the blob primitives, the claim operations wrap them with decode and encode.
 
 ```
 Universe over a Blob store — the default lift (NewBlobUniverse)
@@ -185,7 +215,9 @@ Universe over a Blob store — the default lift (NewBlobUniverse)
   hasContent(hash: Id)              → bool     has(hash)
 ```
 
-The shipped interface takes these in bulk — `getClaims`, `putClaims`, … — so a backend can use a native batch path: throughput, not a larger contract.
+`NewBlobUniverse` lifts any blob store into a full `Universe` this way for free; a backend reimplements one of these operations only when a native bulk or batch path (S3, SQL) runs faster. The shipped interface takes claims and content in bulk — `getClaims`, `putClaims`, … — so throughput comes from the adapter, never from a larger contract.
+
+== Ranke Archive <sec:ranke-archive>
 
 A *branch table* is the archive's index of named lines: each entry binds a name to a head, and a head is a whole Ranke-Graph — its closure, with all the provenance behind it. One entry names one entire graph. The table is itself a claim, so its revisions form a history the way claims do — each new table references the one it replaced — carrying its version history as its own provenance, never a side log. The foundation paper fixes that format (a `contribution/branches` claim with `contribution/branch` edges to each named head) and the archive $(cal(U), B_h)$ that wraps it (foundation paper §Branches, §Ranke-Archive). We don't restate it; we build it.
 
@@ -212,7 +244,7 @@ A Ranke Archive composes the two — `Archive(universe: Universe, head: BranchTa
 
 == Storage Layer <sec:atomic>
 
-A storage layer is an adapter on the content-addressed contract of @sec:ranke-archive — those few operations, nothing more — and that smallness is what makes the engine beholden to no technology. The minimal adapter is a few dozen lines: the in-memory backend is a `map` behind `get`, `put`, and `has`. So a new backend is a weekend's work, anything that stores bytes under a key qualifies — a `map`, a directory, a SQL table, an S3 bucket — and the reference library ships a range of them already, which turns "runs on anything" from a claim into a file listing. Performance is opt-in: a backend may implement the bulk and native paths of @sec:ranke-archive and declare the capability, while the floor stays the same few calls. _Discharges R1 and R2._
+A storage layer is an adapter on the content-addressed contract of @sec:blob — those few operations, nothing more — and that smallness is what makes the engine beholden to no technology. The minimal adapter is a few dozen lines: the in-memory backend is a `map` behind `get`, `put`, and `has`. So a new backend is a weekend's work, anything that stores bytes under a key qualifies — a `map`, a directory, a SQL table, an S3 bucket — and the reference library ships a range of them already, which turns "runs on anything" from a claim into a file listing. Performance is opt-in: a backend may implement the bulk and native paths of @sec:universe and declare the capability, while the floor stays the same few calls. _Discharges R1 and R2._
 
 #todo[Show the in-memory or filesystem adapter inline (~a dozen lines) as the visible R2 proof; recap the serialization choices once — CBOR Deterministic, IPFS multihash, Ed25519 — pointing to the foundation paper rather than re-deriving.]
 
@@ -250,7 +282,7 @@ _Discharges R5._
 
 Layers need not be whole, and the ground need not be single. A layer may be *partial*: it declares a `max_content_len`, and a write larger than that falls through to the layer below — so a Cypher/GQL store can hold the small claims it indexes well while large blobs live beneath it. The stack loses nothing as long as one layer accepts content of any size; that *complete-ground* rule is the single invariant a stack must satisfy.
 
-The ground that satisfies it may itself be *composite* — several backends behind a routing layer, complete as a system though no single backend is. That is the seam through which geographic distribution and read-scaling enter: a router over regional object stores, each partial, complete in aggregate. And it generalises, because a stack is itself a `Universe` (@sec:ranke-archive) — composition is closure under the interface, so a layer may be another stack, a partition that routes by a claim property (the erasability split of @sec:deletion is one), or a remote archive reached through a `rest` adapter, nesting without limit. The reference implementation keeps a single ground and notes the rest as the room the contract leaves.
+The ground that satisfies it may itself be *composite* — several backends behind a routing layer, complete as a system though no single backend is. That is the seam through which geographic distribution and read-scaling enter: a router over regional object stores, each partial, complete in aggregate. And it generalises, because a stack is itself a `Universe` (@sec:universe) — composition is closure under the interface, so a layer may be another stack, a partition that routes by a claim property (the erasability split of @sec:deletion is one), or a remote archive reached through a `rest` adapter, nesting without limit. The reference implementation keeps a single ground and notes the rest as the room the contract leaves.
 
 #todo[Figure or worked example: a composite ground — `(S3-EU | S3-US) -> router` — beneath a `neo4j` index layer, illustrating partial layers and the complete-ground rule.]
 
@@ -324,6 +356,34 @@ What remains is to bound who may read and write — and to keep that bound separ
 
 Authentication is the other half, and deliberately not the same half. A connecting service authenticates with a shared secret — a token or JWT — for *access*; signing *claims* stays with the application, which holds the contributor keys, and the engine only verifies those signatures at write. Two roles kept apart: the access credential says which scope a caller may exercise, the contributor key says whose claim this is — and the server's own signing identity (@sec:sequencer), which attests commits rather than content, is a third, distinct again.
 
+#todo[Draft capture — this section and the three that follow record the serving-and-deployment redesign: hexagonal core, the engine/server split, endpoints, configuration as launch artifact, the single-binary process model. It supersedes most of the *Infrastructure* chapter below: the orchestrator, control-plane, and topology material collapses into @sec:deployment, and @sec:config / @sec:secrets / @sec:rotation / @sec:authority / @sec:keyholder / @sec:tokens fold into @sec:configuration. @sec:access and @sec:engine-server now overlap and must be merged. The *Sequencer* (@sec:sequencer) still needs its own reframe: the branch-table head (BTH) is the _id_ (not a hash) of the current branch-table claim — the key without which $cal(U)$ is unreadable — and the sequencer is the adapter that advances it under concurrency without losing it; how it persists that state is the implementation's choice, not the contract's. To be reconciled paragraph by paragraph.]
+
+== The Engine and the Server <sec:engine-server>
+
+RankeDB divides into two layers along the mechanism/policy line. The *engine* is the foundation paper's reference library: it expresses a graph — claims, the operations over them, and the scope-and-prune mechanism (foundation paper §Scoping) — over the driven ports of @sec:blob and @sec:universe together with the sequencer (@sec:sequencer). It is identity- and tenant-blind: it produces a view from an indicator σ but never decides which σ a caller is owed. The *server* is RankeDB proper: it makes one graph engine a reachable, access-bounded, multi-tenant service — authenticating callers, binding each service account to a scope, routing to the universe a caller may reach, and assembling the whole from configuration. Embedding the engine in-process is the limiting case: a single owner, no other principal, hence no access decision to make and no server at all (@sec:deployment).
+
+This is why access control is the server's and never an endpoint's: were it bound to a protocol, every new endpoint would be a fresh way around it. Authentication — credential to identity — varies by door and belongs to the endpoint (@sec:endpoints); authorisation — identity to scope, enforced on every read and write — is uniform beneath all doors and belongs to the engine. The scopes themselves are service-account configuration, provisioned once and effectively static; the fast-changing, per-end-user access an application needs is built on top, and stays out of scope (@sec:access).
+
+== Endpoints <sec:endpoints>
+
+An *endpoint* is a driving port: a client calls in through it. It is two adapters composed — a *transport* (the wire protocol) and an *authenticator* (credential to identity) — written *transport ⊕ authenticator* and chosen per endpoint: REST with a JWT, MCP with a macaroon, a local socket with the *anonymous* authenticator. The reference binding is REST over HTTP, with an OpenAPI contract from which a client and its documentation are generated *[FREE]*; MCP and MQTT are anticipated, not built. HTTP is the durable, ubiquitous default rather than a hedge — the protocol counterpart of the open, durable formats the longevity argument favours (@sec:longevity) — so it is committed to, not abstracted behind a swap-out port for its own sake. The variation that earns the endpoint port is the *consumers*: an application over REST, an agent over MCP, a device over MQTT, an operator over a local socket.
+
+Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them (@sec:engine-server). One instance may expose several endpoints at once — different doors into one universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a universe through one multi-door instance is what keeps it a *single* sequencer: the alternative — an instance per consumer type — would split one universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:deployment).
+
+== Configuration <sec:configuration>
+
+Configuration is authored, not integrated, so it needs no adapter and admits no variation worth abstracting: it is the *launch artifact*, a single JSON document an instance reads to assemble itself. A value in it is either a literal or a *reference* — `vault(name)`, resolved from a configured secret store, or `env(VAR)`, read from the environment — so a configuration can be wholly secret-free, every credential resolved at launch from outside the file. The one credential that cannot indirect is the secret store's own, which a literal (encrypted, below) or an `env()` covers; secret-zero collapses to that single root.
+
+Encryption follows content, not policy. A reference-only file holds no secret and may be plaintext — committable, reviewable, the production default; a file carrying an inline literal secret is age-encrypted, its key supplied at launch from a source the operator chooses (`prompt`, `stdin`, `env:VAR`, `file:path`), never as a literal on the command line. The tooling warns rather than forbids, and only where it matters — when an inline secret would be written unencrypted — naming the field and pointing at both remedies (encrypt, or move it to `vault()` / `env()`).
+
+One library serves de/serialization (including age), validation, reference resolution, and editing. *Validation* is secret-free and offline — schema and semantics only, so a configuration can be authored and checked without reaching any backend — while *resolution* (fetching references, connecting) happens only at launch. The runtime that loads a configuration and the tooling that authors it are the same library, and indeed the same binary: `ranke-db`, with `run` to serve and `config` / `tui` to author — so the build that validates on write is, by construction, the build that loads on run, and no version can drift between writer and reader.
+
+== Deployment <sec:deployment>
+
+A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other tenant.
+
+This yields a ladder of deployments over one set of building blocks: *embedded* — the engine library linked in-process, no server (@sec:engine-server); *standalone* — one `ranke-db` instance, configure and serve, supervised by the platform; *many* — independent instances, one universe each or several universes to a process, supervised the same way. Two things are deliberately *not* part of RankeDB. A *gateway* — a single public endpoint with TLS and routing — is mature, independent infrastructure placed in front (a reverse proxy), never built here. An *orchestrator* — a console for editing configurations and launching instances — is an application built on RankeDB's own surfaces (the configuration library, the management interface), buildable later precisely because no instance depends on it, and not a component of the database. The boundary holds because nothing inside reaches out for either.
+
 = Infrastructure <sec:infrastructure>
 
 #todo[Capture chapter — collects the deployment and operational exploration (topologies, secrets, keys, authority, the air-gapped keyholder, delegation). Mostly deployment detail rather than core architecture; refine, trim, or relocate downstream once the engine chapter settles.]
@@ -379,30 +439,33 @@ Storing data longer than the typical life cycle of an application or single proj
 and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
 and for which they developed strategies.
 
-#imageonside(
+#wrap-content(
+  [#figure(
+    table(
+      columns: 3,
+      align: (left, center, center),
+      inset: (x: 0.8em, y: 0.35em),
+      stroke: 0.5pt + gray,
+      table.header([*Format*], [*Introduced*], [*Standardised*]),
+      [Plain text (ASCII)], [1963], [1972],
+      [CSV],                [1972], [2005],
+      [WAV (audio)],        [1991], [—],
+      [HTML],               [1991], [1995],
+      [UTF-8 text],         [1992], [1996],
+      [JPEG],               [1992], [1994],
+      [MPEG (video)],       [1993], [1993],
+      [PDF],                [1993], [2008],
+      [JSON],               [2001], [2006],
+      [Markdown],           [2004], [2014],
+    ),
+    caption: [Introduction and standardisation years for common open formats.],
+  ) <fig:formats>],
   [
     Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardisation — CSV waited 33 years — shows the working form long preceding the formal one, and WAV's base format endures with no formal standard of its own.
-  ],
-  table(
-    columns: 3,
-    align: (left, center, center),
-    inset: (x: 0.8em, y: 0.35em),
-    stroke: 0.5pt + gray,
-    table.header([*Format*], [*Introduced*], [*Standardised*]),
-    [Plain text (ASCII)], [1963], [1972],
-    [CSV],                [1972], [2005],
-    [WAV (audio)],        [1991], [—],
-    [HTML],               [1991], [1995],
-    [UTF-8 text],         [1992], [1996],
-    [JPEG],               [1992], [1994],
-    [MPEG (video)],       [1993], [1993],
-    [PDF],                [1993], [2008],
-    [JSON],               [2001], [2006],
-    [Markdown],           [2004], [2014],
-  ),
-  bottomtext: [
+
     Mature players read every codec ever shipped, so even video, for all its churn, stays openable decades on. Memory institutions reach the same conclusion: the Library of Congress maintains recommended-format and format-sustainability guidance favouring open, well-documented formats for long-term preservation.
   ],
+  align: right,
 )
 
 #todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
