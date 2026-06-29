@@ -48,6 +48,18 @@ Its guiding principle is _agnosticism by adapter_: every external technology the
 Storage is the clearest case: persistence rests on nothing more than a content-addressed store of immutable bytes, so any store of keyed bytes can serve as the ground, and deduplication, cheap forking, and replication follow from content addressing as consequences rather than features. The architecture is built up capability by capability: demonstration rather than proof.],
 )
 
+#block(
+  stroke: 1pt + black,
+  fill: luma(240),
+  inset: 1em,
+  radius: 3pt,
+  width: 100%,
+)[
+  #text(weight: "bold", size: 1.05em)[Work in progress.] #h(0.4em)
+  This document is an early working draft. Its architecture, scope, and details are under active revision and may change substantially; some passages are incomplete, provisional, or already superseded by later sections. Please do not cite.
+]
+#v(0.6em)
+
 = Introduction <sec:introduction>
 
 The *foundation paper* (@metzgernoel2026rankegraph) defines the *Ranke-Graph* as a concept and an abstract data type (ADT), built around a single unit: the *claim* — an attributed record of content, added by a contributor at a stated moment and citing the sources it derives from. Where a conventional database consolidates its sources into one current, contradiction-free state and overwrites it as understanding changes, a Ranke-Graph keeps the whole history of claims, disagreements intact — each immutable, each attributable to an author and a time, each independently verifiable. Its aim is preservation with full provenance, for the long term and across applications.
@@ -136,13 +148,10 @@ Left to the application layer are user and identity management, user access poli
 
 = Adapters and Contracts <sec:contracts>
 
-RankeDB rests on a small number of contracts, each kept narrow enough that the technology behind it stays replaceable. This chapter fixes the three the rest of the paper builds on. The atom is the *claim*: a Ranke-Graph is a graph of claims (foundation paper §Claims), so the engine's lowest obligation is to hold one and return it intact. A claim needs somewhere to live — a *blob store*, a content-addressed store of immutable bytes — and a typed view over that store — a *Universe* — that reads and writes claims as records rather than as bytes. The three together are the whole persistence contract. They are not special: every external technology RankeDB depends on enters through an adapter of the same slim shape, and the diagram that follows shows the engine as exactly that — a small core behind a handful of replaceable contracts.
+Following the guiding principles stated above, a Hexagonal architecture (@cockburn2005hexagonal) seems to fit best. This architecture has a minimal core that expresses the pure business logic without any direct contact with external resources. Around that core is a small number of adapters, each defined as a narrow contract, each intentionally minimal, so that the technology behind it stays replaceable. 
+At its centre, the core wraps the library that implements the Ranke-Graph ADT. The core adds the integration logic that connects the adapters to that library and implements the concerns the ADT leaves open: endpoints, access control, persistence, and contribution management. 
 
-The shape is hexagonal: a small core bounded on every side by ports, each a contract narrow enough that the technology behind it stays replaceable. A port earns its existence only under genuine *variation pressure* — diverse external things the engine must integrate with. Storage has it: data already lives in object stores, databases, plain directories. Endpoints have it: applications, agents, and operators reach the system through different protocols. Where there is no such variation there is no adapter — configuration, authored rather than integrated, is a file, not a port (@sec:configuration).
-
-Two kinds of port face opposite ways. *Driven* ports are the ones the core calls out to — storage, the sequencer's durable state, an optional secret store; the engine drives them. *Driving* ports call into the core — endpoints: a transport and an authenticator through which a client speaks (@sec:endpoints). The contracts that follow immediately (@sec:claim, @sec:blob, @sec:universe) are the driven, persistence-facing ports; the driving, client-facing ones come later in the chapter.
-
-The core itself divides along a second line: *mechanism* versus *policy*. The graph engine — the foundation paper's reference library — expresses a graph and nothing more: claims, the operations over them, and the scope-and-prune mechanism that yields a partial view from an indicator σ (foundation paper §Scoping, §Pruning). It is blind to *who* asks and *which* graph they may see. RankeDB is the server that wraps it: it binds service accounts to scopes, authenticates callers, and assembles the whole from configuration — the policy the engine deliberately holds none of. The engine supplies the mechanism; the server decides who gets which σ (@sec:engine-server).
+The combination and configuration of the adapters into a runable instance of ranke-db is done using a config file (@sec:configuration). Such a configuration specifies one single instance, the analog to a single Database within a e.g. Postgres service. We intentionally decided against a runtime configurable multi-instance, multi-tenant system to keep the technology simple and maintainable. A management layer for adminstering multiple such instances, configuring them, starting/stopping/monitoring them can be implemented on top of this.  
 
 #[
   #show figure: it => grid(
@@ -157,14 +166,16 @@ The core itself divides along a second line: *mechanism* versus *policy*. The gr
   ) <fig:adapters>
 ]
 
-== The Claim <sec:claim>
+In the following sections we'll describe a few relevant details on how we implement the ADT, which is built on the core concepts of Claims (@sec:claim) as the atom of the Ranke-Graph, the Universe (@sec:universe), being the content-addressed space in which those claims are stored and the Branch Table Header (@sec:bth) that allows retrieving the graph from the Universe. Those ADT concepts are realized with the help of Blob Storage (@sec:blob) as a foundation for the Universe and the Sequencer (@sec:sequencer) for managing the Branch Table Header (BTH) under concurrent reads and writes. 
 
-A *claim* is the atom of the Ranke-Graph: a node — a type, an encoding, a creation time, and the hash of its content — together with the edges to the claims it derives from, addressed by its identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization that fixes both the record and its author (foundation paper §Primitives). The content bytes are held apart, addressed by their own hash and size.
+== The Claim as Atom <sec:claim>
 
-The foundation paper fixes those core fields and leaves room beside them: a node may carry _additional implementation-defined fields_, and because they participate in the serialization $S$ like any other field, the hash and signature cover them with no special handling (foundation paper §Nodes). RankeDB uses that room for two fields the engine needs, each read only by the claims that carry it:
+A *claim* is the atom of the Ranke-Graph: a node with a small set of mandatory predefined fields as type, encoding, creation time, and the hash of its content bytes — together with the edges to the claims it references. Claims are addressed by their identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization (foundation paper §Primitives). 
 
-- `validUntil` — on a *contributor* claim, beside its public key: the moment after which the engine accepts no further claims signed by that key (key lifecycle, @sec:verify).
-- `deleteBy` — on a claim born with a retention limit: the date past which its content may lawfully be erased (@sec:deletion).
+The foundation paper defines an intentionally minimal set of mandatory fields. Our implementation choses to add two more fields, that are essential for the practical workings of this database implementation: 
+- `valid_until` — on a *contributor* claim, beside its public key: claims with a `created_at` after that date don't pass verification and can thus not be added to the graph. This is the basis for a key rotation mechanism. 
+the moment after which the engine accepts no further claims signed by that key (key lifecycle, @sec:verify).
+- `delete_by` — on a claim born with a retention limit: the date past which its content may lawfully be erased (@sec:deletion).
 
 Both are *[FREE]* extensions — the ADT neither requires nor forbids them, and a graph that omits them is still a Ranke-Graph — yet because each sits in the signed content, a claim's own signature attests its retention limit and a key's own claim attests its expiry; neither can be altered after the fact.
 
@@ -217,7 +228,7 @@ Universe over a Blob store — the default lift (NewBlobUniverse)
 
 `NewBlobUniverse` lifts any blob store into a full `Universe` this way for free; a backend reimplements one of these operations only when a native bulk or batch path (S3, SQL) runs faster. The shipped interface takes claims and content in bulk — `getClaims`, `putClaims`, … — so throughput comes from the adapter, never from a larger contract.
 
-== Ranke Archive <sec:ranke-archive>
+== Ranke Archive <sec:bth>
 
 A *branch table* is the archive's index of named lines: each entry binds a name to a head, and a head is a whole Ranke-Graph — its closure, with all the provenance behind it. One entry names one entire graph. The table is itself a claim, so its revisions form a history the way claims do — each new table references the one it replaced — carrying its version history as its own provenance, never a side log. The foundation paper fixes that format (a `contribution/branches` claim with `contribution/branch` edges to each named head) and the archive $(cal(U), B_h)$ that wraps it (foundation paper §Branches, §Ranke-Archive). We don't restate it; we build it.
 
