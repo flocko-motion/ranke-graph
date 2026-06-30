@@ -170,16 +170,9 @@ In the following sections we'll describe a few relevant details on how we implem
 
 == The Claim as Atom <sec:claim>
 
-A *claim* is the atom of the Ranke-Graph: a node with a small set of mandatory predefined fields as type, encoding, creation time, and the hash of its content bytes — together with the edges to the claims it references. Claims are addressed by their identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization (foundation paper §Primitives). 
+A *claim* is the atom of the Ranke-Graph: a node with a small set of mandatory fields predefined y the ADT, e.g. `type`, `encoding`, `created_at` and `content_hash`, together with the edges to the claims that it references. Custom fields can be set as needed for the use case, which we do to fulfill the requirements for key lifecycle and deletion. Claims are addressed by their identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization (foundation paper §Primitives). 
 
-The foundation paper defines an intentionally minimal set of mandatory fields. Our implementation choses to add two more fields, that are essential for the practical workings of this database implementation: 
-- `valid_until` — on a *contributor* claim, beside its public key: claims with a `created_at` after that date don't pass verification and can thus not be added to the graph. This is the basis for a key rotation mechanism. 
-the moment after which the engine accepts no further claims signed by that key (key lifecycle, @sec:verify).
-- `delete_by` — on a claim born with a retention limit: the date past which its content may lawfully be erased (@sec:deletion).
-
-Both are *[FREE]* extensions — the ADT neither requires nor forbids them, and a graph that omits them is still a Ranke-Graph — yet because each sits in the signed content, a claim's own signature attests its retention limit and a key's own claim attests its expiry; neither can be altered after the fact.
-
-Operationally a claim exposes its identity, its node, its edges, and its contributor, and it encodes itself — `encode()` yields the exact bytes the store persists under `id()`, the bridge from claim to persistence:
+The datetype for a Claim is thus: 
 
 ```
 Claim — a node with its edges; immutable, content-addressed
@@ -192,11 +185,13 @@ Claim — a node with its edges; immutable, content-addressed
   ...                                              closure materialization, validation
 ```
 
-The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges — its full provenance, back to the initial nodes (foundation paper §Closures). A claim carries meaning only with its closure: a single id recovers a whole closure, and a complete, mergeable state is always one.
+The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges (foundation paper §Closures). 
 
 == The Blob Store <sec:blob>
 
-A claim, and the content it carries, live in one content-addressed store. Storing them reduces to a single thing: a *blob store* — three operations over immutable, keyed bytes.
+As each claim is serializable to a blob and addressable by its deterministic id just as all the claims that it references via its edges, the whole graph can be stored in a blob store using each claim's id as the storage key. 
+
+We define the interface for such a blob storage as: 
 
 ```
 Blob store — content-addressed; immutable
@@ -206,112 +201,101 @@ Blob store — content-addressed; immutable
   has(key: Id)            → bool        presence; drives delta sync
 ```
 
-Each entry is keyed by its content address — a claim by its id, the content it carries by its hash — and the store interprets neither; to it both are opaque bytes under a key. Because keys are content addresses, a stored value cannot be stale: the key *is* the hash of the bytes, and bytes that did not produce it were never that claim. Any number of closures therefore share one store without coordination — identical claims collapse to a single key, and a claim present for one closure is present for all. Deduplication and sharing fall out of the addressing, not from any feature of the store.
+This is the minimal interface a storage solution must implement to serve as a RankeDB storage layer. The minimalism of the interface 
+satisfies R1: such an adapter is trivial to write for any backend that stores bytes under a key, and the reference implementation already ships a range of them, so persistence agnosticism follows. 
 
-This is the entire contract a backend must provide; the in-memory adapter that implements exactly these three operations (plus lifecycle) is 37 lines. Everything above them is convenience and performance.
 
 == The Universe <sec:universe>
 
-The reference library exposes a blob store as a typed *Universe* that reads and writes claims and content as records, decoding and encoding at the boundary, and adds the bulk reads and writes, lazy streaming of large content, and store-to-store copy and merge a working engine needs — none of it enlarging the contract. The lift is mechanical: the content operations *are* the blob primitives, the claim operations wrap them with decode and encode.
+The reference library implements the ADT specified *Universe* as a typed interface to an underlying blob store. A *Universe* reads and writes claims and content as records, decoding and encoding at the boundary. While the implementation of a Blob Store is enough to construct a Universe, 
+by wrapping a Blob Store instance in the default implementation of *Universe* using the `NewBlobUniverse` constructor. An adapter can opt to implement additional bulk, streaming and querying operations, making the adapter more performant under large queries. Due to the optionality and granularity of such performance improving additions, R1 stays satisfied. 
+
 
 ```
-Universe over a Blob store — the default lift (NewBlobUniverse)
+Universe — typed interface over a blob store (NewBlobUniverse provides the defaults below)
 
-  getClaim(id: Id)                  → Claim    decodeClaim(get(id))
-  putClaim(claim: Claim)                       put(claim.id(), claim.encode())
-  hasClaim(id: Id)                  → bool     has(id)
-
-  getContent(hash: Id)              → bytes    get(hash)
-  putContent(hash: Id, blob: bytes)            put(hash, blob)
-  hasContent(hash: Id)              → bool     has(hash)
+  getClaims(ids: Id[])              → Claim[]   map  decodeClaim(get(id))
+  putClaims(claims: Claim[])                    each put(c.id(), c.encode())
+  hasClaims(ids: Id[])              → bool[]    map  has(id)
+  getContents(hashes: Id[])         → bytes[]   map  get(hash)
+  putContents(items: [Id, bytes][])             each put(hash, blob)
+  hasContents(hashes: Id[])         → bool[]    map  has(hash)
+  streamContent(hash: Id)           → (Stream, len)   buffers get(hash); native streams
 ```
 
-`NewBlobUniverse` lifts any blob store into a full `Universe` this way for free; a backend reimplements one of these operations only when a native bulk or batch path (S3, SQL) runs faster. The shipped interface takes claims and content in bulk — `getClaims`, `putClaims`, … — so throughput comes from the adapter, never from a larger contract.
+== Composing Universes <sec:composition>
 
-== Ranke Archive <sec:bth>
+RankeDB can persist its data across many storage backends at once. The guiding principle of long-term perspective requires both redundancy and technology agnosticism. RankeDB therefore allows composing Universe instances into arbitrarily complex storage stacks.
 
-A *branch table* is the archive's index of named lines: each entry binds a name to a head, and a head is a whole Ranke-Graph — its closure, with all the provenance behind it. One entry names one entire graph. The table is itself a claim, so its revisions form a history the way claims do — each new table references the one it replaced — carrying its version history as its own provenance, never a side log. The foundation paper fixes that format (a `contribution/branches` claim with `contribution/branch` edges to each named head) and the archive $(cal(U), B_h)$ that wraps it (foundation paper §Branches, §Ranke-Archive). We don't restate it; we build it.
+This is achieved using composition primitives that themselves implement only the Universe interface. The stacking primitive takes a list of Universe instances together with per-layer configuration defining their read-through and write-through behaviour: marking each as eager or lazy, or capping it with a size threshold in bytes, so a fast in-memory layer need not store gigabytes of binary content. The stack receives read and write requests through the shared Universe interface and routes them to the embedded instances according to its composition logic (@fig:stack).
 
-== Sequencer <sec:sequencer>
+#figure(
+  image("drawio/architecture.storage-stack-simple.drawio.png", height: 5cm),
+  caption: [A three-layer stack. A write descends from the top; each *eager* layer stores it on the way down, each *lazy* layer passes it through untouched. A read descends the same way and, on a miss, fills the lazy layers it passed on the way back up.],
+) <fig:stack>
 
-The implementation must supply one mechanism the ADT leaves open: the management of $B_h$. We call it the *Sequencer*. It owns the archive's single linearization point — the step at which a write becomes part of the current state. Because every claim is content-addressed, claim writes are idempotent and order-independent; $B_h$ is therefore the only value that must be serialized, and the Sequencer advances it by a compare-and-swap on a durable cell. $B_h$ is also the sole mutable value held outside $cal(U)$: all claims and branch tables are content-addressed and immutable, so this single reference constitutes the archive's entire mutable state. Its durability is consequently a correctness requirement — $cal(U)$ retains every claim, but without $B_h$ the current head, and thus the active closure, cannot be recovered.
+The partition primitive routes each read and write request to one of several Universe instances (@fig:partition). The reference implementation uses `mod n` to choose which of the `n` instances handles a given `id`.
 
-The value the Sequencer advances to is itself an ordinary claim — the new branch-table head — and nothing about it is privileged: any contributor could mint one. Its authority comes only from being the claim $B_h$ points at, and only the Sequencer moves $B_h$, so in practice the server is the sole author of branch-management claims — and the engine enforces it, accepting head claims only from its own identity, to leave the role unambiguous. That is the consequence worth stating plainly: the server is a contributor like any other and so needs a private key of its own. It signs the head it mints once it admits the commit — which it does only when every claim absorbed is signed by a contributor already present in the closure. Two signing roles then sit side by side: application keys attest content, the server's key attests the commit (and through it the archival time of @sec:timestamp), and the engine never holds an application's key.
+#figure(
+  image("drawio/architecture.storage-stack-partitioned.drawio.png", height: 5cm),
+  caption: [A partition beneath an eager cache. The top layer stores every write; below it a *partition* routes each claim by `id mod 2` to one of two shards, each holding a disjoint half of the keyspace — together, the whole archive.],
+) <fig:partition>
 
-```
-BranchTableHead — the durable cell the Sequencer advances
-
-  load()       → Id  id of the current branch-table claim (none → empty archive)
-  save(id: Id)       compare-and-swap to the new present
-```
-
-Because the loss or corruption of $B_h$ would be unrecoverable, the reference implementation keeps it as an append-only history rather than a single overwritten cell — every committed $B_h$ is retained. A head is sound only if its branch-table closure is fully present and verifies (@sec:verify); should a silent persistence failure leave the latest head pointing at a state that is not wholly durable, recovery rolls back to the most recent $B_h$ that verifies. Since $cal(U)$ only ever grows, an older head's closure was complete when committed and cannot have lost claims since, so rolling back costs at most the most recent unconfirmed writes, not the whole archive. Commit order secures it from the other side: a write makes its claims — and the new branch table — durable in the source of truth before the Sequencer advances $B_h$.
-
-Keeping the sequenced step this small is where performance and redundancy come from. Since everything but the final commit is order-independent, a replica can prepare a whole side branch — many claims — warm its caches, and feed them into the source-of-truth universe, all off the critical path; merging that work into the main graph is then a *single* claim added at the Sequencer, one compare-and-swap. Two servers advancing the same $B_h$ fork and reconcile by union (a CRDT join, foundation paper §Distributability). The reference implementation keeps the plain single-Sequencer path, but the structure invites the prepared-branch optimization when throughput demands it.
-
-A Ranke Archive composes the two — `Archive(universe: Universe, head: BranchTableHead)` — and its richer views (`Branch`, `BranchTable`, and their histories) are read-only projections over the claim chain, exactly as the typed `Universe` projects over the blob store. With the universe, the Sequencer that guards $B_h$, and the projections over them, the world is ready; the rest of the chapter is the engine that serves it.
-
-#todo[Lead. This chapter builds the engine up the way the foundation paper builds the data structure up: from the archive and its Sequencer, add one capability at a time, each discharging a requirement (@sec:requirements-impl). Spine — storage layer → stack → replicate → coordinate → compose → verify and witness → query → access.]
-
-== Storage Layer <sec:atomic>
-
-A storage layer is an adapter on the content-addressed contract of @sec:blob — those few operations, nothing more — and that smallness is what makes the engine beholden to no technology. The minimal adapter is a few dozen lines: the in-memory backend is a `map` behind `get`, `put`, and `has`. So a new backend is a weekend's work, anything that stores bytes under a key qualifies — a `map`, a directory, a SQL table, an S3 bucket — and the reference library ships a range of them already, which turns "runs on anything" from a claim into a file listing. Performance is opt-in: a backend may implement the bulk and native paths of @sec:universe and declare the capability, while the floor stays the same few calls. _Discharges R1 and R2._
-
-#todo[Show the in-memory or filesystem adapter inline (~a dozen lines) as the visible R2 proof; recap the serialization choices once — CBOR Deterministic, IPFS multihash, Ed25519 — pointing to the foundation paper rather than re-deriving.]
-
-What a layer should *hold* is the engine's one opinion above the bytes, in a place the ADT deliberately keeps none. The foundation stores bytes under an encoding tag and is indifferent to which; a store meant to outlive its own software cannot afford that indifference, because the format decides whether the bytes still open in 30 years. So the default is to preserve each original exactly as received and keep a *generic-format extract* beside it — the same content re-encoded into a widely-implemented, well-documented format, the kind memory institutions converge on (the Library of Congress's recommended-formats and sustainability work is the reference, @locformats). Originals carry fidelity, extracts carry longevity; an application may keep one, the other, or both, so this is a default, not a rule — mark it *[FREE / default]*.
-
-#todo[Detail the default vocabulary folded in here — the `source/*` and `derivation/*` subtypes and MIME-style encodings — and note SQLite's place on the LoC recommended list. A per-adapter `max_content_len` lets a size-limited layer hold only small claims while larger blobs fall through to a layer below — the partial-layer mechanism of @sec:composition.]
-
-== Stacking Storage <sec:stack>
-
-A single layer is the floor; a *stack* is layers ordered ground-to-top, the ground authoritative and every layer above it a cache. A read is *read-through*: it asks the top layer and, on a miss, falls to the next layer down, filling each layer it passed on the way back up, so hot claims migrate toward the top. A write is *write-through*: it lands in the ground — the source of truth — and populates the layers above. The ground is authoritative for one structural reason: read-through terminates there, so a claim absent from the ground is absent from the archive.
-
-Cache coherence, the usual hard part of a layered store, is trivial here because the keys are content addresses. A cached blob cannot be stale — its key *is* the hash of its bytes, so the bytes either match the key or were never that claim — so eviction is always safe, and any upper layer may be dropped and rebuilt from the layer below with no invalidation protocol. A cache that cannot go stale needs no coherence.
-
-#todo[Figure: vertical stack diagram (adapt drawio/layers.svg) — ground = truth at the bottom, caches above, read-through arrows falling on a miss and filling upward, write-through arrows. Two example stacks side by side, e.g. `S3 | S3-local | neo4j` and `S3 | local-FS | in-memory`.]
-
-_Discharges R4 (composability)._
-
-== Replicating Storage <sec:replication>
-
-Replication is not a separate mechanism; it is what a *complete* layer already is. A layer that holds the whole archive, once filled, is a full live copy — so durability becomes a matter of adding one. A new complete layer fills either by write-through as fresh claims arrive or, in one pass, by a full read-through sweep — the same traversal `verify` uses (@sec:verify) — after which it tracks the archive for as long as it stays in the stack.
-
-This collapses three operations usually built separately into one act. *Backup* is a complete layer kept off-site; *replication* is a complete layer in another region, filled and then live; *portable export* is a complete layer on a detachable medium — a SQLite file you copy and carry. Each is the same thing: add a layer. Redundancy is then one line of configuration rather than a subsystem, and because every layer is content-addressed, a copy verifies against the original by id alone, with no trust placed in the transport that carried it.
+Arbitrary replication strategies can thus be modelled from the provided composition primitives, or from additional ones. To force full replication, we configure the appropriate stack and run a verification pass over a closure: reading and verifying each claim it contains triggers the composition's replication.
 
 _Discharges R3 (replicability)._
 
-== Coordinating Storage <sec:coordinate>
-
-A single Sequencer is one writer. Coordination lets many servers accept writes to one archive without surrendering the single head that keeps its state unambiguous.
-
-Each server runs as a *subsequencer*: it accepts writes locally and accumulates them as a side branch off the critical path — the prepared-branch path of @sec:sequencer — feeding the claims into the source-of-truth universe as it goes, so the only act left at commit is to mint one head. It then merges that branch up to the central Sequencer and rebases on the latest $B_h$ it returns. The central Sequencer remains the single linearization point; between merges the subsequencers diverge, and when two merge concurrently they fork into two heads that the next merge consolidates — additive reconciliation by union (a CRDT join, foundation paper §Distributability), so no write is rejected and none is lost. Because nearly all the work is local and parallel and only the brief merge touches the central point, write throughput scales out while the archive keeps its single head. The reference implementation runs one sequencer and leaves the hierarchy's depth — subsequencers beneath subsequencers — open as a direction.
-
-_Discharges R5._
-
-== Composition <sec:composition>
-
-Layers need not be whole, and the ground need not be single. A layer may be *partial*: it declares a `max_content_len`, and a write larger than that falls through to the layer below — so a Cypher/GQL store can hold the small claims it indexes well while large blobs live beneath it. The stack loses nothing as long as one layer accepts content of any size; that *complete-ground* rule is the single invariant a stack must satisfy.
-
-The ground that satisfies it may itself be *composite* — several backends behind a routing layer, complete as a system though no single backend is. That is the seam through which geographic distribution and read-scaling enter: a router over regional object stores, each partial, complete in aggregate. And it generalises, because a stack is itself a `Universe` (@sec:universe) — composition is closure under the interface, so a layer may be another stack, a partition that routes by a claim property (the erasability split of @sec:deletion is one), or a remote archive reached through a `rest` adapter, nesting without limit. The reference implementation keeps a single ground and notes the rest as the room the contract leaves.
-
-#todo[Figure or worked example: a composite ground — `(S3-EU | S3-US) -> router` — beneath a `neo4j` index layer, illustrating partial layers and the complete-ground rule.]
-
 == Deletion <sec:deletion>
 
-Append-only is one storage choice, not a law of the system: the engine can erase a claim's content — bytes and all — and leave its structure to explain the gap. Two kinds of erasure call for this, and because they are different facts they are recorded differently.
+The ADT describes an immutable, append-only data structure, yet some use cases require deleting claims — by legal requirement or administrative choice. RankeDB therefore defines a convention for removing a claim: the deletion is documented in claims that remain in the graph, so the gap is explained.
 
-_Planned_ deletion is intrinsic — a `deleteBy` date the claim carries in its signed content from creation, the retention schedule a record is born with (keep seven years, then destroy). It is a property of the claim, as immutable as the rest of it.
+_Planned_ deletion is intrinsic: a `deleteBy` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so the gap stays explained once the claim is purged. A claim carrying `deleteBy` is replicated only into layers configured to allow deletion; a purge removes expired claims at an interval set in the configuration.
 
-_Requested_ deletion is extrinsic. A later demand to forget a claim cannot be written into it — the claim is immutable — so the request is recorded as its own new claim: an erasure record that references the target and documents who asked and when. Forgetting thus becomes an event with provenance, not a silent edit.
+_Requested_ deletion is extrinsic: a later demand to forget a claim is recorded as a new claim that references the target and explains the gap.
 
-Routing follows erasability. A _partition_ composer — itself a Universe over two child Universes, like any other composition — sends erasable claims (those carrying a `deleteBy`) to a mutable partition and the rest to an add-only one. Only a mutable-partition claim can be erased, by either route; a claim with no `deleteBy` is permanent by choice, and the add-only store never holds a claim it could not lawfully erase.
-
-Mutability propagates upward: any layer above a mutable partition must itself be mutable, or an add-only cache would leak erasable data past its date. Each mutable layer runs a daily date-based purge — dropping a claim once its `deleteBy` has passed or an erasure record demands it — and since both triggers are themselves claims, every layer reaches the same verdict without coordination.
-
-Erasure leaves a scar, by design. An edge that references a claim carrying `deleteBy` copies that date into itself — one hop, no cascade — so when the content is purged the edge remains and records that something was here and lawfully went. Verification reads the gap correctly: completeness (@sec:verify) holds when every reference is present or tombstoned, so erasure is never taken for corruption. It is the physical counterpart to the foundation's `contribution/prune`, which hides a claim behind an id-only stub; deletion removes the bytes and leaves the edge — both absence with an explanation.
+Verification must still pass for a graph whose claims were deleted under these rules, which requires extending the foundation's verification algorithm. We add a callback to the algorithm that decides these cases.
 
 _Discharges R6._
+
+
+== Branch Table Head <sec:bth>
+
+The foundation paper defines a *branch table* as the archive's index of named graphs, each entry pointing at the latest head claim of one. The branch table is itself a claim, and its edges are the references. Whenever any referenced graph gains claims, a new branch table is created, referencing the previous one as provenance. The *branch-table head* (BTH) is the `id` of the latest branch-table claim. A BTH together with a *Universe* holding all the claims it recursively references — the tuple (Universe, BTH) — is a *Ranke-Archive*. 
+
+The foundation paper fixes the format of the branch table to be a `contribution/branches` typed claim with `contribution/branch` typed edges referencing each head, the name of that reference stored in each edge's `content`.
+
+
+== Sequencer <sec:sequencer>
+
+The foundation paper calls the BTH the *mutable marker* — its value advances each time the archive's current state changes — but leaves the management of that marker open (foundation paper §Ranke-Archive). The *Sequencer* is RankeDB's mechanism for it: maintaining the BTH under concurrent reads and writes from many clients. 
+
+Because the BTH is the key to reading a Ranke-Graph out of the Universe, it must not be lost: a corrupted BTH, or one pointing at a claim that failed to persist in the storage backend, leaves the graph unretrievable. The claims remain in the Universe, but finding the right head among the millions of claims of the many graphs that may share it would be cumbersome at best — and impossible on a storage backend without enumeration. For that reason the reference implementation keeps the *history* of the BTH, not just the latest, so that a failed storage write — a claim that did not persist — can be recovered by rolling the BTH back to the last working state. 
+
+```
+Sequencer  
+
+  bth(n: int)       → Id of the latest (n=0) or a historical (n<0) branch table 
+  bthLen()      → length of the BTH history
+  add(id: Id)   → append a new id to the top of the history
+```
+
+The Sequencer is the central mechanism that receives every contribution a client wants to add to a Ranke-Archive. After verifying it, the Sequencer creates a new branch-table claim referencing both the new claim and, as its predecessor, the branch table the BTH points at; it then advances the BTH to the new branch table. 
+A single step can absorb any number of claims, and each claim carries its whole referenced closure into the graph. 
+So the Sequencer merges large batches with little work and is no bottleneck. 
+The cost lies not in the merge but in the verification that precedes it, which parallelises easily because it runs over an immutable structure. 
+
+Every branch-table claim the Sequencer creates needs a valid contributor claim and signature, so the Sequencer must be registered in the graph as a contributor and hold a private key. That key, and the signing itself, are provided by the Vault and Signer adapters. 
+
+
+== Scaling Writes <sec:coordinate>
+
+As we showed above, a single Sequencer can add an arbitrary number of new claims in a single contribution, each added claim merging a whole new subgraph into the archive. The merge itself is therefore cheap and handles large traffic well, provided contributions are committed as subgraphs rather than one by one. The cost lies in preparing such bulk commits: the claims must be written into the storage stack to guarantee persistence before the BTH advances, and they must be verified — recalculating the hashes of the claims and their potentially large content bytes, and checking the signatures expressed in their id.
+
+So if scaling should ever become necessary, we propose distributing the *verification* workload across trusted servers while keeping the Sequencer a single centralised instance, kept isolated from regular clients. Such verification servers could verify the submitted claims, feed them into the persistence layers, and bundle many contributions under a single signed claim attesting to the verification performed. Those bulk contributions would then be committed to the centralised Sequencer, which would recognise the trusted verifiers' signatures and commit the claims provided. The updated BTH would be pushed back to the trusted servers, which could then serve the latest state of the archive. The storage layers would replicate the newly added claims automatically through the composition mechanism described above; they need only share a common source-of-truth layer to resolve any claim.
+
+The mechanism could be implemented as a Sequencer adapter configured to verify, bundle, and commit to the central sequencing server.
+
+_Discharges R5._
 
 == Timestamping <sec:timestamp>
 
@@ -444,7 +428,7 @@ A write is wrapped in a transaction whose token is a *stateless* credential — 
 
 = Data Longevity <sec:longevity>
 
-#todo[Reframe as user-facing guidance: a recommendation on _how to use_ the system (favour durable, open formats), not an engine property. Consider retitling (e.g. "Choosing Durable Formats"). Tie the SQLite note back to the storage adapters at @sec:atomic.]
+#todo[Reframe as user-facing guidance: a recommendation on _how to use_ the system (favour durable, open formats), not an engine property. Consider retitling (e.g. "Choosing Durable Formats"). Tie the SQLite note back to the storage adapters at @sec:composition.]
 
 Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle
 and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
@@ -479,12 +463,12 @@ and for which they developed strategies.
   align: right,
 )
 
-#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:atomic).]
+#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:composition).]
 
 
 = Conformance <sec:conformance>
 
-#todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: an adapter satisfies the content-addressed contract (@sec:atomic) and declares its capability and `max_content_len`; give the adapter test battery. ADT-level conformance (serialization determinism, id chains, closure/scope/prune semantics) is inherited from the foundation paper's binary conformance suite.]
+#todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: an adapter satisfies the content-addressed contract (@sec:composition) and declares its capability and `max_content_len`; give the adapter test battery. ADT-level conformance (serialization determinism, id chains, closure/scope/prune semantics) is inherited from the foundation paper's binary conformance suite.]
 
 = Related Work <sec:related>
 
