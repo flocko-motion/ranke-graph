@@ -133,13 +133,13 @@ _Verification and Witnessing._
 - *R7 — Trustworthy timestamps.* Each claim's time is provable and its place in the total order fixed, neither open to reassignment.
 - *R8 — Verification on add.* Every contribution is verified as it is added, so a valid archive remains valid.
 - *R9 — Verification on demand.* Archive integrity is checkable on demand, at a depth the caller chooses.
-- *R10 — Key lifecycle.* Signing keys are central to an archive's authenticity, so their rotation, revocation, and expiration are verifiably enforced by the service.
-- *R11 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
+- *R10 — External witnessing.* Prove externally that the archive's entire content existed at a given moment.
+- *R11 — Key lifecycle.* Signing keys are central to an archive's authenticity, so their rotation, revocation, and expiration are verifiably enforced by the service.
 
 _Access._
-- *R12 — Filtered queries.* The archive is queryable through a conjunction of filters, with pagination and a result limit.
-- *R13 — Multi-tenancy.* Each instance manages its own system accounts, separate from the user accounts of the applications built on it.
-- *R14 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top.
+- *R12 — Multi-tenancy.* An archive can host several tenants — projects within an organization, or leased shares in a SaaS deployment — isolated by default, yet able to cooperate within explicitly configured limits.
+- *R13 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top.
+- *R14 — Filtered queries.* The archive is queryable through a conjunction of filters, with pagination and a result limit.
 
 
 == Out of Scope <sec:out-of-scope>
@@ -151,7 +151,9 @@ Left to the application layer are user and identity management, user access poli
 Following the guiding principles stated above, a Hexagonal architecture (@cockburn2005hexagonal) seems to fit best. This architecture has a minimal core that expresses the pure business logic without any direct contact with external resources. Around that core is a small number of adapters, each defined as a narrow contract, each intentionally minimal, so that the technology behind it stays replaceable. 
 At its centre, the core wraps the library that implements the Ranke-Graph ADT. The core adds the integration logic that connects the adapters to that library and implements the concerns the ADT leaves open: endpoints, access control, persistence, and contribution management. 
 
-The combination and configuration of the adapters into a runable instance of ranke-db is done using a config file (@sec:configuration). Such a configuration specifies one single instance, the analog to a single Database within a e.g. Postgres service. We intentionally decided against a runtime configurable multi-instance, multi-tenant system to keep the technology simple and maintainable. A management layer for adminstering multiple such instances, configuring them, starting/stopping/monitoring them can be implemented on top of this.  
+The combination and configuration of the adapters into a runable instance of ranke-db is done using a config file (@sec:configuration). Such a configuration specifies one single instance, the analog to a single Database within a e.g. Postgres service. We intentionally decided against a runtime configurable multi-instance, multi-tenant system to keep the technology simple and maintainable. A management layer for adminstering multiple such instances, configuring them, starting/stopping/monitoring them can be implemented on top of this.
+
+This split is a useful razor for deciding what belongs where. The Ranke-Graph holds *content* — claims and their provenance, the record of what happened, preserved in the archive. The configuration holds this deployment's *policy and wiring* — which adapters are bound, where secrets are resolved, and which accounts may do what. When it is unclear where something belongs, the razor decides: a fact the archive should preserve is content and goes in the graph; an operational choice of this particular server is policy and goes in the configuration. Access rights are the clarifying case — _who may read or write which branches_ describes the server, not the world, and so lives in the configuration, never in the graph.
 
 #[
   #show figure: it => grid(
@@ -255,6 +257,8 @@ _Requested_ deletion is extrinsic: a later demand to forget a claim is recorded 
 
 Verification must still pass for a graph whose claims were deleted under these rules, which requires extending the foundation's verification algorithm. We add a callback to the algorithm that decides these cases.
 
+#todo[Revisit for rigidity — deletion has the same shape as key expiry (@sec:keyrotation) and needs the same treatment. A requested-deletion claim points _at_ its target, so like a `limit`/expiry it is not in the provenance of graphs that reference the deleted claim; it must be propagated to *every* graph affected by the deletion via the base limiting-claim-propagation mechanism (to be described in @sec:access, shared with key expiry), or a sibling graph would still resolve the claim it should no longer see. Cross-tenant edge case to work out: if tenant A imports a claim from tenant B and then deletes it — or expires B's contributor — the substrate _permits_ the operation (it is just another limiting claim in A's closure), yet contributors stand for B's users, so governing who may do this is application policy, not an engine right. Clarify the boundary: what the substrate allows vs. what the application must gate. This confirms that *importing is more powerful than it looks* — it pulls a foreign subgraph into A's control surface, where A's own limiting claims can then act on it.]
+
 _Discharges R6._
 
 
@@ -299,35 +303,80 @@ _Discharges R5._
 
 == Timestamping <sec:timestamp>
 
-A claim asserts when it was made, and the engine keeps that assertion both ordered and bounded. One rule orders it and caps it from above: a claim may reference only claims of strictly lower `(timestamp, id)`. A short, server-witnessed transaction window bounds it from below. Together — the rule, the window, and the server's signature on each merge — they need nothing written into the store to mark time, and no persistent transaction record.
+At the database layer a claim's `created_at` is part of its content. The Ranke-Graph aims to provide *formal* verifiability, not to verify the facts a claim states — so judging the plausibility of a creation date is out of scope. Two things about that date are checkable nonetheless. First, monotonicity: a claim may not be dated earlier than any claim it references. Second, a ceiling: a claim merged by the server may not be dated later than the server's internal clock, which prevents future-dating.
 
-Two clocks, one soft and one hard. A claim's `created_at` is the contributor's self-asserted authoring time, carried in the signed content; it is _soft_ — forgeable, never trusted, and not the date of whatever the claim describes (a 2010 email ingested today is stamped today). _Archival_ time, when the archive accepted the claim, is _hard_, and it is not a separate field: it is the timestamp of the server-signed merge that first absorbed the claim. The contributor asserts; only the archive witnesses.
+Responsibility for plausibility lies with the applications acting as clients: they own the content domain and judge what counts as acceptable information.
 
-Ordering is `(timestamp, id)`, the id a universal tiebreak — so duplicate timestamps need no rule, and the order is total and deterministic by value.
-
-The ceiling falls out for free: the merge is itself a claim under the rule, and it references the claims it commits, so each sits below the merge's signed time — nothing can be postdated past the server's real clock. The floor is where a transaction earns its keep. A write opens a transaction against the server, which returns an ephemeral token — a JWT or macaroon, _not_ a claim — carrying a floor (the server's clock at the open) and a short validity window (seconds to minutes). The client builds its batch offline, stamping each claim honestly against what it cites, and submits under the token; the server admits the batch only if every timestamp lies between the token's floor and its own clock at submission, then merges atomically and records that witnessed window in the signed merge. The token never enters the store — it is operational state, discarded at commit — so nothing transient is immortalised; what persists is the server's signed attestation that the batch was authored within `[t_open, t_commit]`.
-
-The window also closes the one gap the rule leaves alone. A dangling root that references nothing recent has no lower claim to lift it, so monotonicity by itself could not stop it self-asserting a low `created_at` — only expose the lie beside the honest archival time. The transaction floor refuses it outright: root or not, every claim in a batch is bounded below by the witnessed `t_open`. Concurrency, by contrast, needs no guard: two writers produce two heads, which the next merge consolidates (contradiction by addition), so no write is rejected for conflict and none is lost.
-
-The chain of signed merges is, by construction, a transparency log — each references the prior, each timestamped and signed, the shape of RFC 3161 timestamping or Certificate Transparency, falling out of "the head update is a claim." Verifying it is foundational, not the server's privilege: anyone holding the data re-checks a merge's signature, its chain to the prior merge, and monotonicity across the closure, offline. _Minting_ — witnessing the real time, signing the merge, advancing the head — is the server's job and the only part that needs its key.
-
-Distinct from all of this is _height_: `height(c) = 1 + max` over a claim's references (roots at 0), a Lamport-style logical clock read straight from the DAG — causal depth, not chronology, and an index recomputable from structure rather than a primitive. An implementation may order by `(height, id)` where causal order is wanted, verifiable by recomputation.
+As a side effect, the tuple `(created_at, id)` gives a total order over all claims in the graph.
 
 _Discharges R7._
 
 == Verification and Witnessing <sec:verify>
 
-The build closes the trust story: contributions are checked as they are written, the whole archive is checkable on demand, and an external witness anchors it in time.
+The ADT reference implementation provides a verification mechanism we can use to formally verify the graph; extensions to it were discussed above in @sec:deletion. On add it acts as a gate — only verified claims enter the archive. But software can carry errors and storage can be mutated, so the same mechanism is run as a full pass at any time to assure the archive's continued integrity: any closure can be formally verified from a head id and a storage Universe alone.
 
-_Verification on add (R8)._ Every contribution is checked as it is written — its signature and id chain verified against its contributor's key before the merge commits. Key lifecycle rides the same check, and it is expressed entirely in claims, needing no addition to the foundation's schema. A key carries a `validUntil` beside its pubkey — a scheduled expiry after which the engine refuses new claims signed by it. Early revocation is the on-demand counterpart: a newer contributor _revision_ claim names the keys it retires with `expiry` edges (one revision can retire many at once), and may instead, or also, `supersede` a predecessor to continue the identity under a fresh key. A key's effective end is the earliest of its `validUntil` and any `expiry` edge pointing at it; validity is judged at the claim's witnessed time (@sec:timestamp), forward-only — everything signed while the key was live stays valid, and the contributor claim is kept forever as the verification anchor. A revision is admitted only when it carries a valid signature from a contributor authorized to manage contributors (@sec:authority); `expiry` and `supersede` are the engine's reserved reading over the foundation's open edge mechanism, not new schema. Because it is all claims, a server follows the `supersede` chain to the current revision on its own, advancing which identity it signs as without manual intervention, and the full key history is auditable and verifiable offline. The application sets policy (who may retire whom); the engine enforces. _Discharges R8 and R10._
+The strong collision resistance of cryptographic hashes guarantees that the closure retrieved for a head id is identical, whichever Universe serves it.
 
-#todo[This passage now answers two requirements — R8 (a contribution is verified on add) and R10 (key lifecycle: rotation, revocation, expiration). Split the key-lifecycle half into its own subsection discharging R10 when this chapter is tamed.]
+This property lets the current BTH of a Ranke-Archive be witnessed externally — by a notary, a trusted counterparty, an RFC 3161 time-stamp authority (@rfc3161), a public transparency log, or a public ledger (@gipp2015). Because the BTH commits to the entire closure, a single anchor fixes the whole archive in time, and two anchors bracket everything added between them — regardless of any self-asserted `created_at`.
 
-#todo[Open detail: the precise authorization rule — which signatures may create, `supersede`, or `expire` a contributor, and how it chains to the create-contributor right (@sec:authority). To be specified with the contributor-rights model.]
+== Contributor Keys Life Cycle <sec:keyrotation>
 
-_Verification on demand (R9)._ Integrity is checkable at any time, at a depth the caller chooses, as a generic server operation that needs no per-backend work: read through the closure of a head and recompute as much of it as asked. Three depths answer three questions. *Completeness* asks only whether every referenced claim and content blob is present — a `has` sweep, the cheapest. *Record correctness* re-canonicalises each claim, recomputes its id chain, and checks the signatures, proving the records authentic and unmodified. *Full content* additionally re-hashes every blob, proving the bytes intact down to the last byte of the largest file. Cost rises with depth and with how much of the closure the caller scopes in, and because the check reads through the stack it warms the upper layers as it goes — verification doubles as cache priming. _Discharges R9._
+The ADT specifies that each contributor has a `pubkey`, which is used to check the signatures on the claims created by that contributor. How those claims map to application or even real world users is up to the application layer; within RankeDB they are mere cryptographic entities.
 
-_External witnessing (R11)._ Verification proves the archive internally consistent; witnessing anchors it to the outside world. Publishing a head's hash to an external time-stamp authority (RFC 3161) records that the head — and, because the head commits to its whole closure, every claim beneath it — existed at that moment; two such anchors bracket everything between them in real time, regardless of any self-asserted `created_at`. The engine already keeps an internal transparency log for free — the chain of signed merges (@sec:timestamp) — so external witnessing is the independent, third-party overlay upon it. The reference implementation exposes it through a plugin interface: it ships one authority binding and leaves the rest to the deployment. _Discharges R11._
+The ADT intentionally doesn't define a key expiry or rotation mechanism, to leave those degrees of freedom to the implementation. For RankeDB we model a key lifetime mechanism fulfilling requirement R11.
+
+For *planned expiry* we add an optional field `pubkey_expires` (RFC 3339) to the contributor claim, storing the expiry date-time of that key. Any claim with `created_at` greater than or equal to that expiry date fails verification.
+
+For *overlapping rotation* we add a new contributor claim with a new pubkey to the graph. That doesn't invalidate the existing one, which expires at its set date, while introducing the new one. For *non-overlapping rotation* we create a new contributor claim that carries a `contribution/diff` edge with updated `pubkey` and `pubkey_expires` fields to the previous one. That construct expresses that the previous claim was valid up to the `created_at` date of the diff claim, which then took over.
+
+*Early expiry* in an immutable ADT is only possible by adding a further claim that asserts an earlier expiry date, overriding the original. As this new claim merely references the original claim, we must guarantee that it is part of every graph in which the contributor claim is present. If a claim from one graph is referenced from another graph in the same archive, then its contributor claim also becomes part of the target graph as part of the provenance. The expiry claim, however, is *not* part of that provenance, so we must take care to import it into the target graph as well, otherwise the contributor would lose its early expiry there.
+
+We express the early expiry with a claim of type `contribution/contributor` and an edge of type `contribution/diff` with field `pubkey_expires` defining the new expiry date (must be greater than or equal to `created_at` of the new claim, and lower than the previous expiry date).
+
+The problem is separable into two parts: first, we need to control *write access* so that no expired contributor can add new contributions to any graph in the archive. Second, we must ensure that each graph contains the full history of all its contributors, to *document* the life cycle. The access problem can be solved by keeping a central register for the whole archive, in which all expiries are stored, enabling the sequencer to block any new contributions from an expired contributor. The documentation problem can be solved by automatically importing expiries when contributors are imported into a sibling branch. To achieve that, the verifier step must calculate the delta between the target graph and the minimal closure containing the claims to add; for all contributor claims in that delta it must fetch any existing expiry claims from the central register and add them to the transaction.
+
+#todo[Factor this cross-branch propagation (register + push/pull to all branches holding the affected claim) out into @sec:access as the base *limiting-claim-propagation* mechanism — it is shared by every limiting/updating claim on a claim present in more than one branch (expiry, deletion, contributor rotation). Then replace the detail here with a reference to it.]
+
+It's worth pointing out here that the task of the Ranke-Graph is to *document what happened*, the task of RankeDB is to *maintain a valid state under additions*, and the task of the application is to *validate the quality of the content* added. For instance, if a claim were ever signed with an expired key, the graph would still be technically intact, documenting exactly what happened in its content — and that content would expose that an invalid signature was admitted at the RankeDB level.
+
+== Access Control <sec:access>
+
+Access Control in RankeDB is expressed as system accounts defined in the configuration that each have a set of grants. Each grant allows one system account a set of rights to one or more branches within the Ranke Archive. We encode access rights with the letters CRUDA - the classic CRUD with an additional A for "admin". *C* allows contributing claims to the target branch, *R* read access, *U* allows expiring contributor claims with `contribution/diff` edges, *D* allows physical deletion of claims, propagating deletion notes to all branches containing them (see @sec:crossbranch) and *A* allows the creation of new branches as well as hiding existing ones by creating a new BTH that omits them. The target branch for each grant is given as a glob. 
+
+Example: `webapp CR foo_*, provisioner A foo_*` allows `provisioner` to create branch `foo_bar` and `webapp` to read and contribute to it.
+
+
+
+
+
+Whenever multiple parties use a single database we must define access limits. Such parties might be different projects of a single individual that should be kept separate, different teams within a company working on different projects, different customers of a single SaaS server renting out leases on a shared backend. We'll use the word *tenants* to stand in for this kind of separation.
+A *tenant* in RankeDB has access scoped to a set of branches within a Ranke Archive. It must be possible to set up a tenant so that no claims of that tenant can be viewed or imported by any other tenant and vice versa. Tenants *do* use the same infrastructure, though: a single RankeDB instance serving a single Ranke Archive using a single Sequencer. If tenants need more separation than that, it's advisable to run separate instances of RankeDB using separate storage backends.
+
+It's also possible to define more granular access policies within the branches managed by a tenant, which we'll discuss in the next chapter (@sec:access).
+
+
+What remains is to bound who may read and write — and to keep that bound separate from who *authored* what.
+
+*Access control (R13).* A *scope* supplied by the application and enforced by the server bounds every read and write: a base posture — `allow-all` or `deny-all` — followed by an ordered list of wildcard exceptions over field and edge names and types. The scope is bound to the authenticated account, not chosen per request, and there is no path to widen it from inside a request; an application builds whatever role model it needs by issuing accounts with different scopes. Reads honour the scope without breaking verifiability: an out-of-scope reference is returned as a hash-only stub rather than dropped, so the visible subgraph still Merkle-verifies — the same shape as the foundation's pruned views — while the withheld content stays undisclosed. _Discharges R13._
+
+Authentication is the other half, and deliberately not the same half. A connecting service authenticates with a shared secret — a token or JWT — for *access*; signing *claims* stays with the application, which holds the contributor keys, and the engine only verifies those signatures at write. Two roles kept apart: the access credential says which scope a caller may exercise, the contributor key says whose claim this is — and the server's own signing identity (@sec:sequencer), which attests commits rather than content, is a third, distinct again.
+
+#todo[Write this section — the mechanism that discharges R12. Tenancy is a *configuration pattern* over the access grants of @sec:access, not a distinct engine mechanism (and not graph content — access policy lives in the config, per the razor of @sec:contracts). Grants are *CRUD* bits (read / modify / delete) held by a *system account* over a set of branches; import is simply the *read* bit across a branch boundary. This one config-level grant model collapses tenancy, cross-branch access, and system-account rights into a single mechanism. A *tenant* is then a set of system accounts sharing a scope no other account touches. Grants are account-centric, not branch-centric — not "branch A may import from B" but "account X holds read on B" — so the flow is directed (e.g. a CEO account holds read on each project's branches, while project accounts hold nothing on the CEO's or each other's). Note the blast radius: read and modify act within the account's own graph view, but *delete*'s physical purge removes bytes from the shared universe and so is irreversible and cross-cutting — the most-guarded bit, arguably operator-only. Enforcement is the frontier-walk set operation of @sec:keyrotation, classifying each cross-branch operation (reference / diff / purge) and checking it against the account's configured CRUD grant on the target branch's closure; the BTH-closure invariant — a reference must resolve inside the archive's BTH closure, never an arbitrary universe id — is the backstop, with a privileged admin-rescue exception for restoring from an out-of-closure backup id. Taxonomy: strong-distrust tenants get their own *instance*; shared-substrate tenancy is only org-internal (project separation) or SaaS (leased shares, mutually invisible), isolated by default and cooperating within explicitly configured limits. NB: this drops the earlier `contribution/import` graph-edge idea — access policy is config, not content. Consider merging this section into @sec:access (one config-grant chapter, tenancy as its closing pattern).]
+
+_Discharges R12._
+
+
+== Cross Branch Propagation <sec:crossbranch>
+
+A property of the ADT is that when a claim from one branch is referenced in a contribution to another branch, the full closure is imported along as the provenance of that claim. But that's not all: this also requires us to import *some* of the claims *pointing at* that claim. This "some" requires precision: we can differentiate between *additive* claims that contribute content to the archive and *limiting* claims that document the removal of something. Those are key expiry or rotation claims (@sec:keyrotation) and deletion notes explaining the absence of claims (@sec:deletion).
+
+RankeDB must guarantee that a key marked as expired or a claim marked as deleted keeps that property across all branches in which it might appear.
+
+To fulfil this guarantee, we must, at creation time, first add those limiting claims to *all* branches that contain the limited claim; second, we must include them whenever a limited claim is imported into another branch by referencing it.
+
+Whether a system account may reference claims from other branches is configured using grants (see @sec:access). An account can import a claim from a source branch into a target branch only if it holds both R (read) access to the source and C (create) access to the target. To keep claims from spanning branches in the first place — so no cross-branch propagation is ever needed — configure tighter-scoped system accounts, each with access to only a specific branch. The reference implementation offers a macaroon-based *attenuation* mechanism that derives tighter-scoped access tokens from wider ones at runtime. This is ideal for enforcing branch separation from the application layer without provisioning a large number of system accounts in RankeDB.
+
+
 
 == Filtered Queries <sec:query>
 
@@ -341,15 +390,7 @@ Because filters are data, a result is checkable even for a query the reference c
 
 Membership is the robust guarantee, surviving any superset; ordering is fragile, since a backend that imposes its own ranking selects a different first-$N$ than the fundamental order. The contract follows the honest line: limit and ordering are fully verifiable for a pure-fundamental query; once a superset ordering is in play, verification drops to set membership and cardinality, not which $N$ survived the limit.
 
-_Discharges R12._
-
-== Access <sec:access>
-
-What remains is to bound who may read and write — and to keep that bound separate from who *authored* what.
-
-*Access control (R14).* A *scope* supplied by the application and enforced by the server bounds every read and write: a base posture — `allow-all` or `deny-all` — followed by an ordered list of wildcard exceptions over field and edge names and types. The scope is bound to the authenticated account, not chosen per request, and there is no path to widen it from inside a request; an application builds whatever role model it needs by issuing accounts with different scopes. Reads honour the scope without breaking verifiability: an out-of-scope reference is returned as a hash-only stub rather than dropped, so the visible subgraph still Merkle-verifies — the same shape as the foundation's pruned views — while the withheld content stays undisclosed. _Discharges R14._
-
-Authentication is the other half, and deliberately not the same half. A connecting service authenticates with a shared secret — a token or JWT — for *access*; signing *claims* stays with the application, which holds the contributor keys, and the engine only verifies those signatures at write. Two roles kept apart: the access credential says which scope a caller may exercise, the contributor key says whose claim this is — and the server's own signing identity (@sec:sequencer), which attests commits rather than content, is a third, distinct again.
+_Discharges R14._
 
 #todo[Draft capture — this section and the three that follow record the serving-and-deployment redesign: hexagonal core, the engine/server split, endpoints, configuration as launch artifact, the single-binary process model. It supersedes most of the *Infrastructure* chapter below: the orchestrator, control-plane, and topology material collapses into @sec:deployment, and @sec:config / @sec:secrets / @sec:rotation / @sec:authority / @sec:keyholder / @sec:tokens fold into @sec:configuration. @sec:access and @sec:engine-server now overlap and must be merged. The *Sequencer* (@sec:sequencer) still needs its own reframe: the branch-table head (BTH) is the _id_ (not a hash) of the current branch-table claim — the key without which $cal(U)$ is unreadable — and the sequencer is the adapter that advances it under concurrency without losing it; how it persists that state is the implementation's choice, not the contract's. To be reconciled paragraph by paragraph.]
 
@@ -375,7 +416,7 @@ One library serves de/serialization (including age), validation, reference resol
 
 == Deployment <sec:deployment>
 
-A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other tenant.
+A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other instance — strong-distrust tenants therefore each take their own.
 
 This yields a ladder of deployments over one set of building blocks: *embedded* — the engine library linked in-process, no server (@sec:engine-server); *standalone* — one `ranke-db` instance, configure and serve, supervised by the platform; *many* — independent instances, one universe each or several universes to a process, supervised the same way. Two things are deliberately *not* part of RankeDB. A *gateway* — a single public endpoint with TLS and routing — is mature, independent infrastructure placed in front (a reverse proxy), never built here. An *orchestrator* — a console for editing configurations and launching instances — is an application built on RankeDB's own surfaces (the configuration library, the management interface), buildable later precisely because no instance depends on it, and not a component of the database. The boundary holds because nothing inside reaches out for either.
 
@@ -477,5 +518,27 @@ and for which they developed strategies.
 = Conclusion <sec:conclusion>
 
 #todo[The engine is built, not asserted: from the atomic store, each added capability discharges a requirement, through R14. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
+
+= Extensions to the Foundation <sec:extensions>
+
+This chapter collects the additions RankeDB makes to the foundation's taxonomy (foundation paper §Types): new `contribution/*` subtypes, the invariants they carry, and the mechanics derived from them. Each is either a *foundation proposal* — vocabulary general enough to belong in the ADT — or an *engine reserved reading* that assigns meaning to the foundation's open edge mechanism without adding schema. The body introduces each name in place and links here for the definition.
+
+== `contribution/delete` <ext:delete>
+
+Most restrictions on a claim are *modifications*, expressed as a `contribution/diff` (@ext:diff): early key expiry lowers a `pubkey_expires` field, a pruned view tombstones an edge. These need no dedicated vocabulary — a diff updates a field in either direction, so it can restrict as readily as extend, and the sequencer resolves the effective value across a claim's versions and enforces it globally.
+
+*Deletion* is the exception. It removes a claim's very existence — purging its content bytes under legal or administrative compulsion — which no diff can express, since a diff produces a new version rather than un-making an immutable, already-referenced claim. `contribution/delete` is therefore the one dedicated limiting claim: it names its target by id only, the content being gone. Because it points _at_ its target it never appears in that target's closure, so — like an early-expiry diff — it cannot be found by traversing the claims it constrains and must be tracked out of band. The sequencer keeps deletions in its archive-wide register alongside the expiries, and at commit denies any contribution that references a deleted id. A failing contribution is denied wholesale; commit-time races — a target still valid when a batch was prepared but deleted before its merge — simply fail and are re-prepared. _Engine reserved reading; no foundation schema._
+
+== `contribution/diff` <ext:diff>
+
+`contribution/diff` delta-encodes a claim against a predecessor, for wide structures that change little between versions — a branch table of many `contribution/branch` edges where a single head moves. A `contribution/diff` edge points at a predecessor $P$; the owning claim is $P$ _overlaid_ with the owning claim's own fields and edges. Each item has three states: absent inherits from $P$, present overrides or adds, tombstoned removes.
+
+Removal is expressed as positive content — $P$ is never mutated:
+- a _field_ is removed by a reserved tombstone value, distinct from absence;
+- an _edge_ is removed by its id. Edges carry no name, several may run between the same pair, and an edge cannot be a reference target, so the only stable handle is the content-addressed `id(e)`; the diff claim lists the ids to drop in a *dedicated node field* — an additional field beyond the foundation's mandatory set, hashed and signed like any other, and distinct from `content` (which holds the content bytes).
+
+The _effective_ claim is derived by folding the diff chain from a base; periodic full _keyframe_ claims bound the chain length. The raw closure is untouched — $P$ and all it references stay present for verification — so a tombstone alters the view, not the structure: the edge-level analogue of `contribution/prune`. _Foundation proposal_ — it generalises the previous-revision link of `contribution/branches`; RankeDB uses it for branch-table deltas and for contributor-key continuity.
+
+#todo[This chapter grows as the body introduces names; link each from its section via `@ext:...`. Candidates to fold in once their sections settle: the storage-composition vocabulary (`UniverseStack`, `UniversePartition`, eager/lazy, the complete-ground invariant), the generic-format-extract convention, and `max_content_len`.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
