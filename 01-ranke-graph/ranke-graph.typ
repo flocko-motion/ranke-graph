@@ -86,7 +86,7 @@ Historical science and archival theory treat knowledge itself as primary: what i
 
 The Ranke-Graph operates in the intersection. It uses CS primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
 
-== The Ranke Graph
+== The Ranke-Graph
 
 The Ranke-Graph is the data structure for this discipline: a graph of _claims_, each carrying its full derivation chain. Each node is both a statement and the record of how that statement came to be.
 
@@ -229,7 +229,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *universe*, is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
+$cal(U)$, the *Universe*, is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
 $"RG"_h subset.eq cal(U)$.
 
 == Closures <sec:head>
@@ -298,6 +298,8 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
 
 When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Multi-sig, web-of-trust, and key rotation are application-layer patterns over normal claims. A rotation chain, for example, is a new contributor signed by the old.
+
+#todo[Over-specification to fix: "a new contributor signed by the old" bakes in a rotation-authorisation rule the ADT should not make. The foundation should require only a *valid* signature on the new contributor claim; _whose_ signature (the old key, an admin, …) is an application-layer decision. Soften this example so it does not mandate self-rotation.]
 
 #dref[D3, this section]
 
@@ -469,5 +471,9 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
   - *`contribution/branches`*: names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
   - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
   - *`contribution/prune`*: view-modifying; excludes a reference from views containing the claim
+
+#todo[Proposed 6th subtype `contribution/diff` (delta encoding for wide, frequently-updated structures — e.g. a 100-edge branch table where one head moves rewrites the whole table today). A `contribution/diff` edge points at a predecessor claim; the owning claim is that predecessor *overlaid* with the owning claim's own fields and edges. Three states per item: absent ⇒ inherit, present ⇒ override/add, tombstoned ⇒ remove. Minus is positive content (never mutates the predecessor): a field is removed by a reserved tombstone value; an edge is removed by naming it in a removal list in the diff claim's `content`, keyed by an edge identity — `(type, key-field)` or target id (the branch table already has this: the branch name in `contribution/branch`'s `content`). The effective claim is derived by folding the diff chain from a base; periodic full "keyframe" claims cap the chain length. Generalises `contribution/branches`' previous-revision link and also serves contributor key continuity. Each diff claim keeps its own id, so content addressing holds.]
+
+#todo[Restriction claims — one directionality note plus one new subtype. Most restrictions are *modifications* expressed through `contribution/diff`: a diff updates a field in either direction (early key expiry lowers `pubkey_expires`; extending raises it) and tombstones edges (pruning drops a view's edge), so restricting and extending are the same operation and need no dedicated vocabulary. The lone exception is *deletion* — removing a claim's existence (purging its bytes), which no diff can express since a diff makes a new version rather than un-making an immutable, referenced claim. Propose one subtype for it, `contribution/delete`, naming its target by id only (content gone). Shared directionality caveat: `contribution/diff` and `contribution/delete` both point _at_ their target, so they never appear in that target's closure and cannot be found by traversing the claims they affect — they must be surfaced out of band. Enforcement is RankeDB's concern (a Sequencer-owned register collects the archive-wide restrictions and the gate denies any contribution that references a deleted id or is signed past an effective expiry). Earlier framing note: this replaces an over-built `limit/*` family — expire and prune fold into `contribution/diff`, only delete stays dedicated.]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
