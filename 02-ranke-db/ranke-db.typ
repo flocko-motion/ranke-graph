@@ -146,7 +146,7 @@ _Access._
 
 Left to the application layer are user and identity management, user access policy, consensus or truth arbitration, and further application logic.
 
-= Adapters and Contracts <sec:contracts>
+= Architecture <sec:contracts>
 
 Following the guiding principles stated above, a Hexagonal architecture (@cockburn2005hexagonal) seems to fit best. This architecture has a minimal core that expresses the pure business logic without any direct contact with external resources. Around that core is a small number of adapters, each defined as a narrow contract, each intentionally minimal, so that the technology behind it stays replaceable. 
 At its centre, the core wraps the library that implements the Ranke-Graph ADT. The core adds the integration logic that connects the adapters to that library and implements the concerns the ADT leaves open: endpoints, access control, persistence, and contribution management. 
@@ -170,21 +170,7 @@ This split is a useful razor for deciding what belongs where. The Ranke-Graph ho
 
 == Configuration and Deployment <sec:configuration>
 
-#todo[Unreviewed chapter, needs editing.]
-
-Configuration is authored, not integrated, so it needs no adapter and admits no variation worth abstracting: it is the *launch artifact*, a single JSON document an instance reads to assemble itself. A value in it is either a literal or a *reference* — `vault(name)`, resolved from a configured secret store, or `env(VAR)`, read from the environment — so a configuration can be wholly secret-free, every credential resolved at launch from outside the file. The one credential that cannot indirect is the secret store's own, which a literal (encrypted, below) or an `env()` covers; secret-zero collapses to that single root.
-
-Encryption follows content, not policy. A reference-only file holds no secret and may be plaintext — committable, reviewable, the production default; a file carrying an inline literal secret is age-encrypted, its key supplied at launch from a source the operator chooses (`prompt`, `stdin`, `env:VAR`, `file:path`), never as a literal on the command line. The tooling warns rather than forbids, and only where it matters — when an inline secret would be written unencrypted — naming the field and pointing at both remedies (encrypt, or move it to `vault()` / `env()`).
-
-One library serves de/serialization (including age), validation, reference resolution, and editing. *Validation* is secret-free and offline — schema and semantics only, so a configuration can be authored and checked without reaching any backend — while *resolution* (fetching references, connecting) happens only at launch. The runtime that loads a configuration and the tooling that authors it are the same library, and indeed the same binary: `ranke-db`, with `run` to serve and `config` / `tui` to author — so the build that validates on write is, by construction, the build that loads on run, and no version can drift between writer and reader.
-
-The configuration is itself read through an adapter — a file, a flat directory, or Postgres — so it joins storage and the secret store as a third pluggable adapter class, and composes like them: a *partition* can split server settings, accounts, and the archives into separate children. The one thing a configuration cannot describe is how to reach itself, so that sits outside as a tiny, secret-free bootstrap directive — which config adapter, with what arguments — from which the server loads all the rest, keeping the binary generic: one executable everywhere, pointed at a config.
-
-The secrets and keys those references point to never sit in the configuration; they live behind a *secret-store adapter* — `get(ref)` for credentials, `sign(keyRef, digest)` for keys — with a `file` baseline for tests and single-node, and Vault, OpenBao, or a cloud KMS signing without ever exposing the key. Each archive configures its own server-side contributor, so `keyRef` selects that archive's identity and a server serving many holds none of their keys: it asks the store to sign.
-
-An instance is one process serving one configuration: it reads that configuration and serves, and needs nothing else to run. Being an ordinary process, it is supervised by whatever means the operator already uses — killed, accounted, and restarted like any other. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other, and strong-distrust tenants each take their own.
-
-The same building blocks scale as a ladder: *embedded* — the engine library linked in-process, no server; *standalone* — a single `ranke-db` instance; *many* — independent instances, one Universe each or several to a process.
+A RankeDB instance is launched by running the binary with a configuration as launch artifact. The configuration contains the full instructions which adapters to mount to the core, including the full parametrization. Field values in the configuration can be either literal ("field":"value"), references to environment variables resolved at runtime (`"field":"env(VARNAME)"`) or references to key-vault entries ("field":"vault(KEYNAME)") fetched from the key-vault defined in the same configuration at runtime. The configuration is json encoded and optionally age-encrypted (?? reference to age?). While encrypted configuration allows secrets to be stored in the config (convenient for personal or single user projects), env and vault approaches allow secret-less parametrized configuration that can be integrated into enterprise infrastructure. 
 
 == Endpoints <sec:endpoints>
 
@@ -194,7 +180,7 @@ An *endpoint* is a driving port: a client calls in through it. It is two adapter
 
 Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them — access control is the server's, never an endpoint's, since binding it to a protocol would make each new endpoint a way around it. The scopes are service-account configuration, provisioned once and effectively static; the fast-changing, per-user access an application needs is built on top and stays out of scope (@sec:access). One instance may expose several endpoints at once — different doors into one Universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a Universe through one multi-door instance is what keeps it a *single* Sequencer: the alternative — an instance per consumer type — would split one Universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:configuration).
 
-= The Data Structure <sec:datastructure>
+= Implementation <sec:datastructure>
 
 This chapter builds the Ranke-Graph from the atom up. Its core concepts are claims (@sec:claim), the atom of the Ranke-Graph; the Universe (@sec:universe), the content-addressed space in which those claims are stored; and the branch-table head (@sec:bth), which retrieves a graph from the Universe. They are realized over the Blob Store (@sec:blob), the foundation of the Universe, and the Sequencer (@sec:sequencer), which manages the branch-table head under concurrent reads and writes.
 
