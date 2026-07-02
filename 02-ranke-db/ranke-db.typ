@@ -138,7 +138,7 @@ _Verification and Witnessing._
 
 _Access._
 - *R12 — Multi-tenancy.* An archive can host several tenants — projects within an organization, or leased shares in a SaaS deployment — isolated by default, yet able to cooperate within explicitly configured limits. (@sec:access)
-- *R13 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top. (@sec:engine-server, @sec:access)
+- *R13 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top. (@sec:endpoints, @sec:access)
 - *R14 — Filtered reads.* The archive is queryable through declarative filters, with pagination and a result limit. (@sec:query)
 
 
@@ -168,23 +168,7 @@ This split is a useful razor for deciding what belongs where. The Ranke-Graph ho
   ) <fig:adapters>
 ]
 
-== The Engine and the Server <sec:engine-server>
-
-#todo[Unreviewed chapter, needs editing.]
-
-RankeDB divides into two layers along the mechanism/policy line. The *engine* is the foundation paper's reference library: it expresses a graph — claims, the operations over them, and the scope-and-prune mechanism (foundation paper §Scoping) — over the driven ports of @sec:blob and @sec:universe together with the Sequencer (@sec:sequencer). It is identity- and tenant-blind: it produces a view from an indicator σ but never decides which σ a caller is owed. The *server* is RankeDB proper: it makes one graph engine a reachable, access-bounded, multi-tenant service — authenticating callers, binding each service account to a scope, routing to the Universe a caller may reach, and assembling the whole from configuration. Embedding the engine in-process is the limiting case: a single owner, no other principal, hence no access decision to make and no server at all (@sec:deployment).
-
-This is why access control is the server's and never an endpoint's: were it bound to a protocol, every new endpoint would be a fresh way around it. Authentication — credential to identity — varies by door and belongs to the endpoint (@sec:endpoints); authorisation — identity to scope, enforced on every read and write — is uniform beneath all doors and belongs to the engine. The scopes themselves are service-account configuration, provisioned once and effectively static; the fast-changing, per-end-user access an application needs is built on top, and stays out of scope (@sec:access).
-
-== Endpoints <sec:endpoints>
-
-#todo[Unreviewed chapter, needs editing.]
-
-An *endpoint* is a driving port: a client calls in through it. It is two adapters composed — a *transport* (the wire protocol) and an *authenticator* (credential to identity) — written *transport ⊕ authenticator* and chosen per endpoint: REST with a JWT, MCP with a macaroon, a local socket with the *anonymous* authenticator. The reference binding is REST over HTTP, with an OpenAPI contract from which a client and its documentation are generated *[FREE]*; MCP and MQTT are anticipated, not built. HTTP is the durable, ubiquitous default rather than a hedge — the protocol counterpart of the open, durable formats the longevity argument favours (@sec:longevity) — so it is committed to, not abstracted behind a swap-out port for its own sake. The variation that earns the endpoint port is the *consumers*: an application over REST, an agent over MCP, a device over MQTT, an operator over a local socket.
-
-Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them (@sec:engine-server). One instance may expose several endpoints at once — different doors into one Universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a Universe through one multi-door instance is what keeps it a *single* Sequencer: the alternative — an instance per consumer type — would split one Universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:deployment).
-
-== Configuration <sec:configuration>
+== Configuration and Deployment <sec:configuration>
 
 #todo[Unreviewed chapter, needs editing.]
 
@@ -194,38 +178,21 @@ Encryption follows content, not policy. A reference-only file holds no secret an
 
 One library serves de/serialization (including age), validation, reference resolution, and editing. *Validation* is secret-free and offline — schema and semantics only, so a configuration can be authored and checked without reaching any backend — while *resolution* (fetching references, connecting) happens only at launch. The runtime that loads a configuration and the tooling that authors it are the same library, and indeed the same binary: `ranke-db`, with `run` to serve and `config` / `tui` to author — so the build that validates on write is, by construction, the build that loads on run, and no version can drift between writer and reader.
 
-== Deployment <sec:deployment>
+The configuration is itself read through an adapter — a file, a flat directory, or Postgres — so it joins storage and the secret store as a third pluggable adapter class, and composes like them: a *partition* can split server settings, accounts, and the archives into separate children. The one thing a configuration cannot describe is how to reach itself, so that sits outside as a tiny, secret-free bootstrap directive — which config adapter, with what arguments — from which the server loads all the rest, keeping the binary generic: one executable everywhere, pointed at a config.
+
+The secrets and keys those references point to never sit in the configuration; they live behind a *secret-store adapter* — `get(ref)` for credentials, `sign(keyRef, digest)` for keys — with a `file` baseline for tests and single-node, and Vault, OpenBao, or a cloud KMS signing without ever exposing the key. Each archive configures its own server-side contributor, so `keyRef` selects that archive's identity and a server serving many holds none of their keys: it asks the store to sign.
+
+An instance is one process serving one configuration: it reads that configuration and serves, and needs nothing else to run. Being an ordinary process, it is supervised by whatever means the operator already uses — killed, accounted, and restarted like any other. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other, and strong-distrust tenants each take their own.
+
+The same building blocks scale as a ladder: *embedded* — the engine library linked in-process, no server; *standalone* — a single `ranke-db` instance; *many* — independent instances, one Universe each or several to a process.
+
+== Endpoints <sec:endpoints>
 
 #todo[Unreviewed chapter, needs editing.]
 
-A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other instance — strong-distrust tenants therefore each take their own.
+An *endpoint* is a driving port: a client calls in through it. It is two adapters composed — a *transport* (the wire protocol) and an *authenticator* (credential to identity) — written *transport ⊕ authenticator* and chosen per endpoint: REST with a JWT, MCP with a macaroon, a local socket with the *anonymous* authenticator. The reference binding is REST over HTTP, with an OpenAPI contract from which a client and its documentation are generated *[FREE]*; MCP and MQTT are anticipated, not built. HTTP is the durable, ubiquitous default rather than a hedge — the protocol counterpart of the open, durable formats the longevity argument favours (@sec:longevity) — so it is committed to, not abstracted behind a swap-out port for its own sake. The variation that earns the endpoint port is the *consumers*: an application over REST, an agent over MCP, a device over MQTT, an operator over a local socket.
 
-This yields a ladder of deployments over one set of building blocks: *embedded* — the engine library linked in-process, no server (@sec:engine-server); *standalone* — one `ranke-db` instance, configure and serve, supervised by the platform; *many* — independent instances, one Universe each or several Universes to a process, supervised the same way. Two things are deliberately *not* part of RankeDB. A *gateway* — a single public endpoint with TLS and routing — is mature, independent infrastructure placed in front (a reverse proxy), never built here. An *orchestrator* — a console for editing configurations and launching instances — is an application built on RankeDB's own surfaces (the configuration library, the management interface), buildable later precisely because no instance depends on it, and not a component of the database. The boundary holds because nothing inside reaches out for either.
-
-= Infrastructure <sec:infrastructure>
-
-#todo[Unreviewed chapter, needs editing.]
-
-#todo[Capture chapter — collects the deployment and operational exploration (topologies, secrets, keys, authority, the air-gapped keyholder, delegation). Mostly deployment detail rather than core architecture; refine, trim, or relocate downstream once the engine chapter settles.]
-
-The architecture is one design; how it is deployed is a separate and free choice. The same mechanisms — the Universe stack, the Sequencer, content-addressed claims — run unchanged from a single process on a laptop to a distributed fleet with an air-gapped key authority. The topology is configuration, not a redesign. This chapter captures the shapes RankeDB can take and the operational concerns they raise: secrets, keys, and the authority that issues them.
-
-== From one node to a fleet <sec:topologies>
-
-A single server is the whole system collapsed into one process: it is the Sequencer, holds one long-lived key, and runs forever once enabled. A fleet is the same architecture with the roles spread out — a central Sequencer and replicas that prepare work off the critical path and merge it up in a single commit (@sec:sequencer, @sec:coordinate). Concurrent commits simply fork into two heads that the next merge consolidates, so scaling out never costs a rejected write or a lost update. One scales by adding replicas, never by switching designs; the single-server case is just the fleet with no replicas.
-
-#todo[Figure: the three shapes side by side — single node; central Sequencer + replicas; distributed central-protection (isolated central, user-facing replicas).]
-
-== Configuration and assembly <sec:config>
-
-A running instance is defined entirely by a *configuration*, and the configuration is itself read through an adapter — Postgres is only one way to hold it, alongside a YAML file or a flat directory. It is not passive storage: it is the assembly that binds the other adapters into a system — which storage layers compose the stack, which secret store holds the keys, which contributor the Sequencer signs as, which archives exist and who may reach them. Given a configuration the server instantiates those adapters and runs, so *launching a config is launching the service*. This completes a symmetry of three pluggable adapter classes: *storage* (where claims live), the *secret store* (keys and credentials), and the *configuration store* (the assembly itself). The one thing a configuration cannot describe is how to reach itself, so that lives outside as a minimal bootstrap directive — _use config adapter X with arguments Y_ — from which the server loads the configuration and constructs all the rest. That directive is tiny and can be secret-free (a file path, or a connection string authenticated by platform identity rather than an embedded password), which makes the server binary generic: the same executable everywhere, pointed at one config. With file-based adapters throughout, an instance is a single process with no external dependency; Postgres, a vault, and object storage enter only when a deployment asks for them. And the configuration store composes like the rest: a _partition_ adapter can mount one child for server settings, another for accounts, another for the archives and their stacks — the same Composite pattern that stacks storage layers, since every adapter class is closed under it.
-
-== Secrets and keys <sec:secrets>
-
-Connection details and private keys never live in the control-plane database; Postgres holds only *references* to them. The secrets themselves sit behind a *secret-store adapter*, a sibling of the storage adapters with the same capability-declaring shape: `get(ref)` for credentials and `sign(keyRef, digest)` for keys, with a `file` adapter as the dumb baseline for tests and single-node, and Vault, OpenBao, or a cloud KMS as adapters that sign *without ever exposing the key*. There is no single signing key: each Ranke-Archive configures its own server-side contributor, so `keyRef` selects that archive's identity, and a server serving many archives holds none of them — it asks the store to sign.
-
-#todo[The `SecretStore` interface and capability declaration; optional dynamic short-lived backend credentials (Vault minting ephemeral database or object-store users); secret-zero solved by platform identity (Kubernetes ServiceAccount, cloud IAM role), never a stored password.]
-
+Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them — access control is the server's, never an endpoint's, since binding it to a protocol would make each new endpoint a way around it. The scopes are service-account configuration, provisioned once and effectively static; the fast-changing, per-user access an application needs is built on top and stays out of scope (@sec:access). One instance may expose several endpoints at once — different doors into one Universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a Universe through one multi-door instance is what keeps it a *single* Sequencer: the alternative — an instance per consumer type — would split one Universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:configuration).
 
 = The Data Structure <sec:datastructure>
 
