@@ -127,13 +127,11 @@ Five concepts populate the graph. On the provenance side: *sources* (artifacts c
 Contributors and entities are deliberately separate. A *contributor* is operational, the actor whose work brought a claim into the graph. An *entity* is semantic, a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection, but they never share a node.
 
 
-#todo[Refresh §A Vision to follow the new spine: predates the §Two Traditions framing and the Phase 6 D-reorder. Could land harder if rewritten as the *application* layer of the two-traditions composition (rather than as a forward-looking AI/agent pitch). Keep the AI examples but ground them in archival continuity.]
-
 == A Vision
 
-The Ranke-Graph is a substrate for systems just becoming possible: AI assistants whose answers trace to source records, agents that revisit and revise their reasoning chains, archives that survive external scrutiny. The ADT defined here is the foundation for such systems: deliberately _under-prescribed_, preserving claims with their full derivation while leaving retrieval, reasoning, and synthesis to systems built on top.
+The two traditions of @sec:two-traditions meet in the ADT; what is built above it is their application. Because the substrate keeps every claim with its full derivation — the archival discipline realised on the CS primitives of @sec:primitives — systems built on it inherit provenance rather than reconstruct it: AI assistants whose answers trace back to source records, agents that revisit and revise their reasoning chains, archives that stand up to external scrutiny. These are not new demands on the structure but the oldest archival ones — cite the sources, keep the record, tolerate contradiction — carried into settings that had abandoned them. The ADT is deliberately _under-prescribed_: it preserves claims and their derivation and leaves retrieval, reasoning, and synthesis to the layer above.
 
-Such systems can evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising or disproving earlier contributions. The graph accumulates; the history is complete, but filterable and queryable. Retrieval systems select what they deem most useful.
+Such systems evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising, or disproving earlier contributions. The graph accumulates; the history stays complete, yet filterable and queryable. Retrieval systems select what they deem most useful.
 
 = Desiderata <sec:desiderata>
 
