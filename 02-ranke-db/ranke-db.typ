@@ -139,7 +139,7 @@ _Verification and Witnessing._
 _Access._
 - *R12 — Multi-tenancy.* An archive can host several tenants — projects within an organization, or leased shares in a SaaS deployment — isolated by default, yet able to cooperate within explicitly configured limits. (@sec:access)
 - *R13 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top. (@sec:engine-server, @sec:access)
-- *R14 — Filtered queries.* The archive is queryable through a conjunction of filters, with pagination and a result limit. (@sec:query)
+- *R14 — Filtered queries.* The archive is queryable through declarative filters, with pagination and a result limit. (@sec:query)
 
 
 == Out of Scope <sec:out-of-scope>
@@ -243,7 +243,9 @@ The partition primitive routes each read and write request to one of several Uni
   caption: [A partition beneath an eager cache. The top layer stores every write; below it a *partition* routes each claim by `id mod 2` to one of two shards, each holding a disjoint half of the keyspace — together, the whole archive.],
 ) <fig:partition>
 
-Arbitrary replication strategies can thus be modelled from the provided composition primitives, or from additional ones. To force full replication, we configure the appropriate stack and run a verification pass over a closure: reading and verifying each claim it contains triggers the composition's replication.
+A third primitive, *UniverseBranch*, routes by the branch a claim is accessed through. This leads to redundant storage in multiple backends for claims that are referenced in multiple branches, but also allows for physical separation of branches, which is useful for multi-tenancy configurations (@sec:access).
+
+Arbitrary replication strategies can be modelled from the provided composition primitives, or from additional ones. To force full replication, we configure the appropriate stack and run a verification pass over a closure: reading and verifying each claim it contains triggers the composition's replication.
 
 _Discharges R3 (replicability)._
 
@@ -369,45 +371,57 @@ Whether a system account may reference claims from other branches is configured 
 
 == Filtered Queries <sec:query>
 
-Queries against RankeDB name a *subject* and a set of *filters*. The subject is a *scope* — a branch name, or the reserved `$universe` (@sec:access) — optionally rooted at a claim id through a `closure` field; the query then reads the closure of that id, the claim together with its provenance. For a branch the id is optional and defaults to the branch's head, so a bare branch queries the whole branch, and a given id must lie within it (keeping the query inside the branch's access boundary). For `$universe` the id is mandatory — the Universe has no head of its own — and this raw read by id is privileged (`R` on `$universe`).
+Queries against RankeDB name a *subject* and a query over it. The subject is a *scope* — a branch name, or the reserved `$universe` (@sec:access) — and it fixes the *boundary*: a read may return only claims the scope admits, a branch's own closure or, under the privileged `$universe` grant (`R`, @sec:access), any claim in the Universe. Within that closure a query may select any result set. 
 
-A read is a *filtered query*: the closure of a head, narrowed by a conjunction of filters and capped by a result limit. The set of filters defines _which_ claims from within the closure should be returned. The empty filter set returns the full closure; adding filters narrows it to what's needed.
+A read carries a `lang` tag and a `query` payload in that language. RankeDB's own language, `ranke`, is a small declarative filter (below): always available, and the only one it can *verify*. The others are contributed by the storage adapters and gated on capability — `cypher` (@francis2018cypher) when an adapter declares it speaks Cypher (today, Neo4j, @neo4j), with `gql` (@iso39075gql) and `sql` reserved for adapters that later declare them. A read names exactly one language; the client reads the deployment's declared capabilities and chooses. Whatever the language, a query returns the same thing: a set of claims forming a subgraph of the queried closure.
 
+Two controls are universal, applied by RankeDB whichever language a read uses. `timeout_ms` bounds processing time: on reaching it the query is *cancelled* and fails rather than returning a partial result, matching the Neo4j transaction timeout so both languages behave alike. `content` bounds the bytes: a claim whose content exceeds `max` comes back either truncated (`cutoff`) or emptied (`zero`), the rest fetched by id when needed. Both matter because a result can otherwise run to millions of claims and gigabytes of content. Everything else — where the query roots, how it orders and pages — is the language's own: the `ranke` query carries these as fields (below); a `cypher` query expresses them in its own syntax.
 
-RankeDB avoids implementing a DSL with a two-fold approach: a REST API allows simple filter-based queries that are natively implemented in the reference implementation. Additionally we expose a read-only GQL/Cypher (@iso39075gql, @francis2018cypher) endpoint, available when at least one Universe in the storage stack is Neo4j (@neo4j). GQL queries are executed by Neo4j; the result is returned as a native Ranke-Graph, just as for native-filter queries. To align GQL access with our access policies we:
-- expose the endpoint read-only;
-- append additional filter clauses to the user's GQL to narrow the scope to the closure (weak mechanism, as GQL is complex);
-- match all claims in the result set against the closure to avoid claims leaking in from other branches (strong mechanism).
+The rest of this section covers `ranke`; the backend languages are their own documented standards.
 
-All queries allow the caller to specify a result limit together with time and size thresholds for the answer. This is important, as results could consist of millions of claims with gigabytes of content. The result limit caps the number of claims returned; since claims carry a total order (`created_at`, then id), the caller pages through a larger result by repeating the query with a cursor — the `(created_at, id)` of the last claim seen — so pagination keeps no server-side state. The time threshold limits the processing time of the query and returns the incomplete result set once reached. The size threshold allows limiting the content bytes length; claims with larger content return (depending on filter settings) either zero content bytes or content cut off at the threshold. The caller can then fetch the missing content where needed with additional calls. 
+The `ranke` query is declarative *data*, expressed directly as JSON: the query is a tree, and a JSON parser is the only parser RankeDB needs. It is a field *comparison* or a *closure* test, or a boolean combination of them.
 
-In the rest of this section we will discuss native filters, as GQL is well documented in the respective manuals. 
+A *comparison* is an object keyed by a field name. A bare value tests equality — `{"type": "relation"}` — while an object applies explicit operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) and `glob` (shell-style wildcard match, e.g. `{"type": {"glob": "relation/*"}}`). Several operators on one field combine conjunctively, so `{"created_at": {"gt": …, "lt": …}}` is a range. A comparison keys on any *node* field — the mandatory ones (`type`, `created_at`, `contributor`, `encoding`, `content_hash`, `content_len`) or any custom field the application has set (@sec:claim) — but never the content bytes, which stay opaque at this layer. Custom field names follow the application's convention; only the mandatory names and the reserved words `or`, `not` and `closure` are claimed by RankeDB.
 
-Native filters are declarative *data*, expressed directly as JSON: the query is a tree, and a JSON parser is the only parser RankeDB needs. A filter is a field *comparison*, or a boolean combination of comparisons.
-
-A *comparison* is an object keyed by a field name. A bare value tests equality — `{"type": "relation"}` — while an object applies explicit operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) and `glob` (shell-style wildcard match, e.g. `{"type": {"glob": "relation/*"}}`). Several operators on one field combine conjunctively, so `{"created_at": {"gt": …, "lt": …}}` is a range. The comparable fields are the claim's node metadata — `type`, `created_at`, `contributor`, `encoding`, `content_hash`, `content_len` — never the content bytes, which stay opaque at this layer.
-
-Filters compose as a tree: multiple keys in one object form a conjunction, `{"or": [...]}` a disjunction and `{"not": ...}` a negation; `or` and `not` are reserved and never name a field. A whole filter is therefore a per-claim predicate, wrapped with a subject and the result controls above into a query:
+Filters compose as a tree: multiple keys in one object form a conjunction, `{"or": [...]}` a disjunction and `{"not": ...}` a negation. Alongside comparisons, a `{"closure": "<id>"}` term matches every claim in the closure of `id` — its provenance subgraph — and composes like the rest: `{"not": {"closure": "X"}}` excludes a subtree, `{"or": [...]}` unions two. A top-level `closure` term also bounds the scan — the engine roots there rather than ranging the whole subject — and a `$universe` query must carry one, since the Universe has no head to default to. This predicate is the `where` of a `ranke` query, which also carries the shaping: `order`, a list of fields each optionally prefixed `-` for descending, defaulting to `created_at` with id appended as the final tiebreaker so the order stays total; `limit`, the claim cap; and `cursor`, the order-key tuple of the last claim seen, after which the next page resumes. Under a `lang` tag, with the subject and universal controls alongside, that makes a full request:
 
 ```json
 {
   "subject": "project_x",
-  "closure": "bafy…x",
-  "filter": {
-    "type": {"glob": "relation/*"},
-    "created_at": {"gt": "2026-01-01T00:00:00Z"},
-    "or": [{"contributor": "K1"}, {"contributor": "K2"}]
-  },
-  "limit": 200,
-  "cursor": ["2026-03-01T10:00:00Z", "bafy…lastSeen"],
   "content": {"max": 65536, "over": "cutoff"},
-  "timeout_ms": 5000
+  "timeout_ms": 5000,
+  "lang": "ranke",
+  "query": {
+    "where": {
+      "closure": "9f2c…e7a1",
+      "type": {"glob": "relation/*"},
+      "created_at": {"gt": "2026-01-01T00:00:00Z"},
+      "or": [{"contributor": "K1"}, {"contributor": "K2"}]
+    },
+    "order": ["-created_at"],
+    "limit": 200,
+    "cursor": ["2026-03-01T10:00:00Z", "4b8d…c02f"]
+  }
 }
 ```
 
-The reference evaluation is a linear scan over the closure that keeps every claim for which the filter holds and truncates them in the `(created_at, id)` total order of @sec:timestamp. That naive scan is deliberately simple, and it is the _verifiable reference_: a faster path — indexes, adapter-specific lookups, or precomputed per-branch membership tables — must pass a shared conformance suite against it, expecting identical reads. Because the vocabulary is small and fixed, every conformant implementation understands all of it, and a result is fully checkable by re-evaluating the same predicate over the returned claims.
+The same query in `cypher` instead. Cypher is self-contained: it roots the closure itself — the reachability pattern `(root)-[:references*0..]->(c)` from a chosen id — and expresses ordering and paging directly, so the `ranke` query's `where`, `order`, `limit` and `cursor` have no counterpart here. Every `ranke` operator maps across (`glob`→regex, `in`→`IN`, `closure`→reachability, comparisons direct), and Cypher additionally reaches what `ranke` cannot: multi-hop traversals, path patterns, aggregation. Such a query has no `ranke` equivalent, so it runs only where a Cypher-capable adapter is present — there is no native fallback.
 
-The GQL endpoint is the exception. Its query language is not this vocabulary, so RankeDB cannot re-evaluate it: injecting closure-restricting clauses into a GQL query (the weak mechanism above) is only a best-effort optimisation that shrinks the set the post-GQL stage must prune, ideally to nothing. The guarantee comes from the strong mechanism, which matches every returned claim against the closure and drops any that do not belong. A non-empty removal set is therefore never a correctness failure, only a sign of incomplete injection — which RankeDB can surface as a warning, or even an error, pinpointing where the injection should be tightened. Membership and cardinality thus stay verifiable even for a Neo4j-computed result; ordering does not, since a backend imposing its own ranking may select a different first-$N$, so under GQL the limit and page boundaries are trusted rather than verified.
+```json
+{
+  "subject": "project_x",
+  "content": {"max": 65536, "over": "cutoff"},
+  "timeout_ms": 5000,
+  "lang": "cypher",
+  "query": "MATCH (root {id: '9f2c…e7a1'})-[:references*0..]->(c:Claim) WHERE c.type =~ 'relation/.*' AND c.created_at > '2026-01-01T00:00:00Z' AND c.contributor IN ['K1', 'K2'] RETURN c ORDER BY c.created_at DESC LIMIT 200"
+}
+```
+
+The reference evaluation of a `ranke` query is a linear scan over the closure that keeps every claim it accepts, returned in the requested order (defaulting to the `(created_at, id)` total order of @sec:timestamp). That naive scan is deliberately simple, and it is the _verifiable reference_: any faster path — native indexes, adapter-specific lookups, or translating `ranke` into Cypher to run on a Neo4j Universe — must pass a shared conformance suite against it, returning identical reads. That translation is mechanical, since the vocabulary is small and fixed (`glob`→regex, `in`→`IN`, `closure`→reachability, the rest direct), and `order`, `limit`, `cursor` and `timeout_ms` push down with it (Neo4j's transaction timeout enforcing the last). So a `ranke` query runs anywhere and stays checkable by re-evaluating the predicate over the returned claims — even when Neo4j computed it.
+
+A raw `cypher` query is the exception to this verifiability. Its language is not RankeDB's vocabulary, so RankeDB cannot re-evaluate it; the boundary instead comes from the *subject*, enforced by matching every returned claim against the subject's closure and dropping any that fall outside (the *strong* mechanism). To spare the backend work, RankeDB may inject closure-restricting clauses into the query (the *weak* mechanism), but that only shrinks the set the post-match must prune, ideally to nothing — a non-empty removal set is never a correctness failure, only a sign of incomplete injection, which RankeDB can surface as a warning or an error to show where the injection should tighten. So a Cypher result is bounded, and its membership checkable, but its selection and ordering are the backend's: trusted, not re-verified. That is the price of the escape hatch, and why the verifiable `ranke` path stands beside it.
+
+Cropping bounds which claims come back, not whether out-of-closure data *influenced* their selection: over a Cypher backend shared by several branches, one branch's claims can steer which of another's surface. Closing that channel is a deployment choice — route the Cypher backend per branch with `UniverseBranch` (@sec:composition), trading redundancy for isolation — on the same friendly-to-adverse gradient as the rest of the archive.
 
 _Discharges R14._
 
