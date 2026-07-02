@@ -275,7 +275,7 @@ By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in
 
 Pruning (@sec:pruning) is a query-time access layer; the underlying chain in $"RG"_h$ stays complete.
 
-#todo[Add a one-liner observation here (or in @sec:validity): multi-root RGs are the federation case — when two archives merge their Universes, the resulting RG has the initial nodes of both as roots. Closes the loop between §Validity's "one or more initial nodes" and the §Distributability merge story.]
+Traversal terminates at *one or more* initial nodes: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial node of each — the multi-root case @sec:validity admits.
 
 #dref[D1, this section]
 
