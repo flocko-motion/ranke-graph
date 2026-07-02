@@ -139,7 +139,7 @@ _Verification and Witnessing._
 _Access._
 - *R12 — Multi-tenancy.* An archive can host several tenants — projects within an organization, or leased shares in a SaaS deployment — isolated by default, yet able to cooperate within explicitly configured limits. (@sec:access)
 - *R13 — Access control.* A caller-supplied scope is enforced for both reads and writes, so the application layer can build fine-grained access control on top. (@sec:engine-server, @sec:access)
-- *R14 — Filtered queries.* The archive is queryable through declarative filters, with pagination and a result limit. (@sec:query)
+- *R14 — Filtered reads.* The archive is queryable through declarative filters, with pagination and a result limit. (@sec:query)
 
 
 == Out of Scope <sec:out-of-scope>
@@ -168,7 +168,68 @@ This split is a useful razor for deciding what belongs where. The Ranke-Graph ho
   ) <fig:adapters>
 ]
 
-In the following sections we'll describe a few relevant details on how we implement the ADT, which is built on the core concepts of claims (@sec:claim) as the atom of the Ranke-Graph, the Universe (@sec:universe), being the content-addressed space in which those claims are stored and the branch-table head (@sec:bth) that allows retrieving the graph from the Universe. Those ADT concepts are realized with the help of the Blob Store (@sec:blob) as a foundation for the Universe and the Sequencer (@sec:sequencer) for managing the branch-table head (BTH) under concurrent reads and writes. 
+== The Engine and the Server <sec:engine-server>
+
+#todo[Unreviewed chapter, needs editing.]
+
+RankeDB divides into two layers along the mechanism/policy line. The *engine* is the foundation paper's reference library: it expresses a graph — claims, the operations over them, and the scope-and-prune mechanism (foundation paper §Scoping) — over the driven ports of @sec:blob and @sec:universe together with the Sequencer (@sec:sequencer). It is identity- and tenant-blind: it produces a view from an indicator σ but never decides which σ a caller is owed. The *server* is RankeDB proper: it makes one graph engine a reachable, access-bounded, multi-tenant service — authenticating callers, binding each service account to a scope, routing to the Universe a caller may reach, and assembling the whole from configuration. Embedding the engine in-process is the limiting case: a single owner, no other principal, hence no access decision to make and no server at all (@sec:deployment).
+
+This is why access control is the server's and never an endpoint's: were it bound to a protocol, every new endpoint would be a fresh way around it. Authentication — credential to identity — varies by door and belongs to the endpoint (@sec:endpoints); authorisation — identity to scope, enforced on every read and write — is uniform beneath all doors and belongs to the engine. The scopes themselves are service-account configuration, provisioned once and effectively static; the fast-changing, per-end-user access an application needs is built on top, and stays out of scope (@sec:access).
+
+== Endpoints <sec:endpoints>
+
+#todo[Unreviewed chapter, needs editing.]
+
+An *endpoint* is a driving port: a client calls in through it. It is two adapters composed — a *transport* (the wire protocol) and an *authenticator* (credential to identity) — written *transport ⊕ authenticator* and chosen per endpoint: REST with a JWT, MCP with a macaroon, a local socket with the *anonymous* authenticator. The reference binding is REST over HTTP, with an OpenAPI contract from which a client and its documentation are generated *[FREE]*; MCP and MQTT are anticipated, not built. HTTP is the durable, ubiquitous default rather than a hedge — the protocol counterpart of the open, durable formats the longevity argument favours (@sec:longevity) — so it is committed to, not abstracted behind a swap-out port for its own sake. The variation that earns the endpoint port is the *consumers*: an application over REST, an agent over MCP, a device over MQTT, an operator over a local socket.
+
+Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them (@sec:engine-server). One instance may expose several endpoints at once — different doors into one Universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a Universe through one multi-door instance is what keeps it a *single* Sequencer: the alternative — an instance per consumer type — would split one Universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:deployment).
+
+== Configuration <sec:configuration>
+
+#todo[Unreviewed chapter, needs editing.]
+
+Configuration is authored, not integrated, so it needs no adapter and admits no variation worth abstracting: it is the *launch artifact*, a single JSON document an instance reads to assemble itself. A value in it is either a literal or a *reference* — `vault(name)`, resolved from a configured secret store, or `env(VAR)`, read from the environment — so a configuration can be wholly secret-free, every credential resolved at launch from outside the file. The one credential that cannot indirect is the secret store's own, which a literal (encrypted, below) or an `env()` covers; secret-zero collapses to that single root.
+
+Encryption follows content, not policy. A reference-only file holds no secret and may be plaintext — committable, reviewable, the production default; a file carrying an inline literal secret is age-encrypted, its key supplied at launch from a source the operator chooses (`prompt`, `stdin`, `env:VAR`, `file:path`), never as a literal on the command line. The tooling warns rather than forbids, and only where it matters — when an inline secret would be written unencrypted — naming the field and pointing at both remedies (encrypt, or move it to `vault()` / `env()`).
+
+One library serves de/serialization (including age), validation, reference resolution, and editing. *Validation* is secret-free and offline — schema and semantics only, so a configuration can be authored and checked without reaching any backend — while *resolution* (fetching references, connecting) happens only at launch. The runtime that loads a configuration and the tooling that authors it are the same library, and indeed the same binary: `ranke-db`, with `run` to serve and `config` / `tui` to author — so the build that validates on write is, by construction, the build that loads on run, and no version can drift between writer and reader.
+
+== Deployment <sec:deployment>
+
+#todo[Unreviewed chapter, needs editing.]
+
+A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other instance — strong-distrust tenants therefore each take their own.
+
+This yields a ladder of deployments over one set of building blocks: *embedded* — the engine library linked in-process, no server (@sec:engine-server); *standalone* — one `ranke-db` instance, configure and serve, supervised by the platform; *many* — independent instances, one Universe each or several Universes to a process, supervised the same way. Two things are deliberately *not* part of RankeDB. A *gateway* — a single public endpoint with TLS and routing — is mature, independent infrastructure placed in front (a reverse proxy), never built here. An *orchestrator* — a console for editing configurations and launching instances — is an application built on RankeDB's own surfaces (the configuration library, the management interface), buildable later precisely because no instance depends on it, and not a component of the database. The boundary holds because nothing inside reaches out for either.
+
+= Infrastructure <sec:infrastructure>
+
+#todo[Unreviewed chapter, needs editing.]
+
+#todo[Capture chapter — collects the deployment and operational exploration (topologies, secrets, keys, authority, the air-gapped keyholder, delegation). Mostly deployment detail rather than core architecture; refine, trim, or relocate downstream once the engine chapter settles.]
+
+The architecture is one design; how it is deployed is a separate and free choice. The same mechanisms — the Universe stack, the Sequencer, content-addressed claims — run unchanged from a single process on a laptop to a distributed fleet with an air-gapped key authority. The topology is configuration, not a redesign. This chapter captures the shapes RankeDB can take and the operational concerns they raise: secrets, keys, and the authority that issues them.
+
+== From one node to a fleet <sec:topologies>
+
+A single server is the whole system collapsed into one process: it is the Sequencer, holds one long-lived key, and runs forever once enabled. A fleet is the same architecture with the roles spread out — a central Sequencer and replicas that prepare work off the critical path and merge it up in a single commit (@sec:sequencer, @sec:coordinate). Concurrent commits simply fork into two heads that the next merge consolidates, so scaling out never costs a rejected write or a lost update. One scales by adding replicas, never by switching designs; the single-server case is just the fleet with no replicas.
+
+#todo[Figure: the three shapes side by side — single node; central Sequencer + replicas; distributed central-protection (isolated central, user-facing replicas).]
+
+== Configuration and assembly <sec:config>
+
+A running instance is defined entirely by a *configuration*, and the configuration is itself read through an adapter — Postgres is only one way to hold it, alongside a YAML file or a flat directory. It is not passive storage: it is the assembly that binds the other adapters into a system — which storage layers compose the stack, which secret store holds the keys, which contributor the Sequencer signs as, which archives exist and who may reach them. Given a configuration the server instantiates those adapters and runs, so *launching a config is launching the service*. This completes a symmetry of three pluggable adapter classes: *storage* (where claims live), the *secret store* (keys and credentials), and the *configuration store* (the assembly itself). The one thing a configuration cannot describe is how to reach itself, so that lives outside as a minimal bootstrap directive — _use config adapter X with arguments Y_ — from which the server loads the configuration and constructs all the rest. That directive is tiny and can be secret-free (a file path, or a connection string authenticated by platform identity rather than an embedded password), which makes the server binary generic: the same executable everywhere, pointed at one config. With file-based adapters throughout, an instance is a single process with no external dependency; Postgres, a vault, and object storage enter only when a deployment asks for them. And the configuration store composes like the rest: a _partition_ adapter can mount one child for server settings, another for accounts, another for the archives and their stacks — the same Composite pattern that stacks storage layers, since every adapter class is closed under it.
+
+== Secrets and keys <sec:secrets>
+
+Connection details and private keys never live in the control-plane database; Postgres holds only *references* to them. The secrets themselves sit behind a *secret-store adapter*, a sibling of the storage adapters with the same capability-declaring shape: `get(ref)` for credentials and `sign(keyRef, digest)` for keys, with a `file` adapter as the dumb baseline for tests and single-node, and Vault, OpenBao, or a cloud KMS as adapters that sign *without ever exposing the key*. There is no single signing key: each Ranke-Archive configures its own server-side contributor, so `keyRef` selects that archive's identity, and a server serving many archives holds none of them — it asks the store to sign.
+
+#todo[The `SecretStore` interface and capability declaration; optional dynamic short-lived backend credentials (Vault minting ephemeral database or object-store users); secret-zero solved by platform identity (Kubernetes ServiceAccount, cloud IAM role), never a stored password.]
+
+
+= The Data Structure <sec:datastructure>
+
+This chapter builds the Ranke-Graph from the atom up. Its core concepts are claims (@sec:claim), the atom of the Ranke-Graph; the Universe (@sec:universe), the content-addressed space in which those claims are stored; and the branch-table head (@sec:bth), which retrieves a graph from the Universe. They are realized over the Blob Store (@sec:blob), the foundation of the Universe, and the Sequencer (@sec:sequencer), which manages the branch-table head under concurrent reads and writes.
 
 == The Claim as Atom <sec:claim>
 
@@ -369,134 +430,81 @@ To fulfil this guarantee, we must, at creation time, first add those limiting cl
 Whether a system account may reference claims from other branches is configured using grants (see @sec:access). An account can import a claim from a source branch into a target branch only if it holds both R (read) access to the source and C (create) access to the target. To keep claims from spanning branches in the first place — so no cross-branch propagation is ever needed — configure tighter-scoped system accounts, each with access to only a specific branch. The reference implementation offers a macaroon-based *attenuation* mechanism that derives tighter-scoped access tokens from wider ones at runtime. This is ideal for enforcing branch separation from the application layer without provisioning a large number of system accounts in RankeDB.
 
 
-== Filtered Queries <sec:query>
+== Filtered Reads <sec:query>
 
-Queries against RankeDB name a *subject* and a query over it. The subject is a *scope* — a branch name, or the reserved `$universe` (@sec:access) — and it fixes the *boundary*: a read may return only claims the scope admits, a branch's own closure or, under the privileged `$universe` grant (`R`, @sec:access), any claim in the Universe. Within that closure a query may select any result set. 
+A read against RankeDB names a *subject* and a query over it. The subject is a closure defined by a branch name, or the reserved `$universe` with a claim id (@sec:access). RankeDB guarantees that a read will only return results from the given closure.
 
-A read carries a `lang` tag and a `query` payload in that language. RankeDB's own language, `ranke`, is a small declarative filter (below): always available, and the only one it can *verify*. The others are contributed by the storage adapters and gated on capability — `cypher` (@francis2018cypher) when an adapter declares it speaks Cypher (today, Neo4j, @neo4j), with `gql` (@iso39075gql) and `sql` reserved for adapters that later declare them. A read names exactly one language; the client reads the deployment's declared capabilities and chooses. Whatever the language, a query returns the same thing: a set of claims forming a subgraph of the queried closure.
+A read request carries a `lang` field specifying which engine should execute and a `query` field containing the query itself. The built in query engine is `ranke`, a small declarative filter implemented in the ranke-graph reference library and covered by a conformance suite. Other query languages can be contributed by the storage adapters, listed in their capabilities. The current RankeDB implementation supports Neo4j (@neo4j) and thus `cypher` (@francis2018cypher), which is converging on the standardized `gql` (@iso39075gql).
 
-Two controls are universal, applied by RankeDB whichever language a read uses. `timeout_ms` bounds processing time: on reaching it the query is *cancelled* and fails rather than returning a partial result, matching the Neo4j transaction timeout so both languages behave alike. `content` bounds the bytes: a claim whose content exceeds `max` comes back either truncated (`cutoff`) or emptied (`zero`), the rest fetched by id when needed. Both matter because a result can otherwise run to millions of claims and gigabytes of content. Everything else — where the query roots, how it orders and pages — is the language's own: the `ranke` query carries these as fields (below); a `cypher` query expresses them in its own syntax.
+Controls `limit.content` and `limit.time` allow setting boundaries for the size of each claim's content bytes, being either cut off or omitted when above the given threshold, and the execution time of the query, which is cancelled when taking too long.
 
-The rest of this section covers `ranke`; the backend languages are their own documented standards.
+@fig:reads shows the same read in both languages — sharing the `subject` and `limit` wrapper, differing only in `lang` and `query`.
 
-The `ranke` query is declarative *data*, expressed directly as JSON: the query is a tree, and a JSON parser is the only parser RankeDB needs. It is a field *comparison* or a *closure* test, or a boolean combination of them.
+#[
+#show raw: set text(size: 0.66em)
+#figure(
+  grid(
+    columns: (1fr, 1fr),
+    column-gutter: 0.8em,
+    align: top,
+    ```json
+    {
+      "subject": "project_x",
+      "limit": {
+        "content": {"max": 65536,
+                    "over": "cutoff"},
+        "time": 5000
+      },
+      "lang": "ranke",
+      "query": {
+        "where": {
+          "closure": "9f2c…e7a1",
+          "type": {"glob": "relation/*"},
+          "created_at":
+            {"gt": "2026-01-01T00:00:00Z"},
+          "or": [{"contributor": "K1"},
+                 {"contributor": "K2"}]
+        },
+        "limit": 200,
+        "cursor": {"created_at": "2026-03-01T10:00:00Z",
+                   "id": "4b8d…c02f",
+                   "direction": "desc"}
+      }
+    }
+    ```,
+    ```json
+    {
+      "subject": "project_x",
+      "limit": {
+        "content": {"max": 65536,
+                    "over": "cutoff"},
+        "time": 5000
+      },
+      "lang": "cypher",
+      "query":
+        "MATCH (root {id: '9f2c…e7a1'})
+          -[:references*0..]->(c:Claim)
+         WHERE c.type =~ 'relation/.*'
+           AND c.created_at
+                 > '2026-01-01T00:00:00Z'
+           AND c.contributor IN ['K1','K2']
+         RETURN c
+         ORDER BY c.created_at DESC
+         LIMIT 200"
+    }
+    ```,
+  ),
+  caption: [One read, two languages — native `ranke` (left) and `cypher` (right).],
+) <fig:reads>
+]
 
-A *comparison* is an object keyed by a field name. A bare value tests equality — `{"type": "relation"}` — while an object applies explicit operators: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) and `glob` (shell-style wildcard match, e.g. `{"type": {"glob": "relation/*"}}`). Several operators on one field combine conjunctively, so `{"created_at": {"gt": …, "lt": …}}` is a range. A comparison keys on any *node* field — the mandatory ones (`type`, `created_at`, `contributor`, `encoding`, `content_hash`, `content_len`) or any custom field the application has set (@sec:claim) — but never the content bytes, which stay opaque at this layer. Custom field names follow the application's convention; only the mandatory names and the reserved words `or`, `not` and `closure` are claimed by RankeDB.
+The `ranke` query language is declarative *data*, expressed directly as a JSON tree — a boolean combination of *comparison* tests. The available operators are `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set), `glob` (shell-style wildcard match) and `closure`. All except `closure` can compare against any field; `closure` matches against the `id` of the claim. With `and`, `or` and `not`, comparisons can be combined into trees.
 
-Filters compose as a tree: multiple keys in one object form a conjunction, `{"or": [...]}` a disjunction and `{"not": ...}` a negation. Alongside comparisons, a `{"closure": "<id>"}` term matches every claim in the closure of `id` — its provenance subgraph — and composes like the rest: `{"not": {"closure": "X"}}` excludes a subtree, `{"or": [...]}` unions two. A top-level `closure` term also bounds the scan — the engine roots there rather than ranging the whole subject — and a `$universe` query must carry one, since the Universe has no head to default to. This predicate is the `where` of a `ranke` query, which also carries the shaping: `order`, a list of fields each optionally prefixed `-` for descending, defaulting to `created_at` with id appended as the final tiebreaker so the order stays total; `limit`, the claim cap; and `cursor`, the order-key tuple of the last claim seen, after which the next page resumes. Under a `lang` tag, with the subject and universal controls alongside, that makes a full request:
+Results are returned in the `(created_at, id)` total order (@sec:timestamp), `limit` claims at a time. A `cursor` — `{created_at, id, direction}` — resumes at that boundary and takes the partition on its `direction` side, so paging is a keyset walk: a seek, never a re-scan. Ordering by any other field is an `order` object of `{mode, keys}`, `keys` a list of `{field, direction}` (`asc`/`desc`, or `ascN`/`descN` to sort numerically). Its `mode` fixes the cost: `page` sorts only the returned page — cheap, and native; `full` sorts the whole cursor-side candidate set before applying `limit` — the true top-`limit`, but it needs an index the native engine lacks, so a `full` sort over a custom field requires a Cypher-capable universe (@sec:composition) and is refused without one.
 
-```json
-{
-  "subject": "project_x",
-  "content": {"max": 65536, "over": "cutoff"},
-  "timeout_ms": 5000,
-  "lang": "ranke",
-  "query": {
-    "where": {
-      "closure": "9f2c…e7a1",
-      "type": {"glob": "relation/*"},
-      "created_at": {"gt": "2026-01-01T00:00:00Z"},
-      "or": [{"contributor": "K1"}, {"contributor": "K2"}]
-    },
-    "order": ["-created_at"],
-    "limit": 200,
-    "cursor": ["2026-03-01T10:00:00Z", "4b8d…c02f"]
-  }
-}
-```
-
-The same query in `cypher` instead. Cypher is self-contained: it roots the closure itself — the reachability pattern `(root)-[:references*0..]->(c)` from a chosen id — and expresses ordering and paging directly, so the `ranke` query's `where`, `order`, `limit` and `cursor` have no counterpart here. Every `ranke` operator maps across (`glob`→regex, `in`→`IN`, `closure`→reachability, comparisons direct), and Cypher additionally reaches what `ranke` cannot: multi-hop traversals, path patterns, aggregation. Such a query has no `ranke` equivalent, so it runs only where a Cypher-capable adapter is present — there is no native fallback.
-
-```json
-{
-  "subject": "project_x",
-  "content": {"max": 65536, "over": "cutoff"},
-  "timeout_ms": 5000,
-  "lang": "cypher",
-  "query": "MATCH (root {id: '9f2c…e7a1'})-[:references*0..]->(c:Claim) WHERE c.type =~ 'relation/.*' AND c.created_at > '2026-01-01T00:00:00Z' AND c.contributor IN ['K1', 'K2'] RETURN c ORDER BY c.created_at DESC LIMIT 200"
-}
-```
-
-The reference evaluation of a `ranke` query is a linear scan over the closure that keeps every claim it accepts, returned in the requested order (defaulting to the `(created_at, id)` total order of @sec:timestamp). That naive scan is deliberately simple, and it is the _verifiable reference_: any faster path — native indexes, adapter-specific lookups, or translating `ranke` into Cypher to run on a Neo4j Universe — must pass a shared conformance suite against it, returning identical reads. That translation is mechanical, since the vocabulary is small and fixed (`glob`→regex, `in`→`IN`, `closure`→reachability, the rest direct), and `order`, `limit`, `cursor` and `timeout_ms` push down with it (Neo4j's transaction timeout enforcing the last). So a `ranke` query runs anywhere and stays checkable by re-evaluating the predicate over the returned claims — even when Neo4j computed it.
-
-A raw `cypher` query is the exception to this verifiability. Its language is not RankeDB's vocabulary, so RankeDB cannot re-evaluate it; the boundary instead comes from the *subject*, enforced by matching every returned claim against the subject's closure and dropping any that fall outside (the *strong* mechanism). To spare the backend work, RankeDB may inject closure-restricting clauses into the query (the *weak* mechanism), but that only shrinks the set the post-match must prune, ideally to nothing — a non-empty removal set is never a correctness failure, only a sign of incomplete injection, which RankeDB can surface as a warning or an error to show where the injection should tighten. So a Cypher result is bounded, and its membership checkable, but its selection and ordering are the backend's: trusted, not re-verified. That is the price of the escape hatch, and why the verifiable `ranke` path stands beside it.
-
-Cropping bounds which claims come back, not whether out-of-closure data *influenced* their selection: over a Cypher backend shared by several branches, one branch's claims can steer which of another's surface. Closing that channel is a deployment choice — route the Cypher backend per branch with `UniverseBranch` (@sec:composition), trading redundancy for isolation — on the same friendly-to-adverse gradient as the rest of the archive.
+The `cypher` form (@fig:reads, right) must root the closure within the query itself, since a Neo4j storage layer can hold several branches. RankeDB still guarantees to drop every returned claim that is not part of the subject, but this post-processing is less efficient than a well-formed native query, and a non-native read reports the number of claims it removed. That count _leaks information_ about the other branches sharing the storage — the trade-off between leakage and redundancy is discussed in @sec:composition.
 
 _Discharges R14._
-
-== The Engine and the Server <sec:engine-server>
-
-RankeDB divides into two layers along the mechanism/policy line. The *engine* is the foundation paper's reference library: it expresses a graph — claims, the operations over them, and the scope-and-prune mechanism (foundation paper §Scoping) — over the driven ports of @sec:blob and @sec:universe together with the Sequencer (@sec:sequencer). It is identity- and tenant-blind: it produces a view from an indicator σ but never decides which σ a caller is owed. The *server* is RankeDB proper: it makes one graph engine a reachable, access-bounded, multi-tenant service — authenticating callers, binding each service account to a scope, routing to the Universe a caller may reach, and assembling the whole from configuration. Embedding the engine in-process is the limiting case: a single owner, no other principal, hence no access decision to make and no server at all (@sec:deployment).
-
-This is why access control is the server's and never an endpoint's: were it bound to a protocol, every new endpoint would be a fresh way around it. Authentication — credential to identity — varies by door and belongs to the endpoint (@sec:endpoints); authorisation — identity to scope, enforced on every read and write — is uniform beneath all doors and belongs to the engine. The scopes themselves are service-account configuration, provisioned once and effectively static; the fast-changing, per-end-user access an application needs is built on top, and stays out of scope (@sec:access).
-
-== Endpoints <sec:endpoints>
-
-An *endpoint* is a driving port: a client calls in through it. It is two adapters composed — a *transport* (the wire protocol) and an *authenticator* (credential to identity) — written *transport ⊕ authenticator* and chosen per endpoint: REST with a JWT, MCP with a macaroon, a local socket with the *anonymous* authenticator. The reference binding is REST over HTTP, with an OpenAPI contract from which a client and its documentation are generated *[FREE]*; MCP and MQTT are anticipated, not built. HTTP is the durable, ubiquitous default rather than a hedge — the protocol counterpart of the open, durable formats the longevity argument favours (@sec:longevity) — so it is committed to, not abstracted behind a swap-out port for its own sake. The variation that earns the endpoint port is the *consumers*: an application over REST, an agent over MCP, a device over MQTT, an operator over a local socket.
-
-Every authenticator yields an *account* — JWT from a verified token claim, the anonymous authenticator from a configured default — whose grants live in the configuration; authentication varies by endpoint, authorisation is uniform beneath all of them (@sec:engine-server). One instance may expose several endpoints at once — different doors into one Universe — and because the authenticator binds per endpoint, the doors may carry different trust: a local socket whose anonymous account is the owner (presence on the host is the credential — never a network port) beside a public REST door that demands a token. Serving every consumer of a Universe through one multi-door instance is what keeps it a *single* Sequencer: the alternative — an instance per consumer type — would split one Universe across several writers and pull in the coordination of foundation paper §Distributability (requirement R5), the advanced case avoided by default (@sec:deployment).
-
-== Configuration <sec:configuration>
-
-Configuration is authored, not integrated, so it needs no adapter and admits no variation worth abstracting: it is the *launch artifact*, a single JSON document an instance reads to assemble itself. A value in it is either a literal or a *reference* — `vault(name)`, resolved from a configured secret store, or `env(VAR)`, read from the environment — so a configuration can be wholly secret-free, every credential resolved at launch from outside the file. The one credential that cannot indirect is the secret store's own, which a literal (encrypted, below) or an `env()` covers; secret-zero collapses to that single root.
-
-Encryption follows content, not policy. A reference-only file holds no secret and may be plaintext — committable, reviewable, the production default; a file carrying an inline literal secret is age-encrypted, its key supplied at launch from a source the operator chooses (`prompt`, `stdin`, `env:VAR`, `file:path`), never as a literal on the command line. The tooling warns rather than forbids, and only where it matters — when an inline secret would be written unencrypted — naming the field and pointing at both remedies (encrypt, or move it to `vault()` / `env()`).
-
-One library serves de/serialization (including age), validation, reference resolution, and editing. *Validation* is secret-free and offline — schema and semantics only, so a configuration can be authored and checked without reaching any backend — while *resolution* (fetching references, connecting) happens only at launch. The runtime that loads a configuration and the tooling that authors it are the same library, and indeed the same binary: `ranke-db`, with `run` to serve and `config` / `tui` to author — so the build that validates on write is, by construction, the build that loads on run, and no version can drift between writer and reader.
-
-== Deployment <sec:deployment>
-
-A `ranke-db` instance is one process serving one configuration. The process boundary is the design, not an accident of packaging: it hands supervision to the operating system, which an in-process design cannot match. A hung instance can be killed — a Go goroutine cannot be — memory and CPU are accounted per instance, restarts are independent, and a listening socket can be handed in by the platform (socket activation). Supervision is therefore the platform's — systemd, a container runtime, a scheduler — and the instance carries no runtime dependency on any control plane: it reads its configuration and serves. The process boundary is also the isolation boundary: an instance holds only its own configuration's secrets and backends, so a compromise reaches no other instance — strong-distrust tenants therefore each take their own.
-
-This yields a ladder of deployments over one set of building blocks: *embedded* — the engine library linked in-process, no server (@sec:engine-server); *standalone* — one `ranke-db` instance, configure and serve, supervised by the platform; *many* — independent instances, one Universe each or several Universes to a process, supervised the same way. Two things are deliberately *not* part of RankeDB. A *gateway* — a single public endpoint with TLS and routing — is mature, independent infrastructure placed in front (a reverse proxy), never built here. An *orchestrator* — a console for editing configurations and launching instances — is an application built on RankeDB's own surfaces (the configuration library, the management interface), buildable later precisely because no instance depends on it, and not a component of the database. The boundary holds because nothing inside reaches out for either.
-
-= Infrastructure <sec:infrastructure>
-
-#todo[Capture chapter — collects the deployment and operational exploration (topologies, secrets, keys, authority, the air-gapped keyholder, delegation). Mostly deployment detail rather than core architecture; refine, trim, or relocate downstream once the engine chapter settles.]
-
-The architecture is one design; how it is deployed is a separate and free choice. The same mechanisms — the Universe stack, the Sequencer, content-addressed claims — run unchanged from a single process on a laptop to a distributed fleet with an air-gapped key authority. The topology is configuration, not a redesign. This chapter captures the shapes RankeDB can take and the operational concerns they raise: secrets, keys, and the authority that issues them.
-
-== From one node to a fleet <sec:topologies>
-
-A single server is the whole system collapsed into one process: it is the Sequencer, holds one long-lived key, and runs forever once enabled. A fleet is the same architecture with the roles spread out — a central Sequencer and replicas that prepare work off the critical path and merge it up in a single commit (@sec:sequencer, @sec:coordinate). Concurrent commits simply fork into two heads that the next merge consolidates, so scaling out never costs a rejected write or a lost update. One scales by adding replicas, never by switching designs; the single-server case is just the fleet with no replicas.
-
-#todo[Figure: the three shapes side by side — single node; central Sequencer + replicas; distributed central-protection (isolated central, user-facing replicas).]
-
-== Configuration and assembly <sec:config>
-
-A running instance is defined entirely by a *configuration*, and the configuration is itself read through an adapter — Postgres is only one way to hold it, alongside a YAML file or a flat directory. It is not passive storage: it is the assembly that binds the other adapters into a system — which storage layers compose the stack, which secret store holds the keys, which contributor the Sequencer signs as, which archives exist and who may reach them. Given a configuration the server instantiates those adapters and runs, so *launching a config is launching the service*. This completes a symmetry of three pluggable adapter classes: *storage* (where claims live), the *secret store* (keys and credentials), and the *configuration store* (the assembly itself). The one thing a configuration cannot describe is how to reach itself, so that lives outside as a minimal bootstrap directive — _use config adapter X with arguments Y_ — from which the server loads the configuration and constructs all the rest. That directive is tiny and can be secret-free (a file path, or a connection string authenticated by platform identity rather than an embedded password), which makes the server binary generic: the same executable everywhere, pointed at one config. With file-based adapters throughout, an instance is a single process with no external dependency; Postgres, a vault, and object storage enter only when a deployment asks for them. And the configuration store composes like the rest: a _partition_ adapter can mount one child for server settings, another for accounts, another for the archives and their stacks — the same Composite pattern that stacks storage layers, since every adapter class is closed under it.
-
-== Secrets and keys <sec:secrets>
-
-Connection details and private keys never live in the control-plane database; Postgres holds only *references* to them. The secrets themselves sit behind a *secret-store adapter*, a sibling of the storage adapters with the same capability-declaring shape: `get(ref)` for credentials and `sign(keyRef, digest)` for keys, with a `file` adapter as the dumb baseline for tests and single-node, and Vault, OpenBao, or a cloud KMS as adapters that sign *without ever exposing the key*. There is no single signing key: each Ranke-Archive configures its own server-side contributor, so `keyRef` selects that archive's identity, and a server serving many archives holds none of them — it asks the store to sign.
-
-#todo[The `SecretStore` interface and capability declaration; optional dynamic short-lived backend credentials (Vault minting ephemeral database or object-store users); secret-zero solved by platform identity (Kubernetes ServiceAccount, cloud IAM role), never a stored password.]
-
-== Key lifecycle and rotation <sec:rotation>
-
-A contributor claim carries a `validUntil` beside its pubkey (@sec:verify): the key may sign new claims until that date, after which the engine refuses them — forward-only, the claim itself kept forever as the verification anchor. This makes *short-lived* keys practical. The strongest form holds the key only in memory: a server requests its key at startup, never writes it to disk, and requests a fresh one on every restart; the new-key contributor claim *disables* the prior, so the server's identity is a chain of session keys, at most one live at a time. Rotation splits cleanly across the two channels already present — the public contributor claim propagates to every replica through ordinary read-through, while only the private key needs the secret-store side-channel — and a head is valid only if its key was live at the claim's witnessed time, checkable offline.
-
-== The authority hierarchy <sec:authority>
-
-Authority forms a three-tier chain, a certificate hierarchy expressed entirely as claims. A *super admin* — the initial node, the archive's founding identity — holds the right to create contributors and is used rarely: to enable a server once, or to revoke it. A *keyholder* it enables mints and rotates the working keys. A *Sequencer* uses those keys to mint heads but holds no power to create others, and *replicas* hold only ephemeral session keys. A tier is defined by one thing: whether it holds the create-contributor right, the single capability anchored at the database level — everything finer is application scope (@sec:access). Because that right is carried in signed claims chaining back to the initial node, the archive describes its own authority structure, auditable and verifiable offline. Exposure runs opposite to authority: the more a node can do, the less it is reachable.
-
-#todo[The bootstrap sequence in full: the admin enables a server by committing a contributor claim bearing its pubkey and a new $B_h$ referencing it; before that the server can only accept fully-signed external commits, after it self-mints. Two write modes — server-minted (the normal path) and externally-fully-signed (bootstrap, and the standing admin escape hatch).]
-
-== The air-gapped keyholder <sec:keyholder>
-
-Splitting the keyholder from the Sequencer is what lets the dangerous authority leave the network entirely. Minting keys is periodic, so the keyholder need not serve requests: it wakes on a schedule, mints the next short-lived keys, *pushes* the public contributor claims into the archive and the private keys into the secret stores, and goes dark — push-only, non-addressable, air-gapped or time-gapped as the deployment wants. The create-contributor authority then has no inbound attack surface at all, while the online Sequencer holds only short-lived, non-minting keys. It is the offline-root-CA pattern made operational: scheduled issuance rather than a yearly ceremony. The keyholder stays one-directional by keeping its own issuance ledger — what it last minted — so it never needs to read the live archive; and its downtime is not the archive's, since the Sequencer runs on its current key until `validUntil` and need only receive the next overlapping batch before then. The one dial is how often the air-gapped box wakes against how long its keys live.
-
-== Transactions, tokens, and delegation <sec:tokens>
-
-A write is wrapped in a transaction whose token is a *stateless* credential — a macaroon or an HMAC-signed token, verified by signature against the secret store's key rather than by lookup. It therefore needs no table in Postgres and survives both restart and cluster failover: any node holding the key validates a token any other issued. The token carries a floor (the server's clock at the open) and a short validity window; at commit the server admits the batch only if every timestamp falls within it, witnessing that the work was authored in `[t_open, t_commit]` (@sec:timestamp). Retry is safe and the client's responsibility — content-addressing makes the whole transaction idempotent — and a lapsed window simply means rebuilding it with fresh timestamps.
-
-#todo[*Delegation — a direction, not the reference implementation.* Where a central server must be shielded from traffic, macaroons let it witness coarsely and rarely: it issues a long-window token to a replica, which *attenuates* it — caveats only narrow — into per-user tokens. The central-witnessed time bound then holds without trusting the replica at all; precision (window width) trades against central load. The subsequencer of @sec:coordinate is this token carrying a height or branch scope.]
-
-== Cloud and operations <sec:cloud>
-
-#todo[The managed-building-block deployment: managed Postgres as the control plane, object storage as the durable ground, a KMS or Vault as the secret-store adapter, an optional managed graph database as a Cypher-capable layer. The distributed central-protection shape: central Sequencer and keyholder network-isolated, user-facing replicas in front. The operational shell — container images, compose files for single-node, orchestration manifests for a fleet, run scripts — and how a stack's composition (@sec:composition) maps onto it.]
-
 
 = Data Longevity <sec:longevity>
 
