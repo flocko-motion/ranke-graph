@@ -359,15 +359,44 @@ Whether a system account may reference claims from other branches is configured 
 
 == Filtered Reads <sec:query>
 
-A read against RankeDB is a tree-structured *query* expressible as a JSON object. `select` blocks are *generators* that define sets of claims; `where` blocks are *filters* that select subsets; and the operators `and`, `or` and `not` combine sets by set algebra and comparisons by boolean logic. Generators may select any claims within the access scope of the system account used.
+A read against RankeDB is a tree-structured *query* expressible as a JSON object. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
 
-A generator specifies a starting point and follows edges from it. Usually that point is a `branch`, whose current head roots the closure; the privileged alternative is a claim id addressing a closure directly (@sec:access). From the root, `out`, `in` and `both` name the edge types to follow in each direction, and `depth` bounds the number of hops; omitting them follows every reference edge outbound, unbounded — the full closure (foundation paper §Closures). RankeDB guarantees a generator yields only claims within its subject, rooting the generated query there so scope holds by construction. Because each generator carries its own subject, one query may draw on several branches at once; RankeDB authorises the read against the account's read grant on every branch a generator touches, and denies the whole read if any is missing.
+A `select` generator specifies a starting point and follows edges from it. `select.branch` roots at a branch's current head and confines the query to that branch; `select.claim` optionally roots at a different claim id within the branch; `select.claim` without a branch is a privileged action using any claim in the _universe_ as starting point (@sec:access). 
+`select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `depth` bounding its hops, and optionally the `nodes` its endpoint may be. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. Without `path`, a generator follows every edge outward, unbounded — the full closure (foundation paper §Closures). 
+
+#[
+#show raw: set text(size: 0.66em)
+#figure(
+  placement: auto,
+  grid(
+    columns: (1fr, 1fr),
+    column-gutter: 0.8em,
+    align: top,
+    ```json
+    "path": [ {"edges": ["derivation/*"],
+               "nodes": ["source/*"]} ]
+    ```,
+    ```json
+    "path": [ {"edges": ["relation/family"],
+               "dir": "connections", "depth": 4,
+               "nodes": ["entity/person"]},
+              {"edges": ["derivation/*"],
+               "nodes": ["source/*"]} ]
+    ```,
+  ),
+  caption: [Two `path` generators. *Simple:* follow the derivation chain to the `source` claims a release rests on. *Complex:* two chained steps — a family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then those people's `derivation` provenance to the `source` claims behind them. The result is those sources; `format: "path"` returns each with the route back through its person.],
+) <fig:paths>
+]
+
+RankeDB guarantees a generator yields only claims within its subject, rooting the generated query there so scope holds by construction. Because each generator carries its own subject, one query may draw on several branches at once; RankeDB authorises the read against the account's read grant on every branch a generator touches, and denies the whole read if any is missing.
 
 The query is declarative *data*, a JSON description of _what_ to return that carries no engine choice. RankeDB lowers it to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native filter that every stack has. Because the client never writes the engine's language, RankeDB controls the generated query end to end — it is where the scope above is enforced, not a discarding of out-of-scope results after execution. An optional `via` field pins execution to a named layer, so one query can be run on two engines and their cost compared.
 
 The native filter is the semantic reference. It implements every generator, comparison, and set operation the language defines, and runs any query in four exhaustive steps: generate the full candidate set, filter it, order it by the total order, then cut it to the limit. It materialises everything and chooses nothing — no plan, no index, no seek. That is deliberate: with nothing to optimise there is nothing to get wrong, so the four steps *define* the answer, and their result is what any conforming implementation must return. It is built for verifiability, not throughput. A faster engine such as a Cypher/GQL layer is an accelerator, not an authority; a conformance suite runs each query through both and requires identical result sets, so lowering changes an answer's cost, never the answer.
 
 Controls in `limit` bound the read: `results` caps the number of claims, `content` the returned bytes per claim (`overflow` choosing whether an over-large claim is cut off or omitted), and `time` the query's execution, cancelled when exceeded.
+
+Deletion markers are added transparently. A `contribution/delete` points _at_ its target, so it lies outside the target's provenance and no generator reaches it; RankeDB therefore checks each returned claim against the archive-wide deletion register and attaches a marker where one applies (@sec:deletion). Deleted claims surface as deleted without the client querying for them.
 
 @fig:reads shows one read: the declarative form the client sends (left) and the Cypher RankeDB lowers it to on a Cypher/GQL-capable stack (right).
 
@@ -383,8 +412,8 @@ Controls in `limit` bound the read: `results` caps the number of claims, `conten
     {
       "query": {
         "select": {"branch": "project_x",
-                   "out": ["derivation/*"],
-                   "depth": 3},
+                   "path": [{"edges": ["derivation/*"],
+                             "depth": 3}]},
         "where": {"type": {"glob": "source/*"}},
         "limit": {"results": 200,
                   "content": "4kb",
@@ -392,7 +421,7 @@ Controls in `limit` bound the read: `results` caps the number of claims, `conten
                   "time": "5s"},
         "cursor": {"created_at": "2026-03-01T10:00:00Z",
                    "id": "4b8d…c02f",
-                   "direction": "desc"}
+                   "dir": "desc"}
       }
     }
     ```,
@@ -412,7 +441,7 @@ Controls in `limit` bound the read: `results` caps the number of claims, `conten
      LIMIT 200
     ```,
   ),
-  caption: [One read, two forms: the declarative query the client sends (left) and the Cypher RankeDB lowers it to (right) on a Cypher/GQL-capable stack. The `branch` resolves to its head, which roots the traversal; `out` restricts it to `derivation/*` edges followed outbound and `depth` to three hops — lowered to the path pattern (`*0..3`) and a per-hop edge-type constraint — while `where` filters the reached claims (`source/*`). `out`, `in` and `both` name edge types to follow by direction; `where` filters claims; and the `cursor` lowers to a keyset boundary in the total order.],
+  caption: [A declarative query (left) and its transformation for a specific backend, e.g. Cypher (right).],
 ) <fig:reads>
 ]
 
@@ -420,9 +449,11 @@ A query is built from two kinds of expression. A *generator* produces a set of c
 
 A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them.
 
-`select`/`where` units compose as *set algebra*: `or` unions, `and` intersects, `not` complements. Complement is bounded by the subjects the query names, so `not` never reaches a branch the query did not already read; subtraction is `A and (not B)`. These are the same operators a `where` uses over comparisons, lifted one level: inside a `where` they test a single claim, between units they combine whole result sets — and, because each unit carries its own subject, they may span branches: the claims in one branch but not another, or the union of two, provided the account may read each.
+`select`/`where` units combine by *union* (`or`): a query is a single unit or the union of several. Because each unit carries its own subject, a union may span branches — the claims of two branches together — provided the account may read each. The `and`, `or` and `not` inside a `where` combine comparisons on one claim; only `or`, lifted to the unit level, combines whole sets.
 
-Two orders govern a read. The *generator order* is the total order `(created_at, id)` (@sec:timestamp): the walk enumerates candidates in it, so filtering streams and paging is a keyset seek — a `cursor` `{created_at, id, direction}` resumes at a boundary and takes the partition on its `direction` side, never re-scanning. The *output order* is the same by default, and results stream straight through, `limit.results` claims at a time. A named `order` of `{field, direction}` sorts by that field instead, claims lacking it sorting last; this materialises the whole candidate set, sorts, and truncates — correct on any engine, but a full pass rather than a seek, with the cursor then keyed on `(field, id)`.
+A read returns a set of claims, shaped through one result type — a claim, optionally carrying its origin and its reaching path — projected two ways over the ladder `start`, `end`, `endpoints`, `path`. `select.format` sets how much each result carries: `end`, the reached claim alone, is the default; `endpoints` adds its origin; `path` the whole route. `select.distinct` sets the dedup grain: `end` gives one row per reached claim (the plain set), `endpoints` one per `(start, end)`, `path` every distinct route — so `distinct: "path"` answers _in how many ways, and by which_. The walker records each path, so the engine builds the rich form once and projects down; `format` and `distinct` are views on it, not separate result types.
+
+Results come back in the total order `(created_at, id)` (@sec:timestamp) unless another order is named. A query is computed whole — generated, filtered, ordered, then cut to `limit.results` — so ordering applies to the materialised result, not to the walk. A `cursor` `{created_at, id, dir}` is a keyset boundary in that order: the next page recomputes the query and returns the claims past the boundary. A named `order` of `{field, dir}` sorts by that field instead, claims lacking it sorting last, with the cursor then keyed on `(field, id)`.
 
 _Discharges R14._
 
