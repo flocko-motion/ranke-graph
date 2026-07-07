@@ -1,6 +1,6 @@
 <mxfile host="Electron" pages="2">
   <diagram name="hexagon" id="00Oe8yobfyurY-primt5">
-    <mxGraphModel dx="892" dy="670" grid="1" gridSize="10" guides="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="963" dy="724" grid="1" gridSize="10" guides="0" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -90,6 +90,9 @@
         </mxCell>
         <mxCell id="heIhFNGIpPP2eHZAS985-49" parent="1" style="rounded=0;whiteSpace=wrap;html=1;rotation=30;" value="Azure Key Vault" vertex="1">
           <mxGeometry height="20" width="100" x="500" y="551" as="geometry" />
+        </mxCell>
+        <mxCell id="szZzuUWeRycPhh1qBKPD-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;rotation=-390;" value="Macaroons" vertex="1">
+          <mxGeometry height="20" width="100" x="530.0012701892219" y="412.00025403784434" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
