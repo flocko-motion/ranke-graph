@@ -81,7 +81,7 @@ From the scope of intended use cases, and the fundamental ideas and guiding prin
 
 == Inherited Guarantees <sec:inherited>
 
-The foundation paper already proves, for any Ranke-Graph, its desiderata D1–D9: provenance, immutability, identity and authenticity, temporality, verifiability, semantic relations, open vocabulary, partial views, and distributability. RankeDB inherits them by implementing the ADT faithfully (see the foundation paper for the definitions); what remains follows: the requirements this paper is accountable for, and the architecture that meets them.
+The foundation paper already proves, for any Ranke-Graph, its desiderata D1–D8: provenance, immutability, identity and authenticity, temporality, verifiability, semantic relations, open vocabulary, and distributability. RankeDB inherits them by implementing the ADT faithfully (see the foundation paper for the definitions); what remains follows: the requirements this paper is accountable for, and the architecture that meets them.
 
 == Guiding Principles <sec:principles>
 
@@ -239,15 +239,15 @@ _Discharges R4 (composability)._
 
 == Deletion <sec:deletion>
 
-The ADT describes an immutable, append-only data structure, yet some use cases require deleting claims — by legal requirement or administrative choice. RankeDB therefore defines a convention for removing a claim: the deletion is documented in claims that remain in the graph, so the gap is explained.
+The ADT is immutable and append-only, yet a legal requirement or an administrative choice can force a claim's bytes to be removed. RankeDB purges the bytes while leaving an explained gap in their place, so the removal is documented rather than silent. Deletion takes two forms.
 
-_Planned_ deletion is intrinsic: a `deleteBy` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so the gap stays explained once the claim is purged. A claim carrying `deleteBy` is replicated only into layers configured to allow deletion; a purge removes expired claims at an interval set in the configuration.
+_Planned_ deletion is intrinsic: a `delete_by` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so once the bytes are purged the gap stays explained wherever the claim is reached — the schedule travels with each reference, and no propagation is needed. A claim carrying `delete_by` is replicated only into layers configured to allow deletion; a purge removes due claims at an interval set in the configuration.
 
-_Requested_ deletion is extrinsic: a later demand to forget a claim is recorded as a new claim that references the target and explains the gap.
+_Requested_ deletion is extrinsic: a later claim whose `contribution/delete` edge names the target by id (foundation paper §Types). Because that edge points _at_ its target, it does not lie in the target's closure, so a graph that merely holds the target would still resolve it. The deletion is therefore a limiting claim and must be propagated to every branch holding the target, by the mechanism of @sec:crossbranch it shares with key expiry.
 
-Verification must still pass for a graph whose claims were deleted under these rules, which requires extending the foundation's verification algorithm. We add a callback to the algorithm that decides these cases.
+Verification must still pass for a graph whose claims were purged, which extends the foundation's verification algorithm with a callback that accepts an explained gap — a `contribution/delete` reference, or a copied `delete_by` date — in place of the missing bytes.
 
-#todo[Revisit for rigidity — deletion has the same shape as key expiry (@sec:keyrotation) and needs the same treatment. A requested-deletion claim points _at_ its target, so like a `limit`/expiry it is not in the provenance of graphs that reference the deleted claim; it must be propagated to *every* graph affected by the deletion via the base limiting-claim-propagation mechanism (to be described in @sec:access, shared with key expiry), or a sibling graph would still resolve the claim it should no longer see. Cross-tenant edge case to work out: if tenant A imports a claim from tenant B and then deletes it — or expires B's contributor — the substrate _permits_ the operation (it is just another limiting claim in A's closure), yet contributors stand for B's users, so governing who may do this is application policy, not an engine right. Clarify the boundary: what the substrate allows vs. what the application must gate. This confirms that *importing is more powerful than it looks* — it pulls a foreign subgraph into A's control surface, where A's own limiting claims can then act on it.]
+Governing _who_ may delete is application policy, not an engine right. The substrate enforces only the mechanics: *D* on every branch holding the claim (@sec:access) and the archive-wide register at the Sequencer gate. This bites at a tenant boundary — a tenant that imported a claim can name it for deletion within its own branches, because importing pulled that subgraph into its control surface. Importing is more powerful than it looks.
 
 _Discharges R6._
 
@@ -502,14 +502,20 @@ The RankeDB repository ships a conformance suite: it runs a series of commits an
 
 = Related Work <sec:related>
 
-#todo[Engine-flavoured prior art only; the foundation paper carries the conceptual lineage. Datomic (@hickey2012datomic) and Fluree (@fluree) as immutable stores; TerminusDB (@terminusdb) as a versioned graph; IPFS/IPLD (@ipfs) and git as content-addressed Merkle stores; restic/borg/Perkeep as CAS backup; SPADE and Quit Store as split-store / git-backed provenance; Neo4j and FalkorDB as graph engines used as layers; the tiered-storage / cache-hierarchy literature. Distinctive composition: a pluggable stack of content-addressed stores, ground = truth, upper layers cache / redundancy / capability.]
+The concepts behind the Ranke-Graph, and their lineage, belong to the foundation paper; this section places RankeDB among the running systems it draws on. RankeDB composes established storage mechanisms to serve the abstract data type, and so to close the gap the foundation paper names: a digital datastore built on the analogue principles of the archival tradition — attributed claims forming an unbroken chain of references in authorship and content, rather than a current state updated in place. 
+
+The closest systems in intent are immutable and versioned databases and dedicated provenance stores. Datomic (@hickey2012datomic) records time-stamped facts and queries the past as readily as the present; Fluree (@fluree) keeps a semantic graph over an immutable ledger; TerminusDB (@terminusdb) versions a graph with git-like branches. SPADE (@spade) audits provenance across distributed systems, and Quit Store (@quitstore) keeps git-backed, PROV-annotated RDF. All share the refusal to overwrite. Each, though, is a single engine that versions or annotates a knowledge base; RankeDB instead serves the foundation paper's ADT — where provenance is the record, not an annotation on one — over interchangeable backends, and takes its identity from content-addressed hashing rather than an internal log.
+
+The parts themselves are standard. Its ground is a store of immutable bytes addressed by content, as in IPFS and IPLD (@ipfs), git, and content-addressed backup; any keyed-byte store can serve as it (@sec:composition). 
+
+Established, performant graph engines such as Neo4j (@neo4j) act as an acceleration layer, giving fast access to the archive. The hexagonal core behind minimal adapters (@cockburn2005hexagonal) is the borrowed pattern underlying the whole architecture. 
+
+Each of these supplies one capability — immutability, content addressing, graph query — that RankeDB uses as a part. The contribution is the composition: a stack of content-addressed stores serving a provenance-first ADT, its ground the claims and every layer above a rebuildable derivation.
 
 = Conclusion <sec:conclusion>
 
-RankeDB takes the Ranke-Graph as given and shows how to serve it, capability by capability. From a content-addressed store of immutable bytes, each requirement (R1–R14) is met by one adapter or primitive: a Universe over any blob store, a composition of stacked and partitioned stores, a Sequencer advancing the branch-table head, a declarative query lowered to whichever engine the stack offers, access bounded by grants over branches. Every part is established; the arrangement is the contribution.
+RankeDB implements the abstract data type of the foundation paper as a working server. We have tried to build it in the spirit of the Ranke-Graph: on a content-addressed store of immutable bytes, reached through minimal adapters that keep every backend replaceable, so the archive outlives the technologies that serve it; the engine persists, composes, queries, and bounds access, while content and policy remain with the graph and the application. Each requirement (R1–R14) set out in @sec:requirements is met by a corresponding design decision. The contribution is a working reference server that realises the ADT faithfully on interchangeable, established parts.
 
-In that arrangement, the ground store holds the claims; every layer above — a cache, a replica, a query engine — is a rebuildable derivation, reached through a contract small enough to swap. Content addressing gives deduplication, cheap forking, and replication. The engine persists, composes, queries, and bounds access; truth and policy live above it, in the graph and the application.
-
-The same primitives serve both ends of the use cases: the opaque backup and the searchable, provenance-annotated archive are the same store, differently read. Reference implementations in Go and Python, and a conformance suite that pins any composition to the native engine's results, make the contract checkable. What an archive needs to outlive its tools — open formats, redundant storage, a specification small enough to reimplement — it now has.
+What comes next is up to the users: real archival applications built on this foundation, inheriting the qualities it provides.
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
