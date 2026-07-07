@@ -116,7 +116,7 @@ _Verification and Witnessing._
 _Access._
 - *R12: Multi-tenancy.* Isolation between data of multiple accounts. (@sec:access)
 - *R13: Access control.* Scoped access for system accounts. (@sec:access)
-- *R14: Filtered reads.* Expressive filters, with a cursor and a result limit. (@sec:query)
+- *R14: Filtered reads.* Expressive filters, with pagination and a result limit. (@sec:query)
 
 
 == Out of Scope <sec:out-of-scope>
@@ -374,29 +374,25 @@ A `select` generator specifies a starting point and follows edges from it. `sele
     align: top,
     ```json
     "path": [ {"edges": ["derivation/*"],
-               "nodes": ["source/*"]} ]
+               "nodes": ["source/*"]} ],
+    "format": "claim"
     ```,
     ```json
     "path": [ {"edges": ["relation/family"],
                "dir": "connections", "depth": 4,
                "nodes": ["entity/person"]},
               {"edges": ["derivation/*"],
-               "nodes": ["source/*"]} ]
+               "nodes": ["source/*"]} ],
+    "format": "path"
     ```,
   ),
-  caption: [Two `path` generators. *Simple:* follow the derivation chain to the `source` claims a release rests on. *Complex:* two chained steps — a family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then those people's `derivation` provenance to the `source` claims behind them. The result is those sources; `format: "path"` returns each with the route back through its person.],
+  caption: [Two `path` generators, each choosing a `format`. *Left:* the derivation chain to the `source` claims a release rests on. *Right:* two chained steps — a semantic family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then each entity's `derivation` provenance to the `source` claims they derived from — returned as full `path`s.],
 ) <fig:paths>
 ]
 
-RankeDB guarantees a generator yields only claims within its subject, rooting the generated query there so scope holds by construction. Because each generator carries its own subject, one query may draw on several branches at once; RankeDB authorises the read against the account's read grant on every branch a generator touches, and denies the whole read if any is missing.
+`select.format` sets how much each result carries: `claim`, the reached claim alone, is the default; `path` the whole route.
 
-The query is declarative *data*, a JSON description of _what_ to return that carries no engine choice. RankeDB lowers it to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native filter that every stack has. Because the client never writes the engine's language, RankeDB controls the generated query end to end — it is where the scope above is enforced, not a discarding of out-of-scope results after execution. An optional `via` field pins execution to a named layer, so one query can be run on two engines and their cost compared.
-
-The native filter is the semantic reference. It implements every generator, comparison, and set operation the language defines, and runs any query in four exhaustive steps: generate the full candidate set, filter it, order it by the total order, then cut it to the limit. It materialises everything and chooses nothing — no plan, no index, no seek. That is deliberate: with nothing to optimise there is nothing to get wrong, so the four steps *define* the answer, and their result is what any conforming implementation must return. It is built for verifiability, not throughput. A faster engine such as a Cypher/GQL layer is an accelerator, not an authority; a conformance suite runs each query through both and requires identical result sets, so lowering changes an answer's cost, never the answer.
-
-Controls in `limit` bound the read: `results` caps the number of claims, `content` the returned bytes per claim (`overflow` choosing whether an over-large claim is cut off or omitted), and `time` the query's execution, cancelled when exceeded.
-
-Deletion markers are added transparently. A `contribution/delete` points _at_ its target, so it lies outside the target's provenance and no generator reaches it; RankeDB therefore checks each returned claim against the archive-wide deletion register and attaches a marker where one applies (@sec:deletion). Deleted claims surface as deleted without the client querying for them.
+A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them. Controls in `limit` bound the read: `results` caps the number of claims, `content` the returned bytes per claim (`overflow` choosing whether an over-large claim is cut off or omitted), and `time` the query's execution, cancelled when exceeded. Results come back in the total order `(created_at, id)` unless a named `order` of `{field, dir}` sorts by another field instead, claims lacking it sorting last. To page, a client carries the last row's order key — `(created_at, id)`, or `(field, id)` under a named `order` — into a `where` on the next request.
 
 @fig:reads shows one read: the declarative form the client sends (left) and the Cypher RankeDB lowers it to on a Cypher/GQL-capable stack (right).
 
@@ -418,10 +414,7 @@ Deletion markers are added transparently. A `contribution/delete` points _at_ it
         "limit": {"results": 200,
                   "content": "4kb",
                   "overflow": "cutoff",
-                  "time": "5s"},
-        "cursor": {"created_at": "2026-03-01T10:00:00Z",
-                   "id": "4b8d…c02f",
-                   "dir": "desc"}
+                  "time": "5s"}
       }
     }
     ```,
@@ -432,9 +425,6 @@ Deletion markers are added transparently. A `contribution/delete` points _at_ it
      WHERE all(e IN relationships(p)
                WHERE e.type =~ 'derivation/.*')
        AND c.type =~ 'source/.*'
-       AND [c.created_at, c.id]
-             < ['2026-03-01T10:00:00Z',
-                '4b8d…c02f']
      RETURN c
      ORDER BY c.created_at DESC,
               c.id DESC
@@ -445,15 +435,10 @@ Deletion markers are added transparently. A `contribution/delete` points _at_ it
 ) <fig:reads>
 ]
 
-A query is built from two kinds of expression. A *generator* produces a set of claims; a *filter* narrows a set by testing each claim's fields. The base unit pairs the two: `select` names the generator, `where` the filter. `where` is optional — a bare `select` returns the generator's whole output. A generator's subject is usually a `branch`, whose current head roots it; the privileged alternative is a `closure` at a named claim id (@sec:access). Either way it produces every claim reachable from that root along reference edges (foundation paper §Closures), and nothing outside it.
+Queries are declarative and backend agnostic. RankeDB lowers them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
 
-A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them.
+The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length. This order is easy to implement but not performant. Optimised execution may divert from this order as long as the result set stays identical. The conformance suite in the RankeDB implementation allows comparing the reference implementation against more performant execution engine. An `execution` block with fields as `execution.layer` (explicit selection of layer to execute the query) and `execution.trace` (detailled  output on how the query was executed) help comparing execution engines. 
 
-`select`/`where` units combine by *union* (`or`): a query is a single unit or the union of several. Because each unit carries its own subject, a union may span branches — the claims of two branches together — provided the account may read each. The `and`, `or` and `not` inside a `where` combine comparisons on one claim; only `or`, lifted to the unit level, combines whole sets.
-
-A read returns a set of claims, shaped through one result type — a claim, optionally carrying its origin and its reaching path — projected two ways over the ladder `start`, `end`, `endpoints`, `path`. `select.format` sets how much each result carries: `end`, the reached claim alone, is the default; `endpoints` adds its origin; `path` the whole route. `select.distinct` sets the dedup grain: `end` gives one row per reached claim (the plain set), `endpoints` one per `(start, end)`, `path` every distinct route — so `distinct: "path"` answers _in how many ways, and by which_. The walker records each path, so the engine builds the rich form once and projects down; `format` and `distinct` are views on it, not separate result types.
-
-Results come back in the total order `(created_at, id)` (@sec:timestamp) unless another order is named. A query is computed whole — generated, filtered, ordered, then cut to `limit.results` — so ordering applies to the materialised result, not to the walk. A `cursor` `{created_at, id, dir}` is a keyset boundary in that order: the next page recomputes the query and returns the claims past the boundary. A named `order` of `{field, dir}` sorts by that field instead, claims lacking it sorting last, with the cursor then keyed on `(field, id)`.
 
 _Discharges R14._
 
@@ -461,18 +446,18 @@ _Discharges R14._
 
 Reads and contributions are submitted via endpoints, receiving client requests in an endpoint-specific format, and passing them to the core as internal function calls, to then return the results as output in the endpoint-specific format. Auth tokens need to be fetched from the endpoint-specific fields and passed to the core together with the function call, allowing it to match the request against the system account's access rights (@sec:access).
 
-RankeDB implements two endpoint adapters: *REST/HTTP* (with an OpenAPI contract) for webapps and *MCP/HTTP* for agents. They are equally capable — each exposes the full read and contribute surface, so the choice between them is one of client ergonomics, not of power. On REST the general read is `POST /query`, carrying the declarative query as its body, and a write is `POST /contribute`. For the common single-subject reads, REST adds convenience routes that place the subject first in the path and lower to fixed query templates — `GET /{branch}/head` for a branch's current head, `GET /{branch}/claim/{id}` for one claim within it — cached with revalidation against the advancing head, while the privileged by-id form `GET /$universe/claim/{id}` is immutable and cached unconditionally. MCP exposes the same query and contribute operations as agent tools.
+RankeDB implements two endpoint adapters: *REST/HTTP* (OpenAPI) for webapps and *MCP/HTTP* for agents. Both carry the full read-and-contribute surface — REST as `POST /query` and `POST /contribute`, MCP as agent tools. REST also pins a small subset of the query language as `GET` routes — `GET /{branch}/head`, `GET /{branch}/claim/{id}`, `GET /$universe/claim/{id}` — reachable from a browser or `curl` without JSON, and HTTP-cacheable: the by-id form immutably, branch reads with revalidation.
 
-Both adapters support every authentication mechanism (NoAuth, JWT, API Key, Macaroons); not every combination need be supported, and an unsupported one simply denies access. Multiple endpoint adapters may be configured, exposing the instance on several ports, addresses, or protocols.
+Both adapters support every authentication mechanism (NoAuth, JWT, API Key, Macaroons); 
+Multiple endpoint adapters may be configured, exposing the instance on several ports, addresses, or protocols.
 
 = Data Longevity <sec:longevity>
 
-WILDNERNES STARTS HERE -- BELOW THIS LINE IS UNREVIEWED SCAFFOLDING WHICH MIGHT CONTAIN COMPLETELY WRONG INFORMATION
+Every part of RankeDB follows the principle of technological agnosticism, so that a user's archive can endure for years while the technology around it evolves — storage backends replaced, new protocols added, clients and use cases changing. What must not change is the archive's *accessibility*, and architecture alone cannot secure that. This section offers best practices for _how_ to store data so it remains usable years from now.
 
-#todo[Reframe as user-facing guidance: a recommendation on _how to use_ the system (favour durable, open formats), not an engine property. Consider retitling (e.g. "Choosing Durable Formats"). Tie the SQLite note back to the storage adapters at @sec:composition.]
+Accessibility splits in two: content must be *available* — RankeDB can serve it from storage — and *readable* — the client can decode its format. Availability is the server's concern; readability falls to the application layer, which should favour open, widely-implemented, long-lived encodings over proprietary or application- and project-specific ones.
 
-Storing data longer than the typical life cycle of an application or single project requires the data to be *available* after that life cycle
-and *readable* after the original application or service is discontinued. This is a challenge that libraries and archives traditionally face
+This is a challenge that libraries and archives traditionally face
 and for which they developed strategies.
 
 #figure(
@@ -509,16 +494,11 @@ and for which they developed strategies.
   caption: [Introduction (Intr.) and standardisation (Std.) years for common open formats.],
 ) <fig:formats>
 
-Longevity rests on an asymmetry between products and formats. Services are short-lived, but fundamental formats endure — most in daily use for years before any standard ossified them, and still readable long after the tools that produced them are gone. The more open and widely implemented a format, the longer its life: the gap between introduction and standardisation — CSV waited 33 years — shows the working form long preceding the formal one, and WAV's base format endures with no formal standard of its own.
-
-Mature players read every codec ever shipped, so even video, for all its churn, stays openable decades on. Memory institutions reach the same conclusion: the Library of Congress maintains recommended-format and format-sustainability guidance favouring open, well-documented formats for long-term preservation.
-
-#todo[Dig deeper into the Library of Congress "Recommended Formats Statement" and "Sustainability of Digital Formats" — an independent, institutional study of the same format-longevity question and strong corroboration for this section. Cite it; note SQLite's place on their recommended list when storage adapters are discussed (@sec:composition).]
-
+The more open and widely implemented a format, the longer its life. The list in @fig:formats was derived from the _Library of Congress_ recommendations (@locformats) on encodings to use for long-term archival.
 
 = Conformance <sec:conformance>
 
-#todo[RankeDB builds on the foundation paper's ADT reference library (Go, soon Python), adding the server, the storage-layer adapters, and the admin layer. Conformance here is _adapter conformance_: an adapter satisfies the content-addressed contract (@sec:composition) and declares its capability and `max_content_len`; give the adapter test battery. ADT-level conformance (serialization determinism, id chains, closure/scope/prune semantics) is inherited from the foundation paper's binary conformance suite.]
+The RankeDB repository ships a conformance suite: it runs a series of commits and queries against a running instance's API and asserts the results against reference values — those the native engine produces. Run against any server configuration, it validates that any composition of adapters or execution engines, current or future, reproduces them.
 
 = Related Work <sec:related>
 
@@ -526,6 +506,10 @@ Mature players read every codec ever shipped, so even video, for all its churn, 
 
 = Conclusion <sec:conclusion>
 
-#todo[The engine is built, not asserted: from the atomic store, each added capability discharges a requirement, through R14. A composition of established parts — content-addressed storage, cache hierarchies, signature identity, CRDT merge — arranged so the ground store holds the claims and every layer above is a rebuildable derivation. The same primitives carry the opaque end (backup) and the rich end (second brain). We invent nothing; we compose.]
+RankeDB takes the Ranke-Graph as given and shows how to serve it, capability by capability. From a content-addressed store of immutable bytes, each requirement (R1–R14) is met by one adapter or primitive: a Universe over any blob store, a composition of stacked and partitioned stores, a Sequencer advancing the branch-table head, a declarative query lowered to whichever engine the stack offers, access bounded by grants over branches. Every part is established; the arrangement is the contribution.
+
+In that arrangement, the ground store holds the claims; every layer above — a cache, a replica, a query engine — is a rebuildable derivation, reached through a contract small enough to swap. Content addressing gives deduplication, cheap forking, and replication. The engine persists, composes, queries, and bounds access; truth and policy live above it, in the graph and the application.
+
+The same primitives serve both ends of the use cases: the opaque backup and the searchable, provenance-annotated archive are the same store, differently read. Reference implementations in Go and Python, and a conformance suite that pins any composition to the native engine's results, make the contract checkable. What an archive needs to outlive its tools — open formats, redundant storage, a specification small enough to reimplement — it now has.
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
