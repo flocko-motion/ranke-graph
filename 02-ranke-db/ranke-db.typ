@@ -40,7 +40,7 @@
   title:    "RankeDB: Serving the Ranke-Graph",
   author:   "Florian Metzger-Noel",
   date:     "2026-06-22",
-  status:   "scaffold",
+  status:   "draft",
   abstract: [*RankeDB* is a reference database service for the *Ranke-Graph*, the provenance-first data structure the foundation paper defines as an abstract data type: 
 a graph of immutable, attributed claims, each carrying its own derivation and independently verifiable. 
 Taking that contract as given, this paper specifies how such a graph is persisted, composed, queried, verified, and bounded for access, without weakening any guarantee the structure already proves. 
@@ -138,18 +138,18 @@ At its centre, the core wraps the library that implements the Ranke-Graph ADT. T
   #figure(
     placement: auto,
     image("drawio/architecture.drawio.png", width: 100%),
-    caption: [RankeDB as a hexagonal core wrapping the ranke-graph library: six independent adapter ports, each shown with the backends the reference implementation ships, and configuration entering as the launch artifact rather than a port.],
+    caption: [RankeDB as a hexagonal core wrapping the ranke-graph library: six independent adapter ports, each shown with the backends RankeDB ships, and configuration entering as the launch artifact rather than a port.],
   ) <fig:adapters>
 ]
 
-Choosing this architecture is the answer to R2: every port is a narrow contract: the blob store has three functions (@sec:blob), the Sequencer three (@sec:sequencer). Supporting a new backend is therefore a small adapter, and the reference implementation's adapters can be read at a glance. _Discharges R2._
+Choosing this architecture is the answer to R2: every port is a narrow contract: the blob store has three functions (@sec:blob), the Sequencer three (@sec:sequencer). Supporting a new backend is therefore a small adapter, and RankeDB's adapters can be read at a glance. _Discharges R2._
 
 The combination and configuration of the adapters into a runnable instance of ranke-db is done using a config file. Such a configuration specifies one single instance, the analogue to a single Database within e.g. a Postgres service. One statically defined instance per configuration keeps the technology simple and maintainable; a management layer for administering multiple such instances (configuring them, and starting, stopping, or monitoring them) can be implemented on top of this.
 
 This split is a useful razor for deciding what belongs where. The Ranke-Graph holds *content*: claims and their provenance, the record of what happened, preserved in the archive. The configuration holds this deployment's *policy and wiring*: which adapters are bound, where secrets are resolved, and which accounts may do what. When it is unclear where something belongs, the razor decides: a fact the archive should preserve is content and goes in the graph; an operational choice of this particular server is policy and goes in the configuration. Access rights are the clarifying case: _who may read or write which branches_ describes the server, not the world, and so lives in the configuration, never in the graph.
 
 
-A RankeDB instance is launched by running the binary with a configuration as launch artifact. The configuration contains the full instructions which adapters to mount to the core, including the full parametrisation. Field values in the configuration can be either literal ("field":"value"), references to environment variables resolved at runtime (`"field":"env(VARNAME)"`) or references to key-vault entries ("field":"vault(KEYNAME)") fetched from the key-vault defined in the same configuration at runtime. The configuration is json encoded and optionally age-encrypted (?? reference to age?). While encrypted configuration allows secrets to be stored in the config (convenient for personal or single user projects), env and vault approaches allow secret-less parametrised configuration that can be integrated into enterprise infrastructure. 
+A RankeDB instance is launched by running the binary with a configuration as launch artifact. The configuration contains the full instructions which adapters to mount to the core, including the full parametrisation. Field values in the configuration can be either literal ("field":"value"), references to environment variables resolved at runtime (`"field":"env(VARNAME)"`) or references to key-vault entries ("field":"vault(KEYNAME)") fetched from the key-vault defined in the same configuration at runtime. The configuration is json encoded and optionally age-encrypted (@age). While encrypted configuration allows secrets to be stored in the config (convenient for personal or single user projects), env and vault approaches allow secret-less parametrised configuration that can be integrated into enterprise infrastructure. 
 
 
 = Implementation <sec:datastructure>
@@ -190,7 +190,7 @@ Blob store — content-addressed; immutable
 ```
 
 This is the minimal interface a storage solution must implement to serve as a RankeDB storage layer. The minimalism of the interface 
-satisfies R1: such an adapter is trivial to write for any backend that stores bytes under a key, and the reference implementation already ships a range of them, so persistence agnosticism follows. 
+satisfies R1: such an adapter is trivial to write for any backend that stores bytes under a key, and RankeDB already ships a range of them, so persistence agnosticism follows. 
 
 
 == The Universe <sec:universe>
@@ -217,7 +217,7 @@ RankeDB can persist its data across many storage backends at once. The guiding p
 
 This is achieved using composition primitives that themselves implement only the Universe interface. The stacking primitive takes a list of Universe instances together with per-layer configuration defining their read-through and write-through behaviour: marking each as eager or lazy, or capping it with a size threshold in bytes, so a fast in-memory layer need not store gigabytes of binary content. The stack receives read and write requests through the shared Universe interface and routes them to the embedded instances according to its composition logic (@fig:storage, left).
 
-The partition primitive routes each read and write request to one of several Universe instances (@fig:storage, right). The reference implementation uses `mod n` to choose which of the `n` instances handles a given `id`.
+The partition primitive routes each read and write request to one of several Universe instances (@fig:storage, right). RankeDB uses `mod n` to choose which of the `n` instances handles a given `id`.
 
 #figure(
   placement: auto,
@@ -243,11 +243,11 @@ The ADT is immutable and append-only, yet a legal requirement or an administrati
 
 _Planned_ deletion is intrinsic: a `delete_by` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so once the bytes are purged the gap stays explained wherever the claim is reached — the schedule travels with each reference, and no propagation is needed. A claim carrying `delete_by` is replicated only into layers configured to allow deletion; a purge removes due claims at an interval set in the configuration.
 
-_Requested_ deletion is extrinsic: a later claim whose `contribution/delete` edge names the target by id (foundation paper §Types). Because that edge points _at_ its target, it does not lie in the target's closure, so a graph that merely holds the target would still resolve it. The deletion is therefore a limiting claim and must be propagated to every branch holding the target, by the mechanism of @sec:crossbranch it shares with key expiry.
+_Requested_ deletion is extrinsic: a later claim whose `contribution/delete` edge names the target by id (foundation paper §Types), documenting the gap once the bytes are purged. It is a limiting claim, so @sec:crossbranch carries it to any branch that references the target.
 
 Verification must still pass for a graph whose claims were purged, which extends the foundation's verification algorithm with a callback that accepts an explained gap — a `contribution/delete` reference, or a copied `delete_by` date — in place of the missing bytes.
 
-Governing _who_ may delete is application policy, not an engine right. The substrate enforces only the mechanics: *D* on every branch holding the claim (@sec:access) and the archive-wide register at the Sequencer gate. This bites at a tenant boundary — a tenant that imported a claim can name it for deletion within its own branches, because importing pulled that subgraph into its control surface. Importing is more powerful than it looks.
+Deletion right is a *D* grant per branch (@sec:access). As a delete reaches every branch that holds the claim, configure access rights with tenancy in mind. 
 
 _Discharges R6._
 
@@ -263,7 +263,7 @@ The foundation paper fixes the format of the branch table to be a `contribution/
 
 The foundation paper calls the BTH the *mutable marker* (its value advances each time the archive's current state changes) but leaves the management of that marker open (foundation paper §Ranke-Archive). The *Sequencer* is RankeDB's mechanism for it: maintaining the BTH under concurrent reads and writes from many clients. 
 
-Because the BTH is the key to reading a Ranke-Graph out of the Universe, it must not be lost: a corrupted BTH, or one pointing at a claim that failed to persist in the storage backend, leaves the graph unretrievable. The claims remain in the Universe, but finding the right head among the millions of claims of the many graphs that may share it would be cumbersome at best, and impossible on a storage backend without enumeration. For that reason the reference implementation keeps the *history* of the BTH, not just the latest, so that a failed storage write (a claim that did not persist) can be recovered by rolling the BTH back to the last working state. 
+Because the BTH is the key to reading a Ranke-Graph out of the Universe, it must not be lost: a corrupted BTH, or one pointing at a claim that failed to persist in the storage backend, leaves the graph unretrievable. The claims remain in the Universe, but finding the right head among the millions of claims of the many graphs that may share it would be cumbersome at best, and impossible on a storage backend without enumeration. For that reason RankeDB keeps the *history* of the BTH, not just the latest, so that a failed storage write (a claim that did not persist) can be recovered by rolling the BTH back to the last working state. 
 
 ```
 Sequencer  
@@ -313,19 +313,11 @@ This property lets the current BTH of a Ranke-Archive be witnessed externally by
 
 The ADT specifies that each contributor has a `pubkey`, which is used to check the signatures on the claims created by that contributor. How those claims map to application or even real world users is up to the application layer; within RankeDB they are mere cryptographic entities.
 
-The ADT intentionally doesn't define a key expiry or rotation mechanism, to leave those degrees of freedom to the implementation. For RankeDB we model a key lifetime mechanism fulfilling requirement R11.
+The ADT provides the vocabulary for expiry — the `contribution/expiry` edge (foundation paper §Types) — but leaves the key-lifetime mechanism (validity windows, rotation, enforcement) to the implementation. For RankeDB we model that mechanism, fulfilling requirement R11.
 
-For *planned expiry* we add an optional field `pubkey_expires` (RFC 3339) to the contributor claim, storing the expiry date-time of that key. Any claim with `created_at` greater than or equal to that expiry date fails verification.
+For *planned expiry* we add an optional field `pubkey_expires` (RFC 3339) to the contributor claim, storing the expiry date-time of that key. Any claim with `created_at` greater than or equal to that expiry date fails verification. To rotate into a new key at expiry, we just add another contributor with field `pubkey_valid_from` (RFC 3339). Both can exist independently and even overlap in their validity. 
 
-For *overlapping rotation* we add a new contributor claim with a new pubkey; the existing one is not invalidated and expires at its own set date, so the two overlap. For *non-overlapping rotation* the new contributor claim also carries a `pubkey_expires` edge pointing at the previous contributor, overwriting its expiry so the old key lapses as the new one takes over. Where several expiry edges point at one contributor, the earliest date wins.
-
-*Early expiry* in an immutable ADT is only possible by adding a further claim that asserts an earlier expiry date, overriding the original. Such a claim points _at_ the contributor rather than being part of its provenance, so it is a *limiting* claim and must be propagated to every branch holding the contributor (see @sec:crossbranch), otherwise the contributor would lose its early expiry there.
-
-Early expiry works the same way: a `pubkey_expires` edge points at the previous contributor with an earlier date (at least the new claim's `created_at`, and below the previous expiry), and the `contribution/contributor` claim carrying it may define a new key at the same time — the two validity periods may overlap.
-
-The problem separates into two parts. For *write access* we keep a central register for the whole archive in which all expiries are stored, so the Sequencer can block any new contribution from an expired contributor. For *documentation* (ensuring every graph contains the full expiry history of its contributors) we rely on the limiting-claim propagation of @sec:crossbranch.
-
-It's worth pointing out here that the task of the Ranke-Graph is to *document what happened*, the task of RankeDB is to *maintain a valid state under additions*, and the task of the application is to *validate the quality of the content* added. For instance, if a claim were ever signed with an expired key, the graph would still be technically intact, documenting exactly what happened in its content, and that content would expose that an invalid signature was admitted at the RankeDB level.
+*Early expiry* is achieved by pointing a `contribution/expiry` edge at the target contributor, carrying a `pubkey_expires` date-time before the planned expiry. The claim carrying that edge must be either a `contribution/expiry` claim, or a new `contribution/contributor` claim introducing the successor key. This is a limiting claim, propagated across branches by @sec:crossbranch.
 
 == Access Control <sec:access>
 
@@ -341,6 +333,8 @@ Using this primitive we can model *tenancy* as a configuration pattern. A *tenan
 
 Tenants might be different projects of a single individual kept separate, different teams within a company working on different projects, or different customers of a SaaS server renting leases on a shared backend. They share the same infrastructure: a single RankeDB instance serving a single Ranke-Archive through a single Sequencer. If they need stronger separation than configuration can provide, it is advisable to run separate RankeDB instances over separate storage backends.
 
+Within a single instance, RankeDB can also derive tighter-scoped access tokens from wider ones at runtime through a macaroon-based *attenuation* mechanism, enforcing branch boundaries from the application layer without provisioning a large number of system accounts.
+
 To use a system account, a request authenticates as one through an endpoint's authenticator (@sec:endpoints); the account's grants then decide access.
 
 _Discharges R12._
@@ -348,13 +342,14 @@ _Discharges R12._
 
 == Cross Branch Propagation <sec:crossbranch>
 
-A property of the ADT is that when a claim from one branch is referenced in a contribution to another branch, the full closure is imported along as the provenance of that claim. It also requires importing *some* of the claims *pointing at* that claim. This "some" requires precision: we can differentiate between *additive* claims that contribute content to the archive and *limiting* claims that document the removal of something. Those are key expiry or rotation claims (@sec:keyrotation) and deletion notes explaining the absence of claims (@sec:deletion).
+A *limiting claim* documents that another claim is restricted in use — its bytes deleted (@sec:deletion), or a contributor's key expired early (@sec:keyrotation). It points at the claim it restricts, its *target*. If a limited claim is now referenced from another branch, we have to make sure that the limiting claim is also referenced, so that the limitation is not lost in that other branch. 
 
-RankeDB must guarantee that a key marked as expired or a claim marked as deleted keeps that property across all branches in which it might appear.
+This _cross branch propagation_ is an *operational* requirement coming from the design decision made by RankeDB, that a claim limited in one branch should be limited in all branches. This decision is taken to avoid conflicts when cross referencing claims between branches. 
 
-To fulfil this guarantee, we must, at creation time, first add those limiting claims to *all* branches that contain the limited claim; second, we must include them whenever a limited claim is imported into another branch by referencing it.
-
-Whether a system account may reference claims from other branches is configured using grants (see @sec:access). An account can import a claim from a source branch into a target branch only if it holds both R (read) access to the source and C (create) access to the target. To keep claims from spanning branches in the first place, so no cross-branch propagation is ever needed, configure tighter-scoped system accounts, each with access to only a specific branch. The reference implementation offers a macaroon-based *attenuation* mechanism that derives tighter-scoped access tokens from wider ones at runtime. This is ideal for enforcing branch separation from the application layer without provisioning a large number of system accounts in RankeDB.
+To achieve this, RankeDB references every limiting claim from a reserved *system branch*.
+Whenever a limiting claim is contributed to any branch, the sequencer references it here too. 
+At startup the sequencer reads that branch in full and builds an in-memory lookup of limiting claims by target. 
+Each contribution commits as the delta of claims effectively added to a branch; the sequencer matches the delta against the lookup and, for any added claim that is a target, adds the limiting claims against it to the same branch as part of the same contribution. A limit thus stays attached to its target wherever it is referenced. The sequencer enforces further contribution rules that keep arbitrary claims from propagating into other branches.
 
 
 == Filtered Reads <sec:query>
@@ -437,7 +432,7 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
 
 Queries are declarative and backend agnostic. RankeDB lowers them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
 
-The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length. This order is easy to implement but not performant. Optimised execution may divert from this order as long as the result set stays identical. The conformance suite in the RankeDB implementation allows comparing the reference implementation against more performant execution engine. An `execution` block with fields as `execution.layer` (explicit selection of layer to execute the query) and `execution.trace` (detailled  output on how the query was executed) help comparing execution engines. 
+The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length. This order is easy to implement but not performant. Optimised execution may divert from this order as long as the result set stays identical. The conformance suite in the RankeDB implementation allows comparing the native reference against more performant execution engines. An `execution` block with fields as `execution.layer` (explicit selection of layer to execute the query) and `execution.trace` (detailled  output on how the query was executed) help comparing execution engines. 
 
 
 _Discharges R14._
