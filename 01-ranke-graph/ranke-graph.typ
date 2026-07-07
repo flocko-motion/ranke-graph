@@ -437,16 +437,19 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`relation/*`*: a node representing a relation among entities.
 - *`contribution/*`*: a claim about contributors or their actions on the RG.
 - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
+- *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
 
 *Edge classes:*
 
 - *`derivation/*`*: provenance edges that cite the inputs a claim was derived from.
 - *`relation/*`*: relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines six subtypes:
+- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines seven subtypes:
   - *`contribution/contributor`*: names the contributor of a claim
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
   - *`contribution/branches`*: names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
-  - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)  - *`contribution/diff`*: points at a claim the owning claim overlays; a storage optimization
+  - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/diff`*: points at a claim the owning claim overlays; a storage optimization
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
+  - *`contribution/expiry`*: points at a contributor claim, ending its key's validity at a stated time
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
