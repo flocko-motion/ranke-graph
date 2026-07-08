@@ -389,7 +389,7 @@ A `select` generator specifies a starting point and follows edges from it. `sele
 
 A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them.
 
-`output` shapes each result: `detail` sets how much it carries — `id`, `claim`, or `path` (the whole route); `content` caps inlined content bytes per claim (`false`, the default, carries none); `overflow` defines how to handle oversized content — `cutoff`, `omit`, or `reference`; `encoding` fixes the wire serialization — `json-seq` (@rfc7464, the default), text with content base64-encoded, or `cbor-seq` (@rfc8742), binary.
+`output` shapes each result: `detail` sets how much it carries — `id`, `claim`, or `path` (the whole route); `content` caps inlined content bytes per claim (`false`, the default, carries none); `overflow` defines how to handle oversized content — `cutoff`, `omit`, or `reference`; `encoding` fixes the wire serialization — `json-seq` (@rfc7464, the default), a text sequence with content base64-encoded, or `cbor-seq` (@rfc8742), binary.
 
 `limit` bounds the read: `results` caps the claim count, `time` the execution. Results order by `(created_at, id)` unless a named `order` of `{field, dir}` sorts otherwise, claims lacking the field last; to page, carry the last row's order key into a `where` on the next request.
 
