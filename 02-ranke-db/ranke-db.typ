@@ -434,7 +434,7 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
 
 Queries are declarative and backend agnostic. RankeDB lowers them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
 
-The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length 5) materialise each result into the requested `output`. This order is easy to implement but not performant; optimised execution may divert from it as long as the result set stays identical. An `execution` block tunes and inspects this: `execution.layer` selects a layer explicitly, `execution.trace` returns detail on how the query ran. The conformance suite compares the native reference against more performant engines.
+The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length 5) materialise each result into the requested `output`. This order is easy to implement but not performant; optimised execution may divert from it as long as the result set stays identical. An `execution` block tunes and inspects this: `execution.layer` selects a layer explicitly; `execution.report` appends a final *report* record to the result stream — the layer that processed the query, the query it was lowered to (the Cypher/GQL text, or `native`), and per-step timings in milliseconds — typed distinctly from the result claims. The conformance suite compares the native reference against more performant engines.
 
 
 _Discharges R14._
