@@ -43,8 +43,18 @@ if [ "$start" != "$default" ]; then
 		echo "on '$start' — releasing needs it merged to '$default'. Install gh (https://cli.github.com) or merge manually, then re-run." >&2
 		exit 1
 	fi
+	# Rebase onto the latest default first, so the PR is based on current
+	# '$default' and merges cleanly. Abort cleanly on conflict rather than
+	# leaving a half-finished rebase behind.
+	git fetch origin "$default" >/dev/null 2>&1
+	echo "rebasing '$start' onto origin/$default…"
+	if ! git rebase "origin/$default"; then
+		git rebase --abort 2>/dev/null || true
+		echo "rebase onto origin/$default hit conflicts — resolve them, then re-run" >&2
+		exit 1
+	fi
 	echo "pushing '$start' and merging it into '$default'…"
-	git push -u origin "$start"
+	git push --force-with-lease -u origin "$start"
 	if [ -z "$(gh pr list --head "$start" --state open --json number --jq '.[0].number' 2>/dev/null)" ]; then
 		echo "opening a pull request…"
 		gh pr create --base "$default" --head "$start" --fill
