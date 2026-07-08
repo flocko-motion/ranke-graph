@@ -53,6 +53,13 @@ if [ "$start" != "$default" ]; then
 	gh pr merge "$start" --merge
 	git fetch origin "$default" >/dev/null 2>&1
 	target="origin/$default"
+
+	# Bring the branch we started on up onto the merged default, so it's a clean
+	# base for the next round of work (the merge kept our commits, so this
+	# fast-forwards rather than replaying).
+	echo "rebasing '$start' onto origin/$default…"
+	git checkout --quiet "$start"
+	git rebase "origin/$default"
 else
 	# Already on the default branch: require sync with origin so the tag points at
 	# pushed code (never release unpushed local commits).
@@ -81,4 +88,28 @@ next="v${maj}.${min}.${pat}"
 echo "tagging ${latest} -> ${next} on ${default}"
 git tag -a "$next" "$target" -m "release $next"
 git push origin "$next"
+
+# 4. Wait for the tag-triggered release workflow, so a failed build or publish
+#    surfaces here instead of silently. Match the run by the tagged commit's SHA
+#    (reliable for tag pushes, where headBranch is unset).
+if command -v gh >/dev/null; then
+	sha="$(git rev-parse "$target")"
+	echo "waiting for the release workflow…"
+	run_id=""
+	for _ in $(seq 1 30); do
+		run_id="$(gh run list --workflow=release.yml --json databaseId,headSha \
+			--jq "map(select(.headSha == \"$sha\"))[0].databaseId" 2>/dev/null || true)"
+		[ -n "$run_id" ] && [ "$run_id" != "null" ] && break
+		sleep 2
+	done
+	if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+		echo "  tag pushed, but no release run appeared — check: gh run list --workflow=release.yml" >&2
+	elif gh run watch "$run_id" --exit-status; then
+		echo "release ${next} published ✓ (back on '$start')"
+		exit 0
+	else
+		echo "release ${next} FAILED in CI — see: gh run view $run_id --log-failed" >&2
+		exit 1
+	fi
+fi
 echo "pushed ${next} — the release workflow triggers on the tag. Back on '$start'."
