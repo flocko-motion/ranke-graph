@@ -370,7 +370,7 @@ A `select` generator specifies a starting point and follows edges from it. `sele
     ```json
     "path": [ {"edges": ["derivation/*"],
                "nodes": ["source/*"]} ],
-    "format": "claim"
+    "output": {"detail": "claim"}
     ```,
     ```json
     "path": [ {"edges": ["relation/family"],
@@ -378,16 +378,18 @@ A `select` generator specifies a starting point and follows edges from it. `sele
                "nodes": ["entity/person"]},
               {"edges": ["derivation/*"],
                "nodes": ["source/*"]} ],
-    "format": "path"
+    "output": {"detail": "path"}
     ```,
   ),
-  caption: [Two `path` generators, each choosing a `format`. *Left:* the derivation chain to the `source` claims a release rests on. *Right:* two chained steps — a semantic family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then each entity's `derivation` provenance to the `source` claims they derived from — returned as full `path`s.],
+  caption: [Two `path` generators, each choosing an output `detail`. *Left:* the derivation chain to the `source` claims a release rests on. *Right:* two chained steps — a semantic family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then each entity's `derivation` provenance to the `source` claims they derived from — returned as full `path`s.],
 ) <fig:paths>
 ]
 
-`select.format` sets how much each result carries: `claim`, the reached claim alone, is the default; `path` the whole route.
+A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them.
 
-A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them. Controls in `limit` bound the read: `results` caps the number of claims, `content` the returned bytes per claim (`overflow` choosing whether an over-large claim is cut off or omitted), and `time` the query's execution, cancelled when exceeded. Results come back in the total order `(created_at, id)` unless a named `order` of `{field, dir}` sorts by another field instead, claims lacking it sorting last. To page, a client carries the last row's order key — `(created_at, id)`, or `(field, id)` under a named `order` — into a `where` on the next request.
+`output` shapes each result: `detail` sets how much it carries — `id`, `claim`, or `path` (the whole route); `content` caps inlined content bytes per claim (`false`, the default, carries none); `overflow` defines how to handle oversized content — `cutoff`, `omit`, or `reference`; `encoding` fixes the wire serialization — `json-seq` (@rfc7464, the default), text with content base64-encoded, or `cbor-seq` (@rfc8742), binary.
+
+`limit` bounds the read: `results` caps the claim count, `time` the execution. Results order by `(created_at, id)` unless a named `order` of `{field, dir}` sorts otherwise, claims lacking the field last; to page, carry the last row's order key into a `where` on the next request.
 
 @fig:reads shows one read: the declarative form the client sends (left) and the Cypher RankeDB lowers it to on a Cypher/GQL-capable stack (right).
 
@@ -406,10 +408,10 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
                    "path": [{"edges": ["derivation/*"],
                              "depth": 3}]},
         "where": {"type": {"glob": "source/*"}},
-        "limit": {"results": 200,
-                  "content": "4kb",
-                  "overflow": "cutoff",
-                  "time": "5s"}
+        "output": {"content": "4kb",
+                   "overflow": "cutoff",
+                   "encoding": "cbor-seq"},
+        "limit": {"results": 200, "time": "5s"}
       }
     }
     ```,
@@ -432,7 +434,7 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
 
 Queries are declarative and backend agnostic. RankeDB lowers them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
 
-The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length. This order is easy to implement but not performant. Optimised execution may divert from this order as long as the result set stays identical. The conformance suite in the RankeDB implementation allows comparing the native reference against more performant execution engines. An `execution` block with fields as `execution.layer` (explicit selection of layer to execute the query) and `execution.trace` (detailled  output on how the query was executed) help comparing execution engines. 
+The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length 5) materialise each result into the requested `output`. This order is easy to implement but not performant; optimised execution may divert from it as long as the result set stays identical. An `execution` block tunes and inspects this: `execution.layer` selects a layer explicitly, `execution.trace` returns detail on how the query ran. The conformance suite compares the native reference against more performant engines.
 
 
 _Discharges R14._
