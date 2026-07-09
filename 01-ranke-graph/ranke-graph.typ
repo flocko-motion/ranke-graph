@@ -167,43 +167,77 @@ Let $"Sign"$ be a deterministic signature function. It takes a hash and a privat
 
 Any satisfying choice is acceptable. The reference implementations adopt CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$.
 
+To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name abbreviates to the dot and one character (`content_size` → `.s`); a class to the dot, one character, and a slash (`contribution/*` → `.c/*`); a full type to the dot and two characters (`contribution/contributor` → `.cc`). The full table is fixed in the reference implementation.
+An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
+
 Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
 
 == Content <sec:content>
 
-Content-hash-addressed storage holds any content $c$ as bytes, addressed by $H(c)$.
+Content is either *inline*, in the `content` field of a node or edge, or *external* — bytes in the Universe keyed by $H(c)$, with the `content_hash` field holding that key. Inline is the norm; external suits large or recurring bytes, since the Universe deduplicates identical content. The `content` and `content_hash` fields are mutually exclusive; `content_size`, the byte length, is mandatory in both. 
 
 == Nodes <sec:nodes>
 
-```
-node = {
-  type:         string (class/subtype, e.g. "source/conversation"),
-  content_hash: H(content),
-  encoding:     string (MIME media type, e.g. "message/rfc822"),
-  created_at:   timestamp (UTC),
-  edges:        set of owned edge ids,
-  ...:          additional implementation-defined fields
-}
-```
+#grid(
+    columns: (1fr, 1fr),
+    column-gutter: 0.8em,
+    align: top,
+    ```
+    node = {
+      type
+      encoding
+      created_at
+      content_size
+      content
+      edges
+      ...
+    }
+    ```,
+    ```
+    node = {
+      type
+      encoding
+      created_at
+      content_size
+      content_hash
+      edges
+      ...
+    }
+    ```,
+)
 
 - `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
 - `encoding` is a MIME media type (@freed2013rfc6838), e.g.~`text/plain`, `image/png`, `message/rfc822`.
-- `content_hash` commits to the content bytes; stored in content-hash-addressed storage.
 - `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
 - Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>
 
-```
-edge = {
-  reference:    id of referenced claim,
-  type:         string (class/subtype, e.g. "relation/family"),
-  content:      string,
-  ...:          additional implementation-defined fields
-}
-```
+#grid(
+    columns: (1fr, 1fr),
+    column-gutter: 0.8em,
+    align: top,
+    ```
+    edge = {
+      reference
+      type
+      content_size
+      content
+      ...
+    }
+    ```,
+    ```
+    edge = {
+      reference
+      type
+      content_size
+      content_hash
+      ...
+    }
+    ```,
+)
 
-Edges point from the `reference` claim to the node owning the edge. For types see @sec:types.
+Edges point from the claim owning the edge to the `reference` claim. For types see @sec:types. An edge's content follows the same inline/external rule as a node's (@sec:content).
 
 == Claims <sec:claims>
 
