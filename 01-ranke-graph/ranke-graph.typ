@@ -167,6 +167,9 @@ Let $"Sign"$ be a deterministic signature function. It takes a hash and a privat
 
 Any satisfying choice is acceptable. The reference implementations adopt CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$.
 
+To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name abbreviates to the dot and one character (`content_size` → `.s`); a class to the dot, one character, and a slash (`contribution/*` → `.c/*`); a full type to the dot and two characters (`contribution/contributor` → `.cc`). The full table is fixed in the reference implementation.
+An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
+
 Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
 
 == Content <sec:content>
