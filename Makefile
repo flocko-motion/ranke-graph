@@ -20,9 +20,10 @@ PDFS := \
   $(PDF_DIR)/03-ranke-workers.pdf \
   $(PDF_DIR)/04-ranke-retrieval.pdf \
   $(PDF_DIR)/05-retrieval-coordination.pdf \
-  $(PDF_DIR)/06-ranke-cryptography.pdf
+  $(PDF_DIR)/06-ranke-cryptography.pdf \
+  $(PDF_DIR)/ranke-glossary.pdf
 
-.PHONY: all clean 01 02 03 04 05 06 watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 verify release major minor patch breaking feature fix
+.PHONY: all clean 01 02 03 04 05 06 glossary watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary verify release major minor patch breaking feature fix
 
 all: $(PDFS)
 
@@ -47,12 +48,17 @@ $(PDF_DIR)/05-retrieval-coordination.pdf: 05-retrieval-coordination/ranke-coordi
 $(PDF_DIR)/06-ranke-cryptography.pdf: 06-ranke-cryptography/ranke-cryptography.typ $(SHARED) | $(PDF_DIR)
 	$(TYPST) compile --root . $< $@
 
+# Series-wide terminology glossary — single-sourced from shared/glossary.typ.
+$(PDF_DIR)/ranke-glossary.pdf: glossary/ranke-glossary.typ shared/glossary.typ | $(PDF_DIR)
+	$(TYPST) compile --root . $< $@
+
 01: $(PDF_DIR)/01-ranke-graph.pdf
 02: $(PDF_DIR)/02-ranke-db.pdf
 03: $(PDF_DIR)/03-ranke-workers.pdf
 04: $(PDF_DIR)/04-ranke-retrieval.pdf
 05: $(PDF_DIR)/05-retrieval-coordination.pdf
 06: $(PDF_DIR)/06-ranke-cryptography.pdf
+glossary: $(PDF_DIR)/ranke-glossary.pdf
 
 watch-01:
 	$(TYPST) watch --root . 01-ranke-graph/ranke-graph.typ $(PDF_DIR)/01-ranke-graph.pdf
@@ -66,6 +72,8 @@ watch-05:
 	$(TYPST) watch --root . 05-retrieval-coordination/ranke-coordination.typ $(PDF_DIR)/05-retrieval-coordination.pdf
 watch-06:
 	$(TYPST) watch --root . 06-ranke-cryptography/ranke-cryptography.typ $(PDF_DIR)/06-ranke-cryptography.pdf
+watch-glossary:
+	$(TYPST) watch --root . glossary/ranke-glossary.typ $(PDF_DIR)/ranke-glossary.pdf
 
 # Remove the built PDFs but keep the directory itself, so an open viewer or
 # file watch holding its inode survives a clean.

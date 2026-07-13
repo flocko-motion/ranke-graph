@@ -36,6 +36,15 @@
 // (Go, soon Python) belongs to the foundation paper; this paper builds on it.
 // ─────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────
+// Notation (follows the foundation paper). U is a content-addressed k/v store:
+// U(k) is the claim at id k = Sign(H(S(v))); U(h) is content at hash h = H(c).
+// RG_k := closure(k, U) is the graph rooted at head id k; RA_k is the
+// Ranke-Archive rooted at k, tuple (U, k). A later archive is a new tuple
+// (U', k') — the Sequencer *advances* the head id, nothing is mutated.
+// "branch-table header (BTH)" is just an archive's head claim U(k).
+// ─────────────────────────────────────────────────────────────────────
+
 #show: paper.with(
   title:    "RankeDB: Serving the Ranke-Graph",
   author:   "Florian Metzger-Noel",
@@ -53,7 +62,7 @@ Storage is the clearest case: persistence rests on nothing more than a content-a
 
 The *foundation paper* (@metzgernoel2026rankegraph) defines the *Ranke-Graph* as a concept and an abstract data type (ADT), built around a single unit: the *claim*, an attributed record of content, added by a contributor at a stated moment and citing the sources it derives from. Where a conventional database consolidates its sources into one current, contradiction-free state and overwrites it as understanding changes, a Ranke-Graph keeps the whole history of claims, disagreements intact: each immutable, each attributable to an author and a time, each independently verifiable. Its aim is preservation with full provenance, for the long term and across applications.
 
-This paper specifies *RankeDB*, a reference database service that serves and manages Ranke-Graphs: taking the ADT as given, it proposes how such a graph is persisted, composed, replicated, queried, verified, and bounded for access. What follows is the architecture that answers those questions.
+This paper specifies *RankeDB*, a reference database service that serves and manages Ranke-Graphs: taking the ADT as given, it proposes how such a graph is persisted, composed, replicated, queried, verified, and bounded for access. What follows is the architecture that answers those questions.#footnote[A companion glossary collects this series' terminology for reference (@rankeglossary).]
 
 Data in an organisation, or a personal life, is scattered. An enterprise spreads it across separate services' data, artifacts on file servers, source in repositories, CI logs, access logs, documents, specifications, and correspondence; a household, across messengers, mailboxes, call logs, cloud photo albums, and files on local and remote drives. Each store keeps its slice in its own format: some open, like JPEG or plain text, much of it locked inside the application that wrote it.
 
@@ -142,7 +151,7 @@ At its centre, the core wraps the library that implements the Ranke-Graph ADT. T
   ) <fig:adapters>
 ]
 
-Choosing this architecture is the answer to R2: every port is a narrow contract: the blob store has three functions (@sec:blob), the Sequencer three (@sec:sequencer). Supporting a new backend is therefore a small adapter, and RankeDB's adapters can be read at a glance. _Discharges R2._
+Choosing this architecture is the answer to R2: every port is a narrow contract: the blob store has three functions (@sec:blob), the Sequencer three (@sec:Sequencer). Supporting a new backend is therefore a small adapter, and RankeDB's adapters can be read at a glance. _Discharges R2._
 
 The combination and configuration of the adapters into a runnable instance of ranke-db is done using a config file. Such a configuration specifies one single instance, the analogue to a single Database within e.g. a Postgres service. One statically defined instance per configuration keeps the technology simple and maintainable; a management layer for administering multiple such instances (configuring them, and starting, stopping, or monitoring them) can be implemented on top of this.
 
@@ -154,7 +163,7 @@ A RankeDB instance is launched by running the binary with a configuration as lau
 
 = Implementation <sec:datastructure>
 
-This chapter builds the Ranke-Graph from the atom up. Its core concepts are claims (@sec:claim), the atom of the Ranke-Graph; the Universe (@sec:universe), the content-addressed space in which those claims are stored; and the branch-table head (@sec:bth), which retrieves a graph from the Universe. They are realised over the Blob Store (@sec:blob), the foundation of the Universe, and the Sequencer (@sec:sequencer), which manages the branch-table head under concurrent reads and writes.
+This chapter builds the Ranke-Graph from the atom up. Its core concepts are claims (@sec:claim), the atom of the Ranke-Graph; the Universe (@sec:universe), the content-addressed space in which those claims are stored, realised over the Blob Store (@sec:blob); and the Sequencer (@sec:Sequencer), which advances a Ranke-Archive's head under concurrent reads and writes.
 
 == The Claim as Atom <sec:claim>
 
@@ -170,7 +179,7 @@ Claim — a node with its edges; immutable, content-addressed
   edges(filters: Filter[]) → Edge[]                references to the claims it derives from — its provenance
   contributor()            → Contributor:Claim     the claim that attributes and signs it
   encode()                 → SerializedClaim:bytes canonical serialization — the bytes the store persists by id
-  ...                                              closure materialization, validation
+  ...                                              closure materialization, verification
 ```
 
 The edges make the claims a graph. The *closure* of a claim is the claim together with every claim reachable along its edges (foundation paper §Closures). 
@@ -252,42 +261,36 @@ Deletion right is a *D* grant per branch (@sec:access). As a delete reaches ever
 _Discharges R6._
 
 
-== Branch Table Head <sec:bth>
+== Sequencer <sec:Sequencer>
 
-The foundation paper defines a *branch table* as the archive's index of named graphs, each entry pointing at the latest head claim of one. The branch table is itself a claim, and its edges are the references. Whenever any referenced graph gains claims, a new branch table is created, referencing the previous one as provenance. The *branch-table head* (BTH) is the `id` of the latest branch-table claim. A BTH together with a *Universe* holding all the claims it recursively references, the tuple (Universe, BTH), is a *Ranke-Archive*. 
+The foundation paper defines how an archive advances under addition: a contribution takes the tuple $(cal(U), k)$ to a new $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$, superseding the head id $k$ rather than mutating it (§Ranke-Archive). The *Sequencer* is RankeDB's mechanism realising the archive's advance, maintaining the sequence of head ids $k_0, k_1, dots, k_n$ — its latest $k_n$ the head read from and appended to — under concurrent reads from and writes to its branches by many clients, and guarding the *structural* validity invariant by verifying every contribution before it merges.
+A corrupted head id, or one pointing at a claim that failed to persist in the storage backend, would leave the graph unretrievable. The claims remain in the Universe, but finding the right head among millions of claims can be costly or even impossible without enumeration. For that reason the RankeDB _Sequencer_ keeps the *history* of the head, not just the latest, thus allowing rollbacks to previous states.
 
-The foundation paper fixes the format of the branch table to be a `contribution/branches` typed claim with `contribution/branch` typed edges referencing each head, the name of that reference stored in each edge's `content`.
+At the claim level, that advance is the foundation's construction: a set $C$, each claim created atomically (§Claims), gathered under a new consolidating head, yields $"RG"_(k') = "closure"(k', cal(U)')$ with $cal(U) subset.eq cal(U)'$, $C subset.eq cal(U)'$, $"RG"_k subset.eq "RG"_(k')$, and $"valid"("RG"_k) arrow.r.double "valid"("RG"_(k'))$ by construction (§Consolidation, §Validity). A single such addition can merge any number of claims, and each claim carries its whole referenced closure into the graph.  
 
+As adding an arbitrarily large set of claims (the _"contribution"_) can be time-consuming, we must process contributions in parallel while upholding the validity invariant. We propose the following procedure:
 
-== Sequencer <sec:sequencer>
+1) Envelope Creation: a new _envelope_ is opened against the current archive $"RA"_k$ and stamped with the current time $t$; together these are its _base_ $(k, t)$, provided the acting system account has contribute access to the target branch.
+2) Envelope Population: The claims of the contribution are added, verifying that each has `created_at` $<= t$ and doesn't use types reserved to the Sequencer. Only the Sequencer may add limiting claims and branch table claims. 
+3) Content Verification: the _contribution's_ claims are each verified, recursively following their references until each path eventually hits a claim that's already in the reference's closure, at which it can finish, as we only need to verify the contribution.
+4) Contribution Completion: during verification we might traverse valid claims that are neither part of the contribution nor present in the target branch, but references to claims from other branches in the same archive or claims from the underlying Universe not referenced yet in the archive. These claims together with their limiting claims (see @sec:crossbranch) are added to the contribution, if access policy permits the acting account cross referencing the respective claims. 
+5) Seeding: the contribution is now content-verified and access-checked and can be written to the Universe. The writing process propagates the new claims across the storage layers (@sec:composition).
+6) Merging: the head claim(s) of the envelope are now referenced in a new branch-table claim created by the Sequencer; the archive head advances to its id $k'$, and the contribution together with its completion becomes part of the target branch from that moment on.
 
-The foundation paper calls the BTH the *mutable marker* (its value advances each time the archive's current state changes) but leaves the management of that marker open (foundation paper §Ranke-Archive). The *Sequencer* is RankeDB's mechanism for it: maintaining the BTH under concurrent reads and writes from many clients. 
+Any step failing results in the rejection of the contribution. 
 
-Because the BTH is the key to reading a Ranke-Graph out of the Universe, it must not be lost: a corrupted BTH, or one pointing at a claim that failed to persist in the storage backend, leaves the graph unretrievable. The claims remain in the Universe, but finding the right head among the millions of claims of the many graphs that may share it would be cumbersome at best, and impossible on a storage backend without enumeration. For that reason RankeDB keeps the *history* of the BTH, not just the latest, so that a failed storage write (a claim that did not persist) can be recovered by rolling the BTH back to the last working state. 
-
-```
-Sequencer  
-
-  bth(n: int)       → Id of the latest (n=0) or a historical (n<0) branch table 
-  bthLen()      → length of the BTH history
-  add(id: Id)   → append a new id to the top of the history
-```
-
-The Sequencer is the central mechanism that receives every contribution a client wants to add to a Ranke-Archive. After verifying it, the Sequencer creates a new branch-table claim referencing both the new claim and, as its predecessor, the branch table the BTH points at; it then advances the BTH to the new branch table. 
-A single step can absorb any number of claims, and each claim carries its whole referenced closure into the graph. 
-So the Sequencer merges large batches with little work and is no bottleneck. 
-The cost lies in the verification that precedes the merge, which parallelises easily because it runs over an immutable structure. 
-
+Step 1 needs to be executed by the sequencing thread, but is compute cheap as it merely returns the current head id $k$ and the system time. Steps 2-5 can be done concurrently due to the immutable add-only nature of the archive. Step 6 is the only step that actually advances the archive head and must be executed by the sequencing thread. Step 6 can merge an arbitrary number of envelopes into the archive in a single operation, as creating a new branch table set allows referencing any number of new head claims. So the Sequencer merges large batches with little work and doesn't become a bottleneck. 
 Every branch-table claim the Sequencer creates needs a valid contributor claim and signature, so the Sequencer must be registered in the graph as a contributor and hold a private key. That key, and the signing itself, are provided by the Vault and Signer adapters. 
 
+Limiting claims can be created by the Sequencer only; system accounts merely commit _requests_ for them. An early-expiry request — an `expires_after_request` edge — causes the Sequencer, if access policy permits, to mint a `contribution/expiry` claim carrying a `pubkey_expires_after` no earlier than the new head's date, so that every already-committed claim stays valid. This happens as part of step 6.
+
+The cost lies in the verification that precedes the merge, which parallelises easily because it runs over an immutable structure. 
 
 == Scaling Writes <sec:coordinate>
 
-As we showed above, a single Sequencer can add an arbitrary number of new claims in a single contribution, each added claim merging a whole new subgraph into the archive. The merge itself is therefore cheap and handles large traffic well, provided contributions are committed as subgraphs rather than one by one. The cost lies in preparing such bulk commits: the claims must be written into the storage stack to guarantee persistence before the BTH advances, and they must be verified: recalculating the hashes of the claims and their potentially large content bytes, and checking the signatures expressed in their id.
+That verification — steps 2–5, separable from the cheap central steps 1 and 6 — can be distributed should scaling ever demand it. Trusted worker servers verify submitted claims, feed them into the persistence layers, and bundle many contributions under a single signed claim attesting to the verification performed. The central Sequencer commits those bulk contributions, recognising the trusted verifiers' signatures, and advances the head — pushing the updated $k$ back to the workers to serve. The storage layers replicate the new claims automatically through the composition mechanism (@sec:composition), needing only a shared authoritative layer to resolve any claim.
 
-So if scaling should ever become necessary, we propose distributing the *verification* workload across trusted servers while keeping the Sequencer a single centralised instance, kept isolated from regular clients. Such verification servers could verify the submitted claims, feed them into the persistence layers, and bundle many contributions under a single signed claim attesting to the verification performed. Those bulk contributions would then be committed to the centralised Sequencer, which would recognise the trusted verifiers' signatures and commit the claims provided. The updated BTH would be pushed back to the trusted servers, which could then serve the latest state of the archive. The storage layers would replicate the newly added claims automatically through the composition mechanism described above; they need only share a common authoritative layer to resolve any claim.
-
-The mechanism could be implemented as a Sequencer adapter configured to verify, bundle, and commit to the central sequencing server.
+Such a distributor is a Sequencer adapter that verifies, bundles, and commits to the central Sequencer.
 
 _Discharges R5._
 
@@ -307,7 +310,7 @@ The ADT reference implementation provides a verification mechanism we can use to
 
 The strong collision resistance of cryptographic hashes guarantees that the closure retrieved for a head id is identical, whichever Universe serves it.
 
-This property lets the current BTH of a Ranke-Archive be witnessed externally by a notary, a trusted counterparty, an RFC 3161 time-stamp authority (@rfc3161), a public transparency log, or a public ledger (@gipp2015). Because the BTH commits to the entire closure, a single anchor fixes the whole archive in time, and two anchors bracket everything added between them, regardless of any self-asserted `created_at`.
+This property lets the current head of a Ranke-Archive be witnessed externally by a notary, a trusted counterparty, an RFC 3161 time-stamp authority (@rfc3161), a public transparency log, or a public ledger (@gipp2015). Because the head commits to the entire closure, a single anchor fixes the whole archive in time, and two anchors bracket everything added between them, regardless of any self-asserted `created_at`.
 
 == Contributor Keys Life Cycle <sec:keyrotation>
 
@@ -315,9 +318,9 @@ The ADT specifies that each contributor has a `pubkey`, which is used to check t
 
 The ADT provides the vocabulary for expiry — the `contribution/expiry` edge (foundation paper §Types) — but leaves the key-lifetime mechanism (validity windows, rotation, enforcement) to the implementation. For RankeDB we model that mechanism, fulfilling requirement R11.
 
-For *planned expiry* we add an optional field `pubkey_expires` (RFC 3339) to the contributor claim, storing the expiry date-time of that key. Any claim with `created_at` greater than or equal to that expiry date fails verification. To rotate into a new key at expiry, we just add another contributor with field `pubkey_valid_from` (RFC 3339). Both can exist independently and even overlap in their validity. 
+For *planned expiry* we add an optional field `pubkey_expires_after` (RFC 3339) to the contributor claim: the last date-time at which that key is valid, so any claim with `created_at` strictly after it fails verification. To rotate into a new key at expiry, we just add another contributor with field `pubkey_valid_from` (RFC 3339) — a key's validity being the closed window from `pubkey_valid_from` through `pubkey_expires_after`; the two can exist independently and even overlap.
 
-*Early expiry* is achieved by pointing a `contribution/expiry` edge at the target contributor, carrying a `pubkey_expires` date-time before the planned expiry. The claim carrying that edge must be either a `contribution/expiry` claim, or a new `contribution/contributor` claim introducing the successor key. This is a limiting claim, propagated across branches by @sec:crossbranch.
+*Early expiry* is achieved by pointing a `contribution/expiry` edge at the target contributor, carrying a `pubkey_expires_after` date-time before the planned one. The claim carrying that edge must be either a `contribution/expiry` claim, or a new `contribution/contributor` claim introducing the successor key. This is a limiting claim, propagated across branches by @sec:crossbranch.
 
 == Access Control <sec:access>
 
@@ -325,13 +328,13 @@ Access Control in RankeDB is expressed as system accounts defined in the configu
 
 Example: `webapp CR foo_*, provisioner C $branches` allows `provisioner` to create branches such as `foo_bar` and `webapp` to read and contribute to them.
 
-Please note, that R access to one branch B_1 and C access  to another branch B_2 allows referencing a claim from B_1 in B_2, effectively importing the full closure of the referenced claim into B_2. This can be useful for e.g. maintaining a master branch gathering details from multiple projects while keeping each project isolated in its own branch. For details on cross-branch references and propagation see @sec:crossbranch.
+Please note, that R access to one branch $B_1$ and C access to another branch $B_2$ allows referencing a claim from $B_1$ in $B_2$, effectively importing the full closure of the referenced claim into $B_2$. This can be useful for e.g. maintaining a master branch gathering details from multiple projects while keeping each project isolated in its own branch. For details on cross-branch references and propagation see @sec:crossbranch.
 
 A query names a *branch* as the handle for _which_ Ranke-Graph to read. This is what lets RankeDB enforce the grants above and sequence concurrent writes. The foundation paper, however, defines a Ranke-Graph as _any_ tuple `(Universe, id)`, so a graph can also be addressed by a head id directly, bypassing the branch table. We treat such access as *privileged*: given only a head id it can read any graph the Universe holds. It is nonetheless indispensable: restoring a backup, for instance, may begin with nothing but a Universe and a head id kept outside RankeDB. We expose it as a grant over the reserved target `$universe`; because `$` is illegal in ordinary branch names, no glob can match a `$`-name and the privilege is never conferred by accident. Only *R* applies to `$universe`: with no branch and no Sequencer behind it, nothing is written to the Universe this way.
 
-`$universe` is one of a family of reserved `$`-targets that expose the archive's administrative surfaces through the same CRUD grants. `$branches` grants act on the branch table itself: *C* creates a branch, *R* enumerates the table, *U* repoints an entry, *D* hides a branch by minting a new BTH that omits it — the authority the retired *A* once carried, now separable into create, read, override, and hide. A `$`-target names a single archive-wide surface, so its grants are unscoped — branch creation is a central operator privilege, not a per-tenant self-service.
+`$universe` is one of a family of reserved `$`-targets that expose the archive's administrative surfaces through the same CRUD grants. `$branches` grants act on the branch table itself: *C* creates a branch, *R* enumerates the table, *U* repoints an entry, *D* hides a branch by contributing a new archive head that omits it — the authority the retired *A* once carried, now separable into create, read, override, and hide. A `$`-target names a single server-wide surface, so a grant over it is a highly privileged access right.
 
-Using scoped branch grants we can model *tenancy* as a configuration pattern. A *tenant* is a set of grants $G_t subset.eq G$ over a set of branches $B_t subset.eq B$ such that no grant in $G_t$ grants access to a branch outside $B_t$, and no grant outside $G_t$ grants access to a branch in $B_t$. Equivalently, $B_t$ is reachable only through $G_t$ and $G_t$ reaches only $B_t$: the tenant's grants and branches form a closed, isolated block. A tenant therefore holds no `$`-target grant — each reaches archive-wide, beyond $B_t$; its branches are provisioned by a central operator holding `$branches`.
+Using scoped branch grants, *multi-tenancy* is as a configuration pattern rather than a concept RankeDB defines. Arrange the grants so that a group of branches is reachable only through a group of grants that in turn reach only those branches: the two form a closed, isolated block, which we call a *tenant*. Such a block holds no `$`-target grant, since each of those reaches server-wide, beyond the block; its branches are provisioned by a central operator holding `$branches`.
 
 Tenants might be different projects of a single individual kept separate, different teams within a company working on different projects, or different customers of a SaaS server renting leases on a shared backend. They share the same infrastructure: a single RankeDB instance serving a single Ranke-Archive through a single Sequencer. If they need stronger separation than configuration can provide, it is advisable to run separate RankeDB instances over separate storage backends.
 
@@ -349,9 +352,9 @@ A *limiting claim* documents that another claim is restricted in use — its byt
 This _cross branch propagation_ is an *operational* requirement coming from the design decision made by RankeDB, that a claim limited in one branch should be limited in all branches. This decision is taken to avoid conflicts when cross referencing claims between branches. 
 
 To achieve this, RankeDB references every limiting claim from a reserved *system branch*.
-Whenever a limiting claim is contributed to any branch, the sequencer references it here too. 
-At startup the sequencer reads that branch in full and builds an in-memory lookup of limiting claims by target. 
-Each contribution commits as the delta of claims effectively added to a branch; the sequencer matches the delta against the lookup and, for any added claim that is a target, adds the limiting claims against it to the same branch as part of the same contribution. A limit thus stays attached to its target wherever it is referenced. The sequencer enforces further contribution rules that keep arbitrary claims from propagating into other branches.
+Whenever a limiting claim is contributed to any branch, the Sequencer references it here too. 
+At startup the Sequencer reads that branch in full and builds an in-memory lookup of limiting claims by target. 
+Each contribution commits as the delta of claims effectively added to a branch; the Sequencer matches the delta against the lookup and, for any added claim that is a target, adds the limiting claims against it to the same branch as part of the same contribution. A limit thus stays attached to its target wherever it is referenced. The Sequencer enforces further contribution rules that keep arbitrary claims from propagating into other branches.
 
 
 == Filtered Reads <sec:query>
@@ -497,7 +500,29 @@ The more open and widely implemented a format, the longer its life. The list in 
 
 = Conformance <sec:conformance>
 
-The RankeDB repository ships a conformance suite: it runs a series of commits and queries against a running instance's API and asserts the results against reference values — those the native engine produces. Run against any server configuration, it validates that any composition of adapters or execution engines, current or future, reproduces them.
+The RankeDB repository ships a conformance suite: it runs a series of commits and queries against a running instance's API and asserts the results against reference values — those the native engine produces. Run against any server configuration, it confirms that any composition of adapters or execution engines, current or future, reproduces them.
+
+= Evaluation <sec:evaluation>
+
+#todo[Placeholder — empirical evaluation to be written once the reference implementation stabilises. Conformance (@sec:conformance) shows the compositions agree; this section should show they *perform*, turning the asserted discharges of R1, R3, R4, R5, and R14 into measured ones.]
+
+== Setup
+#todo[Backends under test (native blob store on local disk, S3, a Neo4j-backed layer); hardware; dataset(s) and their claim/content size distribution; how a single declarative query or contribution is replayed across configurations.]
+
+== Storage Backends: Throughput and Latency
+#todo[Blob-store `get`/`put`/`has` across S3 vs local vs a stacked cache+shard composition; cost of the write-through/read-fill paths. Substantiates R1 (persistence agnosticism), R4 (composability).]
+
+== Query Engines: Native Walk vs Cypher/GQL
+#todo[The same declarative query lowered to the native graph walk vs the Neo4j Cypher/GQL layer; latency against traversal depth and result size; confirms "a query's meaning is unchanged by which layer answers it" (@sec:composition). Substantiates R14.]
+
+== Sequencer Throughput
+#todo[Merge cost against contribution (batch) size; contributions/second; the verification-before-merge cost and how it parallelises. Substantiates R5 (coordination) and the "no bottleneck" claim (@sec:coordinate).]
+
+== Replication Cost
+#todo[Overhead of the composition primitives (stack, partition, UniverseBranch); the full-replication verification pass over a closure. Substantiates R3 (replicability).]
+
+== Discussion
+#todo[Which discharges the numbers turn from asserted to shown; where the native reference trades performance for simplicity; limits of the evaluation.]
 
 = Related Work <sec:related>
 
@@ -516,5 +541,8 @@ Each of these supplies one capability — immutability, content addressing, grap
 RankeDB implements the abstract data type of the foundation paper as a working server. We have tried to build it in the spirit of the Ranke-Graph: on a content-addressed store of immutable bytes, reached through minimal adapters that keep every backend replaceable, so the archive outlives the technologies that serve it; the engine persists, composes, queries, and bounds access, while content and policy remain with the graph and the application. Each requirement (R1–R14) set out in @sec:requirements is met by a corresponding design decision. The contribution is a working reference server that realises the ADT faithfully on interchangeable, established parts.
 
 What comes next is up to the users: real archival applications built on this foundation, inheriting the qualities it provides.
+
+#v(1em)
+#text(size: 0.92em)[*Acknowledgements.* This paper was prepared with the assistance of AI tools (Claude Opus 4.6–4.8, Anthropic).]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")

@@ -16,6 +16,16 @@
 // First-level quotation marks: single ('…'); double for nested ("…").
 // ─────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────
+// Notation. U is a content-addressed k/v store with two non-colliding key
+// spaces: U(k) is the claim at id k = Sign(H(S(v))); U(h) is the external
+// content at hash h = H(c). So `h` always denotes a hash and `k` an id.
+//   RG_k := closure(k, U)  — the graph rooted at head id k
+//   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
+// A later archive is a new tuple (U', k'); nothing is mutated in place.
+// "branch-table header (BTH)" is just the head claim U(k) of an archive.
+// ─────────────────────────────────────────────────────────────────────
+
 #show: paper.with(
   title:    "Ranke-Graph: A Provenance-First Data Structure",
   author:   "Florian Metzger-Noel",
@@ -54,7 +64,7 @@ The guarantee is narrower than a conventional database's, and therefore keepable
 
 A _claim_ in the Ranke-Graph is an attributed record: a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
-This paper defines the Ranke-Graph as an abstract data type (ADT): the minimum contract an implementation must satisfy to preserve a graph of attributed claims.
+This paper defines the Ranke-Graph as an abstract data type (ADT): the minimum contract an implementation must satisfy to preserve a graph of attributed claims.#footnote[A companion glossary collects this series' terminology for reference (@rankeglossary).]
 
 = The Problem and the Position
 
@@ -243,6 +253,8 @@ Edges point from the claim owning the edge to the `reference` claim. For types s
 
 A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$, so a claim cannot predate what it references.
 
+A claim may overlay another: carrying a `contribution/diff` edge (@sec:types), it restates only what differs from the predecessor it references, its full contents *materialised* by applying that delta over the predecessor, recursively to a base claim. 
+
 == Relations (Semantic Claims) <sec:semantic-claims>
 
 Provenance requires acyclicity: content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
@@ -257,43 +269,40 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is the set of all claims, addressed by id. Every *Ranke-Graph instance* $"RG"_h$ in $cal(U)$, addressed by a head id $h$ (@sec:head), is a subset
-$"RG"_h subset.eq cal(U)$.
+$cal(U)$, the *Universe*, is a content-addressed set containing serialized claims under their id $k$ (retrieved as $cal(U)(k)$) and their *externalized content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). It holds everything a graph resolves against, yet is not limited to it: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
 
-Given $cal(U)$ and an id $h$, the instance $"RG"_h := "closure"(h, cal(U))$ is the transitive closure of claims reachable from $h$ by following each edge to its reference. The id alone suffices to recover it.
+Given $cal(U)$ and an id $k$, the instance $"RG"_k := "closure"(k, cal(U))$ is the transitive closure of claims reachable from the head claim $cal(U)(k)$ by following each edge to its reference. The id alone suffices to recover it.
 
 == Branches <sec:branches>
 
-A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim with `contribution/branch` references to all contained branches. Optionally, it carries a `contribution/branches` edge to the previous revision of that table. Both are stored in $cal(U)$ with $B_h$ being the id of the current branch table.
-
-The branch table's history is itself a chain of `contribution/branches` claims, thus having full provenance.
+A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* names all contained branches, each by a `contribution/branch` reference to its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
 
 == Ranke-Archive <sec:archive>
 
-A *Ranke-Archive* is the Ranke-Graph whose head is a branch-table claim, with the previous branch tables in its provenance. It can be expressed by the tuple $(cal(U), B_h)$, where $B_h$ is the mutable marker pointing at that claim. From it all branches, their history, and all their graphs derive. Multiple archives can share $cal(U)$; each with its own $B_h$.
+A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a branch-table claim, with the previous branch tables in its provenance — the tuple $(cal(U), k)$ of the Universe and its head id $k$. From it all branches, their history, and all their graphs derive. Adding to the archive yields a new tuple $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$: the head id $k$ is not mutated but superseded, the earlier $"RA"_k$ remaining recoverable. Multiple archives can share $cal(U)$; each with its own head id.
 
-A new archive is created by writing the initial node and an empty `contribution/branches` claim referenced as $B_h$.
+A new archive is created by writing the initial node and an empty `contribution/branches` claim, whose id is the archive's head $k$.
 
 = Discharging the Desiderata <sec:emerges>
 
 == Validity <sec:validity>
 
-An $"RG"_h$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_h$ produced via those rules is therefore valid by construction. An invalid graph (broken construction, missing initial node, unresolved references) is structurally just an arbitrary graph $G$, not a Ranke-Graph.
+An $"RG"_k$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_k$ produced via those rules is therefore valid by construction. An invalid graph (broken construction, missing initial node, unresolved references) is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
 == Consolidation <sec:consolidate>
 
 When an RG has multiple open heads (after independent appends, scoping, or set operations), a single new head can consolidate them. Define
-$ "consolidate"("RG") := "closure"(h_("new"), cal(U)) $
-where $h_("new")$ is a new `contribution/head` claim with `contribution/head` edges to every currently-open head of RG, contributed by the operator. If RG already has a single open head, $"consolidate"("RG") = "RG"$.
+$ "consolidate"("RG") := "closure"(k_("new"), cal(U)) $
+where $k_("new")$ is a new `contribution/head` claim with `contribution/head` edges to every currently-open head of RG, contributed by the operator. If RG already has a single open head, $"consolidate"("RG") = "RG"$.
 
 An RG is *consolidated* when it already has a single head:
 $ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
 == Merkle DAG <sec:merkle>
 
-Every valid $"RG"_h$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
+Every valid $"RG"_k$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
 *Standing assumption.* The structure rests on *collision-resistance of $H$*: no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
@@ -301,7 +310,7 @@ Under this assumption, standard Merkle-DAG properties hold without further proof
 
 == Provenance <sec:provenance>
 
-By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_h$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
+By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_k$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
 Traversal terminates at *one or more* initial nodes: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial node of each — the multi-root case @sec:validity admits.
 
@@ -309,7 +318,7 @@ Traversal terminates at *one or more* initial nodes: a graph grown from a single
 
 == Immutability <sec:immutability>
 
-Closure from $h$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With monotonicity of $cal(U)$ (@sec:universe), recovery from $h$ yields the same $"RG"_h$ forever.
+Closure from $k$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With monotonicity of $cal(U)$ (@sec:universe), recovery from $k$ yields the same $"RG"_k$ forever.
 
 #dref[D2, this section]
 
@@ -329,7 +338,7 @@ When the contributor's pubkey is empty, the *identity* Sign choice collapses sig
 
 == Anchoring <sec:anchoring>
 
-Publishing $h$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(h, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $h_1, h_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
+Publishing $k$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(k, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $k_1, k_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
 
 #dref[D4, this section]
 
@@ -358,9 +367,9 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 == Scoping <sec:scoping>
 
-Scoping selects a sub-RG of $"RG"_h$ via an indicator $sigma : "RG"_h -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope; σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_h$, for example claims derived from one contributor's contributions, or claims related to one project.
+Scoping selects a sub-RG of $"RG"_k$ via an indicator $sigma : "RG"_k -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope; σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_k$, for example claims derived from one contributor's contributions, or claims related to one project.
 
-The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(h_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(h_s)$, merge with the previous selection, mint a new head.
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(k_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(k_s)$, merge with the previous selection, mint a new head.
 
 == Set Algebra <sec:set-algebra>
 
@@ -386,15 +395,15 @@ Properties that follow from the structure beyond the desiderata.
 
 == Forks <sec:forks>
 
-*Emerges from @sec:branches.* Forking is a new branch entry pointing at $h$ ($O(1)$).
+*Emerges from @sec:branches.* Forking is a new branch entry pointing at $k$ ($O(1)$).
 
 == Backup <sec:hash-backup>
 
-*Emerges from @sec:merkle + @sec:verifiability.* A single id $h$ recovers and verifies $"RG"_h$ from any replica of $cal(U)$.
+*Emerges from @sec:merkle + @sec:verifiability.* A single id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$.
 
 == Composable Universe <sec:composable>
 
-*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$ is only a set of content-addressed claims, its physical form is free: claims may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_h$ still resolves against whatever composition holds its closure — no id and no closure changes with the location of the bytes. Stacking, partitioning, replication, and backup are one property seen from different sides.
+*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$ is only a set of content-addressed claims, its physical form is free: claims may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure — no id and no closure changes with the location of the bytes. Stacking, partitioning, replication, and backup are one property seen from different sides.
 
 = Relation to Prior Work <sec:related-work>
 
@@ -480,10 +489,13 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines seven subtypes:
   - *`contribution/contributor`*: names the contributor of a claim
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
-  - *`contribution/branches`*: names a branch table; from a branch table, points to the previous table in its history (see @sec:branches)
+  - *`contribution/branches`*: names a branch table (see @sec:branches)
   - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
-  - *`contribution/diff`*: points at a claim the owning claim overlays; a storage optimization
+  - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain — a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
-  - *`contribution/expiry`*: points at a contributor claim, ending its key's validity at a stated time
+  - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid — it expires after that time
+
+#v(1em)
+#text(size: 0.92em)[*Acknowledgements.* This paper was prepared with the assistance of AI tools (Claude Opus 4.6–4.8, Anthropic).]
 
 #bibliography("../shared/sources.bib", style: "association-for-computing-machinery")
