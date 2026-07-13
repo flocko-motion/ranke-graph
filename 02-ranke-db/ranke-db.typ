@@ -36,6 +36,15 @@
 // (Go, soon Python) belongs to the foundation paper; this paper builds on it.
 // ─────────────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────────────
+// Notation (follows the foundation paper). U is a content-addressed k/v store:
+// U(k) is the claim at id k = Sign(H(S(v))); U(h) is content at hash h = H(c).
+// RG_k := closure(k, U) is the graph rooted at head id k; RA_k is the
+// Ranke-Archive rooted at k, tuple (U, k). A later archive is a new tuple
+// (U', k') — the Sequencer *advances* the head id, nothing is mutated.
+// "branch-table header (BTH)" is just an archive's head claim U(k).
+// ─────────────────────────────────────────────────────────────────────
+
 #show: paper.with(
   title:    "RankeDB: Serving the Ranke-Graph",
   author:   "Florian Metzger-Noel",
@@ -53,7 +62,7 @@ Storage is the clearest case: persistence rests on nothing more than a content-a
 
 The *foundation paper* (@metzgernoel2026rankegraph) defines the *Ranke-Graph* as a concept and an abstract data type (ADT), built around a single unit: the *claim*, an attributed record of content, added by a contributor at a stated moment and citing the sources it derives from. Where a conventional database consolidates its sources into one current, contradiction-free state and overwrites it as understanding changes, a Ranke-Graph keeps the whole history of claims, disagreements intact: each immutable, each attributable to an author and a time, each independently verifiable. Its aim is preservation with full provenance, for the long term and across applications.
 
-This paper specifies *RankeDB*, a reference database service that serves and manages Ranke-Graphs: taking the ADT as given, it proposes how such a graph is persisted, composed, replicated, queried, verified, and bounded for access. What follows is the architecture that answers those questions.
+This paper specifies *RankeDB*, a reference database service that serves and manages Ranke-Graphs: taking the ADT as given, it proposes how such a graph is persisted, composed, replicated, queried, verified, and bounded for access. What follows is the architecture that answers those questions.#footnote[A companion glossary collects this series' terminology for reference (@rankeglossary).]
 
 Data in an organisation, or a personal life, is scattered. An enterprise spreads it across separate services' data, artifacts on file servers, source in repositories, CI logs, access logs, documents, specifications, and correspondence; a household, across messengers, mailboxes, call logs, cloud photo albums, and files on local and remote drives. Each store keeps its slice in its own format: some open, like JPEG or plain text, much of it locked inside the application that wrote it.
 
