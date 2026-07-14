@@ -131,14 +131,11 @@
   (key: "sequencer", short: "Sequencer", group: "02 · RankeDB",
    description: [RankeDB's mechanism for maintaining a Ranke-Archive's head under concurrent contributions: it verifies, persists, then advances the head id $k$. (§Sequencer)]),
 
-  (key: "envelope", short: "envelope", group: "02 · RankeDB",
-   description: [The container in which one contribution is assembled and verified against a fixed base before it is sealed and merged. (§Sequencer)]),
-
   (key: "base", short: "base", group: "02 · RankeDB",
-   description: [The fixed point an #gls("envelope") is drawn against: the current archive (head id $k$) and the stamped time $t$, written $(k, t)$. (§Sequencer)]),
+   description: [The fixed point a contribution is opened against: the current archive (head id $k$) and the stamped time $t$, written $(k, t)$. (§Sequencer)]),
 
   (key: "contribution", short: "contribution", group: "02 · RankeDB",
-   description: [The set of claims committed to a branch in one merge. Distinct from the `contribution/*` node and edge class of the foundation paper. (§Sequencer)]),
+   description: [The set of claims added in one merge — opened against a base, verified and sealed, then merged as a unit. Distinct from the `contribution/*` node and edge class of the foundation paper. (§Sequencer)]),
 
   (key: "limiting-claim", short: "limiting claim", group: "02 · RankeDB",
    description: [A claim restricting use of another — a purge (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),
@@ -147,10 +144,10 @@
    description: [A content-addressed byte store with `get` / `put` / `has`; the ground any RankeDB #gls("universe") rests on. (§Blob Store)]),
 
   (key: "stamp", short: "stamp", group: "02 · RankeDB",
-   description: [Fixing an envelope's reference time $t$, so every contributed claim satisfies `created_at` $lt.eq t$. (§Sequencer)]),
+   description: [Fixing a contribution's reference time $t$, so every contributed claim satisfies `created_at` $lt.eq t$. (§Sequencer)]),
 
   (key: "seal", short: "seal", group: "02 · RankeDB",
-   description: [Closing an envelope so its verified contents admit no further addition or removal; by immutability, what was valid at the base stays valid however long the envelope waits. (§Sequencer)]),
+   description: [Closing a contribution so its verified contents admit no further addition or removal; by immutability, what was valid at the base stays valid however long it waits before merging. (§Sequencer)]),
 
 )
 

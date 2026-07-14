@@ -490,7 +490,7 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
   - *`contribution/contributor`*: names the contributor of a claim
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
   - *`contribution/branches`*: names a branch table (see @sec:branches)
-  - *`contribution/branch`*: edge-only; from a branch table, names one active branch (the branch name lives in the edge's `content`) and references its current head (see @sec:branches)
+  - *`contribution/branch`*: edge-only; from a branch table, names one active branch in a `name` field and references its current head (see @sec:branches)
   - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain — a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
   - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid — it expires after that time
