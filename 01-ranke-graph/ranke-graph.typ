@@ -180,7 +180,7 @@ Any satisfying choice is acceptable. The reference implementations adopt CBOR De
 To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name abbreviates to the dot and one character (`content_size` → `.s`); a class to the dot, one character, and a slash (`contribution/*` → `.c/*`); a full type to the dot and two characters (`contribution/contributor` → `.cc`). The full table is fixed in the reference implementation.
 An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
 
-Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = "Sign"(H(S(e)))$ for edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
+Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = H(S(e))$ for edges. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges, while `S(e)` is the serialization of a single edge. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
 
 == Content <sec:content>
 
