@@ -184,7 +184,9 @@ Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id"
 
 == Content <sec:content>
 
-Content is either *inline*, in the `content` field of a node or edge, or *external* — bytes in the Universe keyed by $H(c)$, with the `content_hash` field holding that key. Inline is the norm; external suits large or recurring bytes, since the Universe deduplicates identical content. The `content` and `content_hash` fields are mutually exclusive; `content_size`, the byte length, is mandatory in both. 
+Having *content* is optional for both nodes and edges. 
+The actual content bytes can be either *inline*, in the `content` field, or *external* bytes in the Universe referenced by `content_hash`. 
+Content being present requires the fields `content_size`, its byte length, and `encoding`, its media type (a MIME type, @freed2013rfc6838, e.g.~`text/plain`, `image/png`, `message/rfc822`). 
 
 == Nodes <sec:nodes>
 
@@ -217,8 +219,8 @@ Content is either *inline*, in the `content` field of a node or edge, or *extern
 )
 
 - `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
-- `encoding` is a MIME media type (@freed2013rfc6838), e.g.~`text/plain`, `image/png`, `message/rfc822`.
 - `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
+- `content_size`, `content`/`content_hash`, and `encoding` follow the content rules of @sec:content.
 - Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>
@@ -231,6 +233,7 @@ Content is either *inline*, in the `content` field of a node or edge, or *extern
     edge = {
       reference
       type
+      encoding
       content_size
       content
       ...
@@ -240,6 +243,7 @@ Content is either *inline*, in the `content` field of a node or edge, or *extern
     edge = {
       reference
       type
+      encoding
       content_size
       content_hash
       ...
@@ -247,7 +251,7 @@ Content is either *inline*, in the `content` field of a node or edge, or *extern
     ```,
 )
 
-Edges point from the claim owning the edge to the `reference` claim. For types see @sec:types. An edge's content follows the same inline/external rule as a node's (@sec:content).
+Edges point from the claim owning the edge to the `reference` claim. For types see @sec:types. 
 
 == Claims <sec:claims>
 
