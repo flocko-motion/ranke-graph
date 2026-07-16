@@ -281,7 +281,7 @@ Given $cal(U)$ and an id $k$, the instance $"RG"_k := "closure"(k, cal(U))$ is t
 
 == Branches <sec:branches>
 
-A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* names all contained branches, each by a `contribution/branch` reference to its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
+A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim whose `contribution/branch` edges name all contained branches, each referencing its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
 
 == Ranke-Archive <sec:archive>
 
@@ -484,16 +484,16 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`relation/*`*: a node representing a relation among entities.
 - *`contribution/*`*: a claim about contributors or their actions on the RG.
 - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
+- *`contribution/branches`*: a branch-table claim indexing the archive's branches (see @sec:branches)
 - *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
 
 *Edge classes:*
 
 - *`derivation/*`*: provenance edges that cite the inputs a claim was derived from.
 - *`relation/*`*: relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines seven subtypes:
+- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines six subtypes:
   - *`contribution/contributor`*: names the contributor of a claim
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
-  - *`contribution/branches`*: names a branch table (see @sec:branches)
   - *`contribution/branch`*: edge-only; from a branch table, names one active branch in a `name` field and references its current head (see @sec:branches)
   - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain — a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
