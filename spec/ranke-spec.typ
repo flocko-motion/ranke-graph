@@ -41,6 +41,8 @@
 )
 // Faint style for the contribution/contributor edge every claim carries.
 #let ctr-stroke = 0.35pt + rgb("#b3b3b3")
+// The contribution/diff chain between branch tables — the archive's head history.
+#let diff-stroke = 1pt + rgb("#2563eb")
 
 // A normative rule: a tagged, numbered statement. `id` is the stable citation
 // handle; `tier` is FORCED (ADT-mandated, portable across implementations) or
@@ -143,13 +145,14 @@ are demonstrated against.
 
 #figure(
   caption: [The reference archive at head `bt₃`. Nodes are claims, tinted by
-  class. Solid edges are `derivation` provenance (newer → older); dashed are
-  `relation/*` edges (carrying `relation_direction`); dotted are branch-table
-  structure (`contribution/diff` between revisions, `contribution/branch` to each
-  head). The red edge is the one cross-branch reference. The faint grey lines are
-  the `contribution/contributor` edges: content claims to `c_alice`, branch tables
-  to `c_seq` — the Sequencer, which alone signs them — and `c_alice` to `c_seq`,
-  the archive's initial node.],
+  class. Solid black edges are reference edges — `derivation` provenance and
+  `relation/*` edges (the latter labelled `from`/`to` by their
+  `relation_direction`). Blue edges are the `contribution/diff` chain between
+  branch-table revisions — the archive's head history. Dotted edges are
+  `contribution/branch`, naming each branch's current head. The red edge is the
+  one cross-branch reference. The faint grey lines are the `contribution/contributor`
+  edges: content claims to `c_alice`, branch tables to `c_seq` — the Sequencer,
+  which alone signs them — and `c_alice` to `c_seq`, the archive's initial node.],
   diagram(spacing: (12mm, 10mm), node-stroke: 0.5pt, node-inset: 5pt, {
     // branch-table chain (archive head is bt3), trailing left of the branches
     node((0, 0),    $"bt"_0$, name: <bt0>, fill: tint.contribution)
@@ -174,9 +177,9 @@ are demonstrated against.
     node((2.6, 6.4), $c_"alice"$, name: <ca>, fill: tint.contribution)
 
     // provenance / branch-table structure
-    edge(<bt1>, <bt0>, "-|>", [diff], dash: "dotted")
-    edge(<bt2>, <bt1>, "-|>", [diff], dash: "dotted")
-    edge(<bt3>, <bt2>, "-|>", [diff], dash: "dotted")
+    edge(<bt1>, <bt0>, "-|>", [diff], stroke: diff-stroke)
+    edge(<bt2>, <bt1>, "-|>", [diff], stroke: diff-stroke)
+    edge(<bt3>, <bt2>, "-|>", [diff], stroke: diff-stroke)
     edge(<bt1>, <d1>,  "-|>", dash: "dotted")
     edge(<bt2>, <d2>,  "-|>", dash: "dotted")
     edge(<bt3>, <d3>,  "-|>", [`project_x`], dash: "dotted")
@@ -186,8 +189,8 @@ are demonstrated against.
     edge(<d1>, <s1>,   "-|>", [`derivation`])
     edge(<d2>, <r1>,   "-|>", [`derivation`])
     edge(<d2>, <s1>,   "-|>", [xref], stroke: 1pt + rgb("#dc2626"))
-    edge(<r1>, <e1>,   "-|>", [from], dash: "dashed")
-    edge(<r1>, <e2>,   "-|>", [to], dash: "dashed")
+    edge(<r1>, <e1>,   "-|>", [from])
+    edge(<r1>, <e2>,   "-|>", [to])
     // contribution/contributor (faint): content claims to c_alice, branch
     // tables to c_seq (the Sequencer signs them), and c_alice under c_seq.
     for c in (<s1>, <d1>, <d3>, <d2>, <d4>, <r1>, <e1>, <e2>) { edge(c, <ca>, "-|>", stroke: ctr-stroke) }
