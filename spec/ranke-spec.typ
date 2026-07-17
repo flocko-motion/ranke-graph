@@ -188,9 +188,9 @@ are demonstrated against.
     edge(<r1>, <e2>,   "-|>", [to], dash: "dashed")
     // contribution/contributor (faint): content claims to c_alice, branch
     // tables to c_seq (the Sequencer signs them), and c_alice under c_seq.
-    for c in (<s1>, <d1>, <d3>, <d2>, <d4>, <r1>, <e1>, <e2>) { edge(c, <ca>, stroke: ctr-stroke) }
-    for c in (<bt0>, <bt1>, <bt2>, <bt3>) { edge(c, <cs>, stroke: ctr-stroke) }
-    edge(<ca>, <cs>, stroke: ctr-stroke)
+    for c in (<s1>, <d1>, <d3>, <d2>, <d4>, <r1>, <e1>, <e2>) { edge(c, <ca>, "-|>", stroke: ctr-stroke) }
+    for c in (<bt0>, <bt1>, <bt2>, <bt3>) { edge(c, <cs>, "-|>", stroke: ctr-stroke) }
+    edge(<ca>, <cs>, "-|>", stroke: ctr-stroke)
   }),
 ) <fig:archive>
 
