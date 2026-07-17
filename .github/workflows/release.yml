@@ -18,10 +18,10 @@ jobs:
       - name: Install Typst
         uses: typst-community/setup-typst@v3
         with:
-          typst-version: '0.14.2'
+          typst-version: '0.15.0'
 
-      - name: Build papers
-        run: make 01 02
+      - name: Build papers and companions
+        run: make 01 02 glossary spec
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -31,3 +31,5 @@ jobs:
           files: |
             pdf/01-ranke-graph.pdf
             pdf/02-ranke-db.pdf
+            pdf/ranke-glossary.pdf
+            pdf/ranke-spec.pdf
