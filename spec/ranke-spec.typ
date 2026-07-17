@@ -177,6 +177,8 @@ are demonstrated against.
     edge(<bt1>, <bt0>, "-|>", [diff], dash: "dotted")
     edge(<bt2>, <bt1>, "-|>", [diff], dash: "dotted")
     edge(<bt3>, <bt2>, "-|>", [diff], dash: "dotted")
+    edge(<bt1>, <d1>,  "-|>", dash: "dotted")
+    edge(<bt2>, <d2>,  "-|>", dash: "dotted")
     edge(<bt3>, <d3>,  "-|>", [`project_x`], dash: "dotted")
     edge(<bt3>, <d4>,  "-|>", [`master`], dash: "dotted")
     edge(<d3>, <d1>,   "-|>", [`derivation`])
@@ -225,9 +227,11 @@ The listing is authoritative. `created_at` is monotone along every reference
   ),
 ) <tbl:archive>
 
-The branch-table chain is a `contribution/diff` sequence: `bt₀` is the empty
-table at archive creation, `bt₁` adds `project_x` (→ `der₁`), `bt₂` adds `master`
-(→ `der₂`), and `bt₃` advances both (`project_x` → `der₃`, `master` → `der₄`).
+Each branch-table revision is one contribution — one merge — and each carries its
+own content: `bt₀` initialises the archive (the Sequencer's initial node and the
+empty table); `bt₁` adds `project_x`, contributing `src₁` and `der₁` (and pulling
+in `c_alice` by reference); `bt₂` adds `master`, contributing `ent₁`, `ent₂`,
+`rel₁`, and `der₂`; `bt₃` extends *both* branches, contributing `der₃` and `der₄`.
 Each revision restates only its delta — `bt₂` repoints just `master`, carrying
 `project_x` forward unchanged, while `bt₃` repoints both — so materialising the
 chain back to `bt₀` yields the current table $\{$`project_x` → `der₃`,
