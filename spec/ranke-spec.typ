@@ -554,6 +554,37 @@ Execution = {
   that step), optionally constraining the endpoint to `nodes` types. A step-less
   `path` returns the full outward closure of the root (foundation paper §Closures).
 
+*A path is a frontier pipeline.* Each step is an *independent* bounded walk that
+starts from the *set* of endpoints the previous step produced (the first step from
+the root); those endpoints become the next step's starting set. The no-repeat rule
+— a walk does not revisit a node — applies *within a single step* and *resets* at
+each step boundary, so a later step MAY re-cross a claim or re-traverse an edge an
+earlier step used. A result MUST NOT depend on how the frontier was reached.
+
+This must be stated because the naive single-trail reading — one continuous path
+with whole-path edge-uniqueness, the default of Cypher and similar engines —
+returns the wrong answer. Take a head reaching `der` (a `derivation/summary`) that
+cites a `source` `s` (`der` $arrow.r$ `s`, a `derivation` edge), with nothing else
+pointing at `s`:
+
+#[
+#show raw: set text(size: 0.82em)
+```
+path: [ { nodes: ["source/*"] },                                  // reach the sources
+        { dir: "uses", edges: ["derivation/*"], nodes: ["derivation/*"] } ]  // back to their derivers
+```
+]
+
+Step 1 reaches $\{$`s`$\}$; step 2 asks which derivations cite `s` — `der`. The
+intended result is $\{$`der`$\}$. A single-trail reading returns $\{\}$: reaching
+`s` "used up" the `der` $arrow.r$ `s` edge the reverse step needs. That is route
+mechanics, not meaning — the frontier pipeline is what RankeQL specifies.
+
+*(Planned.)* When a query returns a route (`detail: path`), a caller may want to
+constrain the route's *shape* — no repeated edges, or no repeated nodes. A future
+opt-in modifier on a path or step will expose the ISO GQL path modes (`WALK`,
+`TRAIL`, `ACYCLIC`, `SIMPLE`); the default remains the frontier pipeline above.
+
 == `where` — the filter <sec:rql-where>
 
 `where` is a boolean tree. Each node is exactly one of the `and` / `or` / `not`
