@@ -486,6 +486,7 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
 - *`contribution/branches`*: a branch-table claim indexing the archive's branches (see @sec:branches)
 - *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
+- *`contribution/delete`*: a claim documenting that a referenced claim's bytes were physically removed
 
 *Edge classes:*
 
