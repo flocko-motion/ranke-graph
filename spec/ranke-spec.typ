@@ -126,88 +126,123 @@ fixture in two registers — which is what lets a verification or query example
 read as prose while remaining exactly what the oracle asserts. It has a *single
 source*; neither register may fork from the other.
 
-The archive holds two content branches over a four-revision branch-table chain:
+The archive holds three content branches over a six-revision branch-table chain,
+plus the reserved system branch:
 
-- *`project_x`* — a provenance chain: a captured `source` (`src₁`), a `derivation`
-  built from it (`der₁`), and a later revision (`der₃`) extending the branch —
-  its current head.
-- *`master`* — a small semantic graph: two `entity` claims (`ent₁`, `ent₂`)
-  joined by a `relation` (`rel₁`) and a `derivation` report over it (`der₂`),
-  then extended by a follow-up note (`der₄`) — its current head.
+- *`project_x`* — a provenance chain: a `source` (`src₁`), a `derivation` from it
+  (`der₁`), and a later revision (`der₃`) — its head.
+- *`master`* — a semantic graph, following the analysis direction of
+  §Taxonomy: a `derivation` (`der₂`) *extracts* from `src₁`, the entities it
+  resolved cite it (`ent₁` person, `ent₂` org $arrow.r$ `der₂`), and a `relation`
+  reifies how they relate (`rel₁` employment $arrow.r$ `ent₁`, `ent₂`). Its head
+  `der₄` runs the *other* way — a *distillation* summary that condenses the
+  cluster (`der₄` $arrow.r$ `rel₁`; foundation paper §Levels of Distillation).
+- *`review`* — Bob's branch: a `derivation/review` (`der₅`) over `master`'s `der₄`
+  and over a `source` Bob captured (`src₂`) — its head.
 
-The fourth revision `bt₃` advances *both* branch heads in one contribution
-(`project_x` → `der₃`, `master` → `der₄`), showing that a branch is extended by
-appending a claim over its previous head and repointing its `contribution/branch`
-edge. Since a Ranke-Archive is a single graph and its branches are only subgraphs, a
-claim may reference one in another branch as a matter of course — here `der₂` in
-`master` references `src₁` in `project_x`, an ordinary `derivation` edge. Such
-cross-branch references are simply where the access rules (`R-ACCESS`) and
-limiting-claim propagation (`R-LIMIT-PROP`) come into play.
+The author keys sign under the Sequencer's initial node `c_seq`. `c_alice`'s first
+key carries a `pubkey_expires_after` date; when it lapses, Alice *rotates* into a
+fresh key — a second `contribution/contributor`, `c_alice2`, with its own
+`pubkey_valid_from` overlapping the old window (Paper 02 §Keyrotation). `der₃` and
+`der₄`, dated after the first key lapsed, are signed by `c_alice2`; her earlier
+claims by `c_alice`. A claim dated outside a key's window fails verification
+(`R-KEYWIN`). `c_bob` is a third author, with his own key window.
+
+Both forms of deletion (Paper 02 §Deletion) appear. `src₂` carries a `delete_by`
+date — a *planned* deletion (`R-DELBY`); `der₅`'s edge to it copies that date, so
+the schedule travels with the reference, no propagation needed. `del₁` is a
+*requested* deletion (`R-DELMARK`): a `contribution/delete` claim naming `src₁` as
+its target, minted by the Sequencer and held in the reserved system branch
+`$system` — the archive's internal index of limiting claims, read at startup for
+fast lookup by target (Paper 02 §Cross-Branch). Because `src₁` is reached from
+every content branch, the delete propagates to each (`R-LIMIT-PROP`); verification
+then accepts the explained gap (`R-GAP`).
+
+A Ranke-Archive is a single graph and its branches are only subgraphs, so a claim
+may reference one in another branch as a matter of course — `der₂` (`master`)
+references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
+(`master`), both ordinary `derivation` edges.
 
 #figure(
-  caption: [The reference archive at head `bt₃`. Nodes are claims, tinted by
-  class. Solid black edges are reference edges — `derivation` provenance and
-  `relation/*` edges (the latter labelled `from`/`to` by their
-  `relation_direction`). Blue edges are the `contribution/diff` chain between
-  branch-table revisions — the archive's head history. Dotted edges are
-  `contribution/branch`, naming each branch's current head. The faint grey lines
-  are the `contribution/contributor` edges: content claims to `c_alice`, branch
-  tables to `c_seq` — the Sequencer,
-  which alone signs them — and `c_alice` to `c_seq`, the archive's initial node.],
-  diagram(spacing: (12mm, 10mm), node-stroke: 0.5pt, node-inset: 5pt, {
-    // branch-table chain (archive head is bt3), trailing left of the branches
-    node((0, 0),    $"bt"_0$, name: <bt0>, fill: tint.contribution)
-    node((0.95, 0), $"bt"_1$, name: <bt1>, fill: tint.contribution)
-    node((1.9, 0),  $"bt"_2$, name: <bt2>, fill: tint.contribution)
-    node((2.85, 0), $"bt"_3$, name: <bt3>, fill: tint.contribution)
-    // the two current branch heads
-    node((1.9, 1.3), $"der"_3$, name: <d3>, fill: tint.derivation)
-    node((3.7, 1.3), $"der"_4$, name: <d4>, fill: tint.derivation)
-    // earlier head of each branch
-    node((1.9, 2.6), $"der"_1$, name: <d1>, fill: tint.derivation)
-    node((3.7, 2.6), $"der"_2$, name: <d2>, fill: tint.derivation)
-    // content roots
-    node((1.9, 3.9), $"src"_1$, name: <s1>, fill: tint.source)
-    node((3.7, 3.9), $"rel"_1$, name: <r1>, fill: tint.relation)
-    // entities
-    node((3.2, 5.1), $"ent"_1$, name: <e1>, fill: tint.entity)
-    node((4.2, 5.1), $"ent"_2$, name: <e2>, fill: tint.entity)
-    // contributors: c_seq (the Sequencer — initial node, signs the branch
-    // tables) and c_alice (content author, registered under c_seq)
-    node((0.5, 6.4), $c_"seq"$,   name: <cs>, fill: tint.contribution)
-    node((2.6, 6.4), $c_"alice"$, name: <ca>, fill: tint.contribution)
+  caption: [The reference archive at head `bt₅`. Nodes are claims, tinted by
+  class. Solid black edges are reference edges — `derivation`, `relation/*`
+  (labelled `from`/`to`), and `del₁`'s `contribution/delete` edge to the purged
+  `src₁`. Blue edges are the `contribution/diff` head-history chain. Dotted edges
+  are `contribution/branch`, naming each branch's current head — including the
+  reserved `$system` branch that indexes limiting claims. The faint grey lines are
+  the `contribution/contributor` edges — every claim to its contributor: content
+  to `c_alice` or `c_bob`, branch tables and `del₁` to `c_seq` (the Sequencer),
+  and `c_alice`/`c_bob` to the initial node `c_seq`.],
+  diagram(spacing: (10mm, 9mm), node-stroke: 0.5pt, node-inset: 4pt, {
+    // branch-table chain (archive head bt5), across the top
+    node((0, 0),   $"bt"_0$, name: <bt0>, fill: tint.contribution)
+    node((0.9, 0), $"bt"_1$, name: <bt1>, fill: tint.contribution)
+    node((1.8, 0), $"bt"_2$, name: <bt2>, fill: tint.contribution)
+    node((2.7, 0), $"bt"_3$, name: <bt3>, fill: tint.contribution)
+    node((3.6, 0), $"bt"_4$, name: <bt4>, fill: tint.contribution)
+    node((4.5, 0), $"bt"_5$, name: <bt5>, fill: tint.contribution)
+    // current branch heads: project_x, master, review, $system
+    node((1.3, 1.4), $"der"_3$, name: <d3>, fill: tint.derivation)
+    node((3.0, 1.4), $"der"_4$, name: <d4>, fill: tint.derivation)
+    node((4.6, 1.4), $"der"_5$, name: <d5>, fill: tint.derivation)
+    node((5.8, 1.4), $"del"_1$, name: <dl>, fill: tint.contribution)
+    // master runs deep: der_4 -> rel_1 -> {ent} -> der_2 -> src_1 (analysis direction)
+    node((1.3, 2.6), $"der"_1$, name: <d1>, fill: tint.derivation)
+    node((3.0, 2.6), $"rel"_1$, name: <r1>, fill: tint.relation)
+    node((4.6, 2.6), $"src"_2$, name: <s2>, fill: tint.source)
+    node((2.5, 3.7), $"ent"_1$, name: <e1>, fill: tint.entity)
+    node((3.5, 3.7), $"ent"_2$, name: <e2>, fill: tint.entity)
+    node((3.0, 4.8), $"der"_2$, name: <d2>, fill: tint.derivation)
+    node((1.3, 6.0), $"src"_1$, name: <s1>, fill: tint.source)
+    // contributors
+    node((0.4, 7.2), $c_"seq"$,    name: <cs>,  fill: tint.contribution)
+    node((2.0, 7.2), $c_"alice"$,  name: <ca>,  fill: tint.contribution)
+    node((3.4, 7.2), $c_"alice2"$, name: <ca2>, fill: tint.contribution)
+    node((4.8, 7.2), $c_"bob"$,    name: <cb>,  fill: tint.contribution)
 
-    // provenance / branch-table structure
-    edge(<bt1>, <bt0>, "-|>", [diff], stroke: diff-stroke)
-    edge(<bt2>, <bt1>, "-|>", [diff], stroke: diff-stroke)
-    edge(<bt3>, <bt2>, "-|>", [diff], stroke: diff-stroke)
-    edge(<bt1>, <d1>,  "-|>", dash: "dotted")
-    edge(<bt2>, <d2>,  "-|>", dash: "dotted")
-    edge(<bt3>, <d3>,  "-|>", [`project_x`], dash: "dotted")
-    edge(<bt3>, <d4>,  "-|>", [`master`], dash: "dotted")
-    edge(<d3>, <d1>,   "-|>", [`derivation`])
-    edge(<d4>, <d2>,   "-|>", [`derivation`])
-    edge(<d1>, <s1>,   "-|>", [`derivation`])
-    edge(<d2>, <r1>,   "-|>", [`derivation`])
-    edge(<d2>, <s1>,   "-|>", [`derivation`])
-    edge(<r1>, <e1>,   "-|>", [from])
-    edge(<r1>, <e2>,   "-|>", [to])
-    // contribution/contributor (faint): content claims to c_alice, branch
-    // tables to c_seq (the Sequencer signs them), and c_alice under c_seq.
-    for c in (<s1>, <d1>, <d3>, <d2>, <d4>, <r1>, <e1>, <e2>) { edge(c, <ca>, "-|>", stroke: ctr-stroke) }
-    for c in (<bt0>, <bt1>, <bt2>, <bt3>) { edge(c, <cs>, "-|>", stroke: ctr-stroke) }
-    edge(<ca>, <cs>, "-|>", stroke: ctr-stroke)
+    // diff chain — the archive's head history
+    edge(<bt1>, <bt0>, "-|>", stroke: diff-stroke)
+    edge(<bt2>, <bt1>, "-|>", stroke: diff-stroke)
+    edge(<bt3>, <bt2>, "-|>", stroke: diff-stroke)
+    edge(<bt4>, <bt3>, "-|>", stroke: diff-stroke)
+    edge(<bt5>, <bt4>, "-|>", stroke: diff-stroke)
+    // contribution/branch — each revision's head
+    edge(<bt1>, <d1>, "-|>", dash: "dotted")
+    edge(<bt2>, <r1>, "-|>", dash: "dotted")
+    edge(<bt3>, <d3>, "-|>", [`project_x`], dash: "dotted")
+    edge(<bt3>, <d4>, "-|>", [`master`], dash: "dotted")
+    edge(<bt4>, <d5>, "-|>", [`review`], dash: "dotted")
+    edge(<bt5>, <dl>, "-|>", [`$system`], dash: "dotted")
+    // reference edges: source <- derivation <- entities <- relation (analysis),
+    // and der_4 a distillation summary of the relation cluster
+    edge(<d1>, <s1>, "-|>")
+    edge(<d3>, <d1>, "-|>")
+    edge(<d2>, <s1>, "-|>")
+    edge(<e1>, <d2>, "-|>")
+    edge(<e2>, <d2>, "-|>")
+    edge(<r1>, <e1>, "-|>", [from])
+    edge(<r1>, <e2>, "-|>", [to])
+    edge(<d4>, <r1>, "-|>")
+    edge(<d5>, <d4>, "-|>")
+    edge(<d5>, <s2>, "-|>")
+    edge(<dl>, <s1>, "-|>")
+    // contribution/contributor (faint): every claim to its contributor
+    for c in (<s1>, <d1>, <d2>, <r1>, <e1>, <e2>) { edge(c, <ca>, "-|>", stroke: ctr-stroke) }
+    for c in (<d3>, <d4>) { edge(c, <ca2>, "-|>", stroke: ctr-stroke) }
+    for c in (<s2>, <d5>) { edge(c, <cb>, "-|>", stroke: ctr-stroke) }
+    for c in (<bt0>, <bt1>, <bt2>, <bt3>, <bt4>, <bt5>, <dl>) { edge(c, <cs>, "-|>", stroke: ctr-stroke) }
+    for c in (<ca>, <ca2>, <cb>) { edge(c, <cs>, "-|>", stroke: ctr-stroke) }
   }),
 ) <fig:archive>
 
 The listing is authoritative. `created_at` is monotone along every reference
-(`V-MONO`); `c_alice`'s key window covers every date it signs (`R-KEYWIN`); the
-`name` on a `contribution/branch` edge is its branch label.
+(`V-MONO`); each contributor's key window covers the dates it signs (`R-KEYWIN`);
+the `name` on a `contribution/branch` edge is its branch label.
 
 #figure(
   caption: [The reference archive as a claim listing. Edges are written
   `target (edge class)`; the `contribution/contributor` edge is abbreviated
-  #emph[ctr]. The archive head is `bt₂`.],
+  #emph[ctr]. The archive head is `bt₅`.],
   table(
     columns: (auto, auto, auto, 1fr),
     align: (left, left, left, left),
@@ -215,40 +250,47 @@ The listing is authoritative. `created_at` is monotone along every reference
     stroke: 0.4pt + gray,
     table.header([*label*], [*type*], [*`created_at`*], [*edges*]),
     [`c_seq`],  [`contribution/contributor`], [2026-01-05], [— (initial node; the Sequencer; `pubkey` in content)],
-    [`c_alice`],[`contribution/contributor`], [2026-01-20], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-01-20, `pubkey_expires_after` 2026-12-31 in content],
-    [`src_1`],  [`source/document`],   [2026-02-03], [`c_alice` (ctr)],
-    [`der_1`],  [`derivation/summary`],[2026-02-04], [`src_1` (derivation), `c_alice` (ctr)],
-    [`ent_1`],  [`entity/person`],     [2026-03-01], [`c_alice` (ctr)],
-    [`ent_2`],  [`entity/org`],        [2026-03-01], [`c_alice` (ctr)],
-    [`rel_1`],  [`relation/employment`],[2026-03-02],[`ent_1` (relation, from), `ent_2` (relation, to), `c_alice` (ctr)],
-    [`der_2`],  [`derivation/report`], [2026-03-05], [`rel_1` (derivation), `src_1` (derivation), `c_alice` (ctr)],
-    [`der_3`],  [`derivation/revision`],[2026-04-01], [`der_1` (derivation), `c_alice` (ctr)],
-    [`der_4`],  [`derivation/note`],   [2026-04-01], [`der_2` (derivation), `c_alice` (ctr)],
+    [`c_alice`], [`contribution/contributor`], [2026-01-20], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-01-20, `pubkey_expires_after` 2026-03-31 in content (Alice's first key)],
+    [`c_alice2`],[`contribution/contributor`], [2026-03-20], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-03-20 in content (Alice's rotated key)],
+    [`c_bob`],   [`contribution/contributor`], [2026-05-01], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-05-01, `pubkey_expires_after` 2026-11-30 in content],
+    [`src_1`],  [`source/document`],     [2026-02-03], [`c_alice` (ctr)],
+    [`der_1`],  [`derivation/summary`],  [2026-02-04], [`src_1` (derivation), `c_alice` (ctr)],
+    [`der_2`],  [`derivation/extraction`],[2026-02-20], [`src_1` (derivation), `c_alice` (ctr)],
+    [`ent_1`],  [`entity/person`],       [2026-03-01], [`der_2` (derivation), `c_alice` (ctr)],
+    [`ent_2`],  [`entity/org`],          [2026-03-01], [`der_2` (derivation), `c_alice` (ctr)],
+    [`rel_1`],  [`relation/employment`], [2026-03-02], [`ent_1` (relation, from), `ent_2` (relation, to), `c_alice` (ctr)],
+    [`der_3`],  [`derivation/revision`], [2026-04-01], [`der_1` (derivation), `c_alice2` (ctr)],
+    [`der_4`],  [`derivation/summary`],  [2026-04-01], [`rel_1` (derivation), `c_alice2` (ctr)],
+    [`src_2`],  [`source/log`],        [2026-05-08], [`c_bob` (ctr); `delete_by` 2027-05-08 in content],
+    [`der_5`],  [`derivation/review`], [2026-05-10], [`der_4` (derivation), `src_2` (derivation; edge copies `delete_by`), `c_bob` (ctr)],
+    [`del_1`],  [`contribution/delete`],[2026-06-01], [`src_1` (contribution/delete), `c_seq` (ctr); limiting claim, in `$system`],
     [`bt_0`],   [`contribution/branches`], [2026-01-05], [`c_seq` (ctr); empty table],
     [`bt_1`],   [`contribution/branches`], [2026-02-05], [`bt_0` (diff), `der_1` (branch #emph[name] `project_x`), `c_seq` (ctr)],
-    [`bt_2`],   [`contribution/branches`], [2026-03-06], [`bt_1` (diff), `der_2` (branch #emph[name] `master`), `c_seq` (ctr)],
+    [`bt_2`],   [`contribution/branches`], [2026-03-06], [`bt_1` (diff), `rel_1` (branch #emph[name] `master`), `c_seq` (ctr)],
     [`bt_3`],   [`contribution/branches`], [2026-04-02], [`bt_2` (diff), `der_3` (branch #emph[name] `project_x`), `der_4` (branch #emph[name] `master`), `c_seq` (ctr)],
+    [`bt_4`],   [`contribution/branches`], [2026-05-11], [`bt_3` (diff), `der_5` (branch #emph[name] `review`), `c_seq` (ctr)],
+    [`bt_5`],   [`contribution/branches`], [2026-06-02], [`bt_4` (diff), `del_1` (branch #emph[name] `$system`), `c_seq` (ctr)],
   ),
 ) <tbl:archive>
 
-Each branch-table revision is one contribution — one merge — and each carries its
-own content: `bt₀` initialises the archive (the Sequencer's initial node and the
-empty table); `bt₁` adds `project_x`, contributing `src₁` and `der₁` (and pulling
-in `c_alice` by reference); `bt₂` adds `master`, contributing `ent₁`, `ent₂`,
-`rel₁`, and `der₂`; `bt₃` extends *both* branches, contributing `der₃` and `der₄`.
-Each revision restates only its delta — `bt₂` repoints just `master`, carrying
-`project_x` forward unchanged, while `bt₃` repoints both — so materialising the
-chain back to `bt₀` yields the current table $\{$`project_x` → `der₃`,
-`master` → `der₄`$\}$ (`V-MATERIALISE`).
+Each branch-table revision is one contribution: `bt₀` initialises the archive
+(`c_seq` and the empty table); `bt₁` adds `project_x` (`src₁`, `der₁`); `bt₂` adds
+`master` — the extraction `der₂`, the entities `ent₁`/`ent₂`, and the relation
+`rel₁` (its head); `bt₃` extends both (`der₃`; and `der₄` distilling `master`'s
+cluster), signed by Alice's rotated key `c_alice2`; `bt₄` adds `review`,
+registering `c_bob` and contributing `src₂` and `der₅`; `bt₅` records the
+requested deletion — the Sequencer mints `del₁` and opens `$system` over it. Each
+revision restates only its delta, so materialising back to `bt₀` yields the
+current table (`project_x` → `der₃`, `master` → `der₄`, `review` → `der₅`,
+`$system` → `del₁`) (`V-MATERIALISE`).
 
-The archive has two contributors. `c_seq` is the *Sequencer's* contributor claim
-and the archive's *initial node* — its `pubkey` in its own content (`V-SIG`); the
-Sequencer holds the matching private key and signs every branch-table claim, and
-only the Sequencer may (Paper 02 §Sequencer). `c_alice` is the content author: its
-`contribution/contributor` edge resolves to the initial node `c_seq`, its `pubkey`
-and key window live in its own content, and it signs the eight content claims. A
-reserved *system branch* and a limiting claim (to exercise `R-LIMIT-PROP`) would
-enter as a further revision; they are deferred to keep the fixture focused.
+Every claim signs under the initial node `c_seq` — the Sequencer, which alone
+signs branch tables and limiting claims (`R-RESERVED`, `V-SIG`). The content
+authors are Alice — two keys, `c_alice` and its rotation `c_alice2` — and Bob
+(`c_bob`), each a `contribution/contributor` resolving to `c_seq`. For legibility
+the fixture keeps `del₁` only in `$system`; `R-LIMIT-PROP` places a reference to
+it in every content branch that reaches `src₁`. The papers leave the system
+branch's name open — `$system` is this document's choice.
 
 = Verification <sec:verification>
 
@@ -384,6 +426,26 @@ purging bytes requires *D* on every branch holding the claim. Access by head id
 alone, bypassing the branch table, is *privileged* and granted only over the
 reserved `$universe` target, to which only *R* applies. (Paper 02 §Access
 Control)]
+
+#rule("R-DELMARK", FREE)[A *requested* deletion MUST be documented by a
+`contribution/delete` claim: a node of class `contribution/delete` carrying a
+`contribution/delete` edge to the purged claim (its *target*). It is a limiting
+claim — minted by the Sequencer (`R-RESERVED`) and propagated across branches
+(`R-LIMIT-PROP`). `contribution/delete` is both a node and an edge class (Paper 01
+§Type Vocabulary); mandating the *node* is what guarantees a purge always leaves a
+typed, documented gap rather than a silent one. (Paper 02 §Deletion)]
+
+#rule("R-DELBY", FREE)[A *planned* deletion is a `delete_by` date carried in a
+claim's signed content. Every edge referencing that claim MUST copy the
+`delete_by` date, so once the bytes are purged the gap stays explained wherever
+the claim is reached — no limiting claim and no cross-branch propagation are
+involved. (Paper 02 §Deletion)]
+
+#rule("R-GAP", FREE)[Verification MUST still pass over a graph whose claims were
+purged, accepting a target's absent bytes when — and only when — an *explained
+gap* covers it: a `contribution/delete` mark against it (`R-DELMARK`), or a copied
+`delete_by` (`R-DELBY`). An unexplained missing reference fails `V-REF`. (Paper 02
+§Deletion)]
 
 = RankeQL (RQL) <sec:rql>
 
