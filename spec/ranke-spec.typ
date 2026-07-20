@@ -446,7 +446,8 @@ Comparison =                 // exactly one operator
   | { glob: string }         // shell-style wildcard
 
 Output = {
-  detail?:       "id" | "claim" | "path"            // id only | the claim | the whole route
+  shape?:        "single" | "path"                  // list of single elements | list of paths
+  detail?:       "id" | "graph" | "claims"          // per element: id(s) | a graph | full claims
   materialized?: bool        // resolved (full) | stored (original delta)
   content?:      int         // max inlined content bytes per claim; 0 -> none
   overflow?:     "cutoff" | "omit" | "reference"    // content past `content`
@@ -493,8 +494,14 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 
 == `output` — result shape and encoding <sec:rql-output>
 
-- `detail` — `id` (the id alone), `claim` (the reached claim), or `path` (the
-  whole route to it, root first).
+- `shape` — `single` (a list of the reached endpoints, one element each) or
+  `path` (a list of routes, each root-first).
+- `detail` — how each result is carried: `id` (the id, or the ids along a path);
+  `graph` (the nodes joined by the edges between them, `n-(e)-n`); or `claims`
+  (the full claim for each node — the node with *all* its outgoing edges,
+  `-(e)-n-(e)-n`). A claim always carries every outgoing edge of its node
+  (foundation paper §Claims), so `claims` is richer than the `graph` view, which
+  shows only the edges linking results.
 - `materialized` — *which form* of the claim: *resolved* (the full claim,
   reconstructed from its `contribution/diff` chain, `V-MATERIALISE`) or *stored*
   (the original delta as written). The forms differ in *content*, not just
@@ -524,22 +531,26 @@ capability. `report` sets a verbosity — `info` (high-level stages), `debug`
 
 == Results and streaming <sec:rql-results>
 
-A query yields an ordered stream of results, each shaped by `output` and delivered
-one at a time in the query's order:
+A query yields an ordered stream, one element at a time in the query's order. Each
+element is, per `output.shape`, a `single` reached endpoint or a `path` (its
+route, root-first); `output.detail` sets how each node within it is carried:
 
 #[
 #show raw: set text(size: 0.82em)
 ```
-QueryResult = {              // one reached claim, shaped by Output
-  id:       Id               // always present
-  claim?:   Claim            // absent when detail = "id"
-  path?:    [Claim]          // present only when detail = "path" (root first)
-  content?: bytes            // present only when output.content > 0; truncated per overflow
-}
+Result =                // one stream element, per output.shape
+    Element             //   shape = "single": a reached endpoint
+  | [Element]           //   shape = "path": its route, root-first
+
+Element =               // set by output.detail
+    Id                  //   "id":     the id
+  | Node                //   "graph":  node + linking edges  (n-(e)-n)
+  | Claim               //   "claims": node + all its edges  (-(e)-n-(e)-n)
+// content is inlined into a Node/Claim when output.content > 0 (truncated per overflow)
 ```
 ]
 
-After the last result — and only if `execution.report` was set — the stream
+After the last element — and only if `execution.report` was set — the stream
 carries a final *report* record: the layer that served the query, the query it was
 lowered to (the Cypher/GQL text, or `native`), and per-stage timings. It is typed
 distinctly from result claims so a reader never mistakes it for data.
