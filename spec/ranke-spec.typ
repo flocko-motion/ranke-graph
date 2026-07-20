@@ -384,6 +384,162 @@ alone, bypassing the branch table, is *privileged* and granted only over the
 reserved `$universe` target, to which only *R* applies. (Paper 02 §Access
 Control)]
 
+= RankeQL (RQL) <sec:rql>
+
+A read is a *RankeQL* query — a declarative value of the data type `Query` fixed
+below, independent of any programming language and of the wire encoding that
+carries it (JSON is the standard representation; see `output.encoding`). RQL is
+entirely a RankeDB construct — the ADT defines no query language — so this whole
+chapter is `[FREE]`. Its blocks and their roles are Paper 02 §Filtered Reads;
+this chapter fixes the type.
+
+A query is evaluated in a fixed logical order: (1) `select` generates the result
+set, (2) `where` filters it, (3) `order` sorts it, (4) `limit` truncates it,
+(5) `output` shapes and encodes each surviving claim. An optimised engine may
+reorder or lower these steps as long as the delivered result set is identical;
+the native reference engine is the oracle (§Filtered Reads, §Conformance).
+
+== The query type <sec:rql-type>
+
+Field names ending in `?` are optional; `|` lists the allowed values or forms;
+`[T]` is a list of `T`. `Id`, `Claim`, `bytes`, and `duration` are the ambient
+domains of @sec:fixture.
+
+#[
+#show raw: set text(size: 0.82em)
+```
+Query = {
+  select:     Select
+  where?:     Where          // absent -> no filter
+  output:     Output
+  order?:     Order          // absent -> order by (created_at, id)
+  limit:      Limit
+  execution:  Execution
+}
+
+Select = {                   // a generator: scope, root, traversal
+  branch:  string            // "$universe" | "$archive" | a branch name
+  claim?:  Id                // root in the scope; required iff branch = "$universe"
+  path?:   [PathStep]        // absent/empty -> the full outward closure of the root
+}
+
+PathStep = {                 // follow typed edges to a bounded depth
+  edges?:  [string]          // edge-class globs "class/sub"; leading "-" excludes
+  dir?:    "provenance" | "uses" | "connections"    // default "provenance"
+  depth?:  int               // max hops; 0 -> unbounded for this step
+  nodes?:  [string]          // endpoint node-class globs; leading "-" excludes
+}
+
+Where =                      // exactly one form per node
+    { and: [Where] }
+  | { or:  [Where] }         // combines filters; across generators, unions result sets
+  | { not: Where }
+  | { field: string, test: Comparison }             // leaf
+
+Comparison =                 // exactly one operator
+    { eq|ne|lt|le|gt|ge: value }
+  | { in: [value] }          // set membership
+  | { glob: string }         // shell-style wildcard
+
+Output = {
+  detail?:       "id" | "claim" | "path"            // default "claim"
+  materialized?: bool        // resolved claim | stored original
+  content?:      int         // max inlined content bytes per claim; 0 -> none
+  overflow?:     "cutoff" | "omit" | "reference"    // content past `content`
+  encoding?:     "json" | "cbor"                    // default "json"
+}
+
+Order = { field: string, desc?: bool }              // absent -> (created_at, id)
+
+Limit = { results?: int, time?: duration }          // each 0 -> unbounded
+
+Execution = {
+  layer?:  string            // pin one storage layer; empty -> backend chooses
+  report?: "info" | "debug" | "trace"               // absent -> no report
+}
+```
+]
+
+== `select` — scope, root, traversal <sec:rql-select>
+
+- `branch` is the mandatory *scope*. A real branch name confines the query to that
+  branch's closure, rooted at its current head. Two reserved names widen it:
+  `$archive` confines to the whole Ranke-Archive — the closure of the branch-table
+  header — and `$universe` applies no confinement. An empty `branch` is not
+  allowed. (`$archive` extends the reserved `$`-targets of §Access, which names
+  `$universe` and `$branches`.)
+- `claim` is the *root* in the scope. It is required under `$universe` — there is
+  no head to default to — and optional otherwise, defaulting to the scope's
+  current head (the branch head, or the branch-table header under `$archive`).
+  `$universe` is privileged and requires the `$universe` grant (`R-ACCESS`).
+- `path` is the *traversal*: an ordered list of steps. Each `PathStep` follows a
+  set of typed `edges` (globs over `class/sub`, a leading `-` excluding a type) in
+  direction `dir` — `provenance` (outgoing, toward references; the default), `uses`
+  (incoming), or `connections` (either) — to at most `depth` hops (`0` meaning
+  unbounded for that step), optionally constraining the endpoint to `nodes` types.
+  An absent or empty `path` returns the full outward closure of the root
+  (foundation paper §Closures).
+
+== `where` — the filter <sec:rql-where>
+
+`where` is a boolean tree. Each node is exactly one of the `and` / `or` / `not`
+combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
+`Comparison` applies exactly one operator to the field: `eq`, `ne`, `lt`, `le`,
+`gt`, `ge`, `in` (set membership), or `glob` (shell-style wildcard). Within a
+`where`, `or` is boolean; across generators it unions whole result sets.
+
+== `output` — result shape and encoding <sec:rql-output>
+
+- `detail` — `id` (the id alone), `claim` (the reached claim; the default), or
+  `path` (the whole route to it, root first).
+- `materialized` — deliver a claim overlaid by a `contribution/diff` chain either
+  *resolved* (the materialised claim, `V-MATERIALISE`) or as its *stored* original
+  (the diff claim as written). §Filtered Reads step 5 materialises, so absent
+  means resolved. (The field is a RankeDB addition; the paper's `output` block
+  does not list it.)
+- `content` — the maximum content bytes inlined per claim; `0` (the default)
+  inlines none, carrying only `content_hash` (foundation paper §Content).
+- `overflow` — how content exceeding `content` is handled: `cutoff` (truncate),
+  `omit` (drop it), or `reference` (a `content_hash` stub in its place).
+- `encoding` — the serialised form of each claim: `json` (the default; content
+  base64-encoded) or `cbor` (binary; the original id-defining bytes). It is
+  orthogonal to `materialized` — either form may be `json` or `cbor`.
+
+== `order`, `limit`, `execution` <sec:rql-bounds>
+
+`order` sorts the result set by `field`, ascending unless `desc`; absent, results
+order by `(created_at, id)`, claims lacking the field last. `limit` bounds the
+read — `results` caps the claim count, `time` the execution budget — each `0`
+meaning unbounded. To page, carry the last row's order key into a `where` on the
+next request.
+
+`execution` controls where the query runs and how it reports. `layer` pins one
+named storage/execution layer instead of letting the backend choose by
+capability. `report` sets a verbosity — `info` (high-level stages), `debug`
+(routing and lowering), or `trace` (per-claim detail); absent, none is produced.
+
+== Results and streaming <sec:rql-results>
+
+A query yields an ordered stream of results, each shaped by `output` and delivered
+one at a time in the query's order:
+
+#[
+#show raw: set text(size: 0.82em)
+```
+QueryResult = {              // one reached claim, shaped by Output
+  id:       Id               // always present
+  claim?:   Claim            // absent when detail = "id"
+  path?:    [Claim]          // present only when detail = "path" (root first)
+  content?: bytes            // present only when output.content > 0; truncated per overflow
+}
+```
+]
+
+After the last result — and only if `execution.report` was set — the stream
+carries a final *report* record: the layer that served the query, the query it was
+lowered to (the Cypher/GQL text, or `native`), and per-stage timings. It is typed
+distinctly from result claims so a reader never mistakes it for data.
+
 = Remaining chapters <sec:remaining>
 
 The normative surface beyond verification is to be written here, each chapter in
@@ -396,8 +552,6 @@ the same form — sentences, ids, FORCED/FREE tiers, grounded in the papers:
   structural constraints each imposes (e.g. a `relation/*` node's edges land on
   `entity/*` claims and carry `relation_direction`) (Paper 01 §Type Vocabulary,
   §Relations).
-- *RankeQL (RQL)* — the query grammar and its evaluation semantics: generators,
-  filters, output shapes, ordering, and limits (Paper 02 §Filtered Reads).
 - *Wire encoding and endpoints* — request and response formats and the
   authentication surface (Paper 02 §Endpoints and Authentication).
 
