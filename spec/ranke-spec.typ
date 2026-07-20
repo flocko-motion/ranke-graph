@@ -457,7 +457,11 @@ Output = {
 }
 
 Order    = [OrderKey]      // sort keys in priority order; ties -> natural (created_at, id)
-OrderKey = { field: string, desc?: bool }
+OrderKey = {
+  field:    string
+  compare?: "numeric" | "lexical"   // how values compare (collation)
+  dir?:     "asc" | "desc"          // direction
+}
 
 Limit = { results?: int, time?: duration }          // each 0 -> unbounded
 
@@ -522,13 +526,14 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 
 == `order`, `limit`, `execution` <sec:rql-bounds>
 
-`order` is a list of `{field, desc}` keys applied in priority order (each `field`
-ascending unless `desc`; claims lacking a key's field sort last), with the
-archive's natural `(created_at, id)` order (Paper 02 §Timestamping) breaking any
-remaining ties. Absent, that natural order alone applies. Because the sort always
-resolves to a total order, paging is stable — carry the last row's key into a
-`where` on the next request. `limit` bounds the read: `results` caps the claim
-count and `time` the execution budget, each `0` meaning unbounded.
+`order` is a list of sort keys applied in priority order. Each key names a
+`field`, a `compare` — how its values are ordered, `numeric` or `lexical` — and a
+`dir`, `asc` or `desc`; claims lacking a key's field sort last. The archive's
+natural `(created_at, id)` order (Paper 02 §Timestamping) breaks any remaining
+ties, and applies alone when `order` is absent. Because the sort always resolves
+to a total order, paging is stable — carry the last row's key into a `where` on
+the next request. `limit` bounds the read: `results` caps the claim count and
+`time` the execution budget, each `0` meaning unbounded.
 
 `execution` controls where the query runs and how it reports. `layer` pins one
 named storage/execution layer instead of letting the backend choose by
