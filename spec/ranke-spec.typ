@@ -446,12 +446,14 @@ Comparison =                 // exactly one operator
   | { glob: string }         // shell-style wildcard
 
 Output = {
-  shape?:        "single" | "path"                  // list of single elements | list of paths
-  detail?:       "id" | "graph" | "claims"          // per element: id(s) | a graph | full claims
-  materialized?: bool        // resolved (full) | stored (original delta)
-  content?:      int         // max inlined content bytes per claim; 0 -> none
-  overflow?:     "cutoff" | "omit" | "reference"    // content past `content`
-  encoding?:     "json" | "cbor"                    // text (base64 content) | binary
+  shape?:    "single" | "path"                      // list of single elements | list of paths
+  detail?:   "id" | "graph" | "claims"              // per element: id | graph | full claims
+  form?:     "original" | "materialized"            // field values: as written | resolved
+  content?:  {                                      // inline content per claim; absent -> none
+    max:      int                                   // cap in bytes
+    overflow: "cutoff" | "omit" | "reference"       // handling past max
+  }
+  encoding?: "json" | "cbor"                        // text (base64 content) | binary
 }
 
 Order = { field: string, desc?: bool }              // re-sort; else natural (created_at, id) order
@@ -497,23 +499,25 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 - `shape` — `single` (a list of the reached endpoints, one element each) or
   `path` (a list of routes, each root-first).
 - `detail` — how each result is carried: `id` (the id, or the ids along a path);
-  `graph` (the nodes joined by the edges between them, `n-(e)-n`); or `claims`
-  (the full claim for each node — the node with *all* its outgoing edges,
+  `graph` (nodes joined by the edges between them, `n-(e)-n`); or `claims` (the
+  full claim for each node — the node with *all* its outgoing edges,
   `-(e)-n-(e)-n`). A claim always carries every outgoing edge of its node
   (foundation paper §Claims), so `claims` is richer than the `graph` view, which
   shows only the edges linking results.
-- `materialized` — *which form* of the claim: *resolved* (the full claim,
-  reconstructed from its `contribution/diff` chain, `V-MATERIALISE`) or *stored*
-  (the original delta as written). The forms differ in *content*, not just
-  serialisation, so this is a distinct axis from `encoding`. (A RankeDB addition;
-  the paper's `output` block does not list it.)
-- `content` — the maximum content bytes inlined per claim; `0` inlines none,
-  carrying only `content_hash` (foundation paper §Content).
-- `overflow` — how content exceeding `content` is handled: `cutoff` (truncate),
-  `omit` (drop it), or `reference` (a `content_hash` stub in its place).
-- `encoding` — *how* the chosen form is serialised: `json` (text; content
+- `form` — *which field values* each claim carries: `original` (the values as
+  written — a diff-overlaid claim's delta) or `materialized` (the values with any
+  `contribution/diff` chain resolved, `V-MATERIALISE`). This is a property of the
+  values, not the structure, so it is orthogonal to `detail` and `encoding`. The
+  combination `detail: claims` + `form: original` + `encoding: cbor` reproduces
+  the canonical serialization `S(v)` the id is computed over (foundation paper
+  §Primitives) — the only form directly verifiable against the id.
+- `content` — inline content per claim, a pair: `max` caps the bytes inlined and
+  `overflow` handles anything past the cap — `cutoff` (truncate), `omit` (drop
+  it), or `reference` (a `content_hash` stub). Absent, no content is inlined —
+  only `content_hash` (foundation paper §Content).
+- `encoding` — *how* each claim is serialised: `json` (text; content
   base64-encoded) or `cbor` (binary). Same information either way — orthogonal to
-  `materialized`, which fixes the form.
+  the other output fields.
 
 == `order`, `limit`, `execution` <sec:rql-bounds>
 
@@ -542,11 +546,11 @@ Result =                // one stream element, per output.shape
     Element             //   shape = "single": a reached endpoint
   | [Element]           //   shape = "path": its route, root-first
 
-Element =               // set by output.detail
+Element =               // set by output.detail (field values per output.form)
     Id                  //   "id":     the id
-  | Node                //   "graph":  node + linking edges  (n-(e)-n)
+  | Graph               //   "graph":  node + linking edges  (n-(e)-n)
   | Claim               //   "claims": node + all its edges  (-(e)-n-(e)-n)
-// content is inlined into a Node/Claim when output.content > 0 (truncated per overflow)
+// a Graph/Claim inlines content per content.{max, overflow}
 ```
 ]
 
