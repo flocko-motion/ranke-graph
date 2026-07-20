@@ -138,10 +138,11 @@ The archive holds two content branches over a four-revision branch-table chain:
 The fourth revision `bt₃` advances *both* branch heads in one contribution
 (`project_x` → `der₃`, `master` → `der₄`), showing that a branch is extended by
 appending a claim over its previous head and repointing its `contribution/branch`
-edge. The branches also overlap in exactly one place: `der₂` in `master` cites
-`src₁` in `project_x` (the red edge below) — the single cross-branch reference the
-access rules (`R-ACCESS`) and, later, limiting-claim propagation (`R-LIMIT-PROP`)
-are demonstrated against.
+edge. Since a Ranke-Archive is a single graph and its branches are only subgraphs, a
+claim may reference one in another branch as a matter of course — here `der₂` in
+`master` references `src₁` in `project_x`, an ordinary `derivation` edge. Such
+cross-branch references are simply where the access rules (`R-ACCESS`) and
+limiting-claim propagation (`R-LIMIT-PROP`) come into play.
 
 #figure(
   caption: [The reference archive at head `bt₃`. Nodes are claims, tinted by
@@ -149,9 +150,9 @@ are demonstrated against.
   `relation/*` edges (the latter labelled `from`/`to` by their
   `relation_direction`). Blue edges are the `contribution/diff` chain between
   branch-table revisions — the archive's head history. Dotted edges are
-  `contribution/branch`, naming each branch's current head. The red edge is the
-  one cross-branch reference. The faint grey lines are the `contribution/contributor`
-  edges: content claims to `c_alice`, branch tables to `c_seq` — the Sequencer,
+  `contribution/branch`, naming each branch's current head. The faint grey lines
+  are the `contribution/contributor` edges: content claims to `c_alice`, branch
+  tables to `c_seq` — the Sequencer,
   which alone signs them — and `c_alice` to `c_seq`, the archive's initial node.],
   diagram(spacing: (12mm, 10mm), node-stroke: 0.5pt, node-inset: 5pt, {
     // branch-table chain (archive head is bt3), trailing left of the branches
@@ -188,7 +189,7 @@ are demonstrated against.
     edge(<d4>, <d2>,   "-|>", [`derivation`])
     edge(<d1>, <s1>,   "-|>", [`derivation`])
     edge(<d2>, <r1>,   "-|>", [`derivation`])
-    edge(<d2>, <s1>,   "-|>", [xref], stroke: 1pt + rgb("#dc2626"))
+    edge(<d2>, <s1>,   "-|>", [`derivation`])
     edge(<r1>, <e1>,   "-|>", [from])
     edge(<r1>, <e2>,   "-|>", [to])
     // contribution/contributor (faint): content claims to c_alice, branch
@@ -220,7 +221,7 @@ The listing is authoritative. `created_at` is monotone along every reference
     [`ent_1`],  [`entity/person`],     [2026-03-01], [`c_alice` (ctr)],
     [`ent_2`],  [`entity/org`],        [2026-03-01], [`c_alice` (ctr)],
     [`rel_1`],  [`relation/employment`],[2026-03-02],[`ent_1` (relation, from), `ent_2` (relation, to), `c_alice` (ctr)],
-    [`der_2`],  [`derivation/report`], [2026-03-05], [`rel_1` (derivation), `src_1` (derivation, #text(fill: rgb("#dc2626"))[xref]), `c_alice` (ctr)],
+    [`der_2`],  [`derivation/report`], [2026-03-05], [`rel_1` (derivation), `src_1` (derivation), `c_alice` (ctr)],
     [`der_3`],  [`derivation/revision`],[2026-04-01], [`der_1` (derivation), `c_alice` (ctr)],
     [`der_4`],  [`derivation/note`],   [2026-04-01], [`der_2` (derivation), `c_alice` (ctr)],
     [`bt_0`],   [`contribution/branches`], [2026-01-05], [`c_seq` (ctr); empty table],
