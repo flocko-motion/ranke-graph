@@ -388,10 +388,14 @@ Control)]
 
 A read is a *RankeQL* query — a declarative value of the data type `Query` fixed
 below, independent of any programming language and of the wire encoding that
-carries it (JSON is the standard representation; see `output.encoding`). RQL is
-entirely a RankeDB construct — the ADT defines no query language — so this whole
-chapter is `[FREE]`. Its blocks and their roles are Paper 02 §Filtered Reads;
-this chapter fixes the type.
+carries it. RQL is entirely a RankeDB construct — the ADT defines no query
+language — so this whole chapter is `[FREE]`. Its blocks and their roles are
+Paper 02 §Filtered Reads.
+
+This chapter fixes the type and what each field's values *mean*; it does not
+prescribe defaults for omitted fields — defaulting is an implementation and
+binding concern. A query that depends on a particular behaviour — a materialised
+result, a `cbor` encoding, a traversal direction — must state it explicitly.
 
 A query is evaluated in a fixed logical order: (1) `select` generates the result
 set, (2) `where` filters it, (3) `order` sorts it, (4) `limit` truncates it,
@@ -410,9 +414,9 @@ domains of @sec:fixture.
 ```
 Query = {
   select:     Select
-  where?:     Where          // absent -> no filter
+  where?:     Where          // optional filter
   output:     Output
-  order?:     Order          // absent -> order by (created_at, id)
+  order?:     Order          // optional re-sort
   limit:      Limit
   execution:  Execution
 }
@@ -420,12 +424,12 @@ Query = {
 Select = {                   // a generator: scope, root, traversal
   branch:  string            // "$universe" | "$archive" | a branch name
   claim?:  Id                // root in the scope; required iff branch = "$universe"
-  path?:   [PathStep]        // absent/empty -> the full outward closure of the root
+  path?:   [PathStep]        // step-less -> the full outward closure of the root
 }
 
 PathStep = {                 // follow typed edges to a bounded depth
   edges?:  [string]          // edge-class globs "class/sub"; leading "-" excludes
-  dir?:    "provenance" | "uses" | "connections"    // default "provenance"
+  dir?:    "provenance" | "uses" | "connections"    // outgoing | incoming | either
   depth?:  int               // max hops; 0 -> unbounded for this step
   nodes?:  [string]          // endpoint node-class globs; leading "-" excludes
 }
@@ -442,20 +446,20 @@ Comparison =                 // exactly one operator
   | { glob: string }         // shell-style wildcard
 
 Output = {
-  detail?:       "id" | "claim" | "path"            // default "claim"
-  materialized?: bool        // resolved claim | stored original
+  detail?:       "id" | "claim" | "path"            // id only | the claim | the whole route
+  materialized?: bool        // resolved (full) | stored (original delta)
   content?:      int         // max inlined content bytes per claim; 0 -> none
   overflow?:     "cutoff" | "omit" | "reference"    // content past `content`
-  encoding?:     "json" | "cbor"                    // default "json"
+  encoding?:     "json" | "cbor"                    // text (base64 content) | binary
 }
 
-Order = { field: string, desc?: bool }              // absent -> (created_at, id)
+Order = { field: string, desc?: bool }              // re-sort; else natural (created_at, id) order
 
 Limit = { results?: int, time?: duration }          // each 0 -> unbounded
 
 Execution = {
-  layer?:  string            // pin one storage layer; empty -> backend chooses
-  report?: "info" | "debug" | "trace"               // absent -> no report
+  layer?:  string            // pin one storage layer
+  report?: "info" | "debug" | "trace"               // optional execution report
 }
 ```
 ]
@@ -469,16 +473,15 @@ Execution = {
   allowed. (`$archive` extends the reserved `$`-targets of §Access, which names
   `$universe` and `$branches`.)
 - `claim` is the *root* in the scope. It is required under `$universe` — there is
-  no head to default to — and optional otherwise, defaulting to the scope's
-  current head (the branch head, or the branch-table header under `$archive`).
+  no head to root at — and optional otherwise, where the scope's current head is
+  the root (the branch head, or the branch-table header under `$archive`).
   `$universe` is privileged and requires the `$universe` grant (`R-ACCESS`).
 - `path` is the *traversal*: an ordered list of steps. Each `PathStep` follows a
   set of typed `edges` (globs over `class/sub`, a leading `-` excluding a type) in
-  direction `dir` — `provenance` (outgoing, toward references; the default), `uses`
-  (incoming), or `connections` (either) — to at most `depth` hops (`0` meaning
-  unbounded for that step), optionally constraining the endpoint to `nodes` types.
-  An absent or empty `path` returns the full outward closure of the root
-  (foundation paper §Closures).
+  direction `dir` — `provenance` (outgoing, toward references), `uses` (incoming),
+  or `connections` (either) — to at most `depth` hops (`0` meaning unbounded for
+  that step), optionally constraining the endpoint to `nodes` types. A step-less
+  `path` returns the full outward closure of the root (foundation paper §Closures).
 
 == `where` — the filter <sec:rql-where>
 
@@ -490,33 +493,34 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 
 == `output` — result shape and encoding <sec:rql-output>
 
-- `detail` — `id` (the id alone), `claim` (the reached claim; the default), or
-  `path` (the whole route to it, root first).
-- `materialized` — deliver a claim overlaid by a `contribution/diff` chain either
-  *resolved* (the materialised claim, `V-MATERIALISE`) or as its *stored* original
-  (the diff claim as written). §Filtered Reads step 5 materialises, so absent
-  means resolved. (The field is a RankeDB addition; the paper's `output` block
-  does not list it.)
-- `content` — the maximum content bytes inlined per claim; `0` (the default)
-  inlines none, carrying only `content_hash` (foundation paper §Content).
+- `detail` — `id` (the id alone), `claim` (the reached claim), or `path` (the
+  whole route to it, root first).
+- `materialized` — *which form* of the claim: *resolved* (the full claim,
+  reconstructed from its `contribution/diff` chain, `V-MATERIALISE`) or *stored*
+  (the original delta as written). The forms differ in *content*, not just
+  serialisation, so this is a distinct axis from `encoding`. (A RankeDB addition;
+  the paper's `output` block does not list it.)
+- `content` — the maximum content bytes inlined per claim; `0` inlines none,
+  carrying only `content_hash` (foundation paper §Content).
 - `overflow` — how content exceeding `content` is handled: `cutoff` (truncate),
   `omit` (drop it), or `reference` (a `content_hash` stub in its place).
-- `encoding` — the serialised form of each claim: `json` (the default; content
-  base64-encoded) or `cbor` (binary; the original id-defining bytes). It is
-  orthogonal to `materialized` — either form may be `json` or `cbor`.
+- `encoding` — *how* the chosen form is serialised: `json` (text; content
+  base64-encoded) or `cbor` (binary). Same information either way — orthogonal to
+  `materialized`, which fixes the form.
 
 == `order`, `limit`, `execution` <sec:rql-bounds>
 
-`order` sorts the result set by `field`, ascending unless `desc`; absent, results
-order by `(created_at, id)`, claims lacking the field last. `limit` bounds the
-read — `results` caps the claim count, `time` the execution budget — each `0`
-meaning unbounded. To page, carry the last row's order key into a `where` on the
-next request.
+`order` re-sorts the result set by `field`, ascending unless `desc` (claims
+lacking the field last); without it, results follow the archive's natural
+`(created_at, id)` order (Paper 02 §Timestamping). `limit` bounds the read —
+`results` caps the claim count, `time` the execution budget — each `0` meaning
+unbounded. To page, carry the last row's order key into a `where` on the next
+request.
 
 `execution` controls where the query runs and how it reports. `layer` pins one
 named storage/execution layer instead of letting the backend choose by
 capability. `report` sets a verbosity — `info` (high-level stages), `debug`
-(routing and lowering), or `trace` (per-claim detail); absent, none is produced.
+(routing and lowering), or `trace` (per-claim detail).
 
 == Results and streaming <sec:rql-results>
 
