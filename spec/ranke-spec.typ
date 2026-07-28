@@ -457,6 +457,15 @@ carries it. RQL is entirely a RankeDB construct — the ADT defines no query
 language — so this whole chapter is `[FREE]`. Its blocks and their roles are
 Paper 02 §Filtered Reads.
 
+RQL is modelled closely after Cypher and the ISO standard it converges on, GQL,
+and is deliberately a *subset*: small enough that the native
+graph walk, or any backend a future adapter reaches, can implement the whole
+language, while a Cypher/GQL-capable layer answers it by lowering rather than
+interpretation. Reading a construct as its Cypher counterpart is therefore usually
+right — anchored and unanchored generators are `MATCH` with and without a bound
+variable, a step's `min`/`max` is `*min..max` — and where RQL departs from Cypher
+it says so and gives the reason (§`select`, on the frontier pipeline).
+
 This chapter fixes the type and what each field's values *mean*; it does not
 prescribe defaults for omitted fields — defaulting is an implementation and
 binding concern. A query that depends on a particular behaviour — a materialised
@@ -489,8 +498,8 @@ Query = {
 Select = {                   // a generator: scope, closure, start, traversal
   branch:  string            // "$universe" | "$archive" | a branch name
   head?:   Id                // the closure read; required iff branch = "$universe"
-  claim?:  Id                // where the walk starts, inside the closure
-  path?:   [PathStep]        // step-less -> the full outward closure of the start claim
+  claim?:  Id                // anchor in the closure; absent -> the closure entire
+  path?:   [PathStep]        // absent -> the full outward closure of the frontier
 }
 
 PathStep = {                 // follow typed edges for min..max hops
@@ -543,7 +552,8 @@ Execution = {
 
 A generator answers two separate questions, and the fields divide along them.
 *Which graph is read* — the closure, fixed by `head`. *Where the reading starts* —
-`claim`, a point inside that closure, from which `path` walks.
+the *frontier* `path` walks from: one point inside that closure when `claim` anchors
+it, and otherwise the closure entire.
 
 The two are independent because a walk runs in both directions. A `provenance`
 step follows references outward, and every claim it can reach is inside the
@@ -568,41 +578,57 @@ whose closure does not hold `der₅`. Same start claim, two closures, two answer
   to a claim within that scope's closure; it therefore narrows the query and can
   never widen it past the grant. Under `$universe` it may name any claim the
   Universe holds.
-- `claim` is the *start* of the walk, and must lie inside the closure; a `claim`
-  outside it is rejected. Absent, the walk starts at the closure's head. It moves
-  where reading begins, never what is visible: reachability within the closure is
-  the check, so no right beyond the scope's *R* is involved.
+- `claim` *anchors* the walk at one claim, which must lie inside the closure; a
+  `claim` outside it is rejected. It moves where reading begins, never what is
+  visible: reachability within the closure is the check, so no right beyond the
+  scope's *R* is involved. Absent, the search is *unanchored* — the frontier is the
+  closure entire.
 - `path` is the *traversal*: an ordered list of steps. Each `PathStep` follows a
   set of typed `edges` (globs over `class/sub`, a leading `-` excluding a type) in
   direction `dir` — `provenance` (outgoing, toward references), `uses` (incoming),
   or `connections` (either) — for between `min` and `max` hops, optionally
   constraining what it yields to `nodes` types. `edges` gates every hop; `nodes`
-  gates the claims a step yields, never those it passes through. A step-less `path`
-  returns the full outward closure of the start claim (foundation paper §Closures).
+  gates the claims a step yields, never those it passes through. Absent, `path`
+  returns the full outward closure of the frontier (foundation paper §Closures).
 
-A closure is immutable, so pinning `head` gives a client a snapshot that cannot
-shift under a paged read while the archive advances.
+*Anchored and unanchored.* An anchored generator asks what a *particular* claim
+reaches: a route outward from `claim`. An unanchored one asks where a *shape*
+occurs, its first step starting from every claim in the closure at once — the
+pattern query Cypher writes as a `MATCH` with no bound variable, and the form a
+Cypher/GQL layer lowers to directly. Under a branch the two read naturally: an
+unanchored `path` of `relation/family` steps finds every family neighbourhood in
+the branch, where anchoring at one `entity/person` finds only theirs. The
+distinction is which claims a step *starts* from; both are bounded alike by the
+closure.
+
+Unanchored and step-less together name the closure itself: no step moves, so the
+frontier is delivered as it stands. A closure is immutable, so pinning `head` also
+gives a client a snapshot that cannot shift under a paged read while the archive
+advances.
 
 *How far a step reaches.* A step yields every claim it reaches at between `min` and
 `max` hops from its starting set. An absent `min` is 1, so a step moves at least one
 hop; `min: 0` adds the starting set itself to what the step yields, carrying the
 frontier through alongside what lies beyond it — 'this claim and the sources beneath
 it' in one step. For `max`, `0` means unbounded, since a step of at most zero hops
-would move nothing at all. The two zeros therefore read differently, each taking the
-only sense it has. A `min` above a bounded `max` is rejected.
+would move nothing at all, and an absent `max` leaves the step unbounded likewise.
+The two zeros therefore read differently, each taking the only sense it has. A
+`min` above a bounded `max` is rejected.
 
 *A path is a frontier pipeline.* Each step is an *independent* bounded walk that
 starts from the *set* of endpoints the previous step produced (the first step from
-the `claim` the walk starts at); those endpoints become the next step's starting
-set. The no-repeat rule — a walk does not revisit a node — applies *within a single
-step* and *resets* at each step boundary, so a later step MAY re-cross a claim or
-re-traverse an edge an earlier step used. A result MUST NOT depend on how the frontier was reached.
+the initial frontier — the `claim`, or the whole closure unanchored); those
+endpoints become the next step's starting set. The no-repeat rule — a walk does not
+revisit a node — applies *within a single step* and *resets* at each step boundary,
+so a later step MAY re-cross a claim or re-traverse an edge an earlier step used. A
+result MUST NOT depend on how the frontier was reached.
 
-This must be stated because the naive single-trail reading — one continuous path
-with whole-path edge-uniqueness, the default of Cypher and similar engines —
-returns the wrong answer. Take a head reaching `der` (a `derivation/summary`) that
-cites a `source` `s` (`der` $arrow.r$ `s`, a `derivation` edge), with nothing else
-pointing at `s`:
+This is the one place the subset departs from its model, so it must be stated.
+Cypher reads a multi-step pattern as a single continuous trail with whole-path
+edge-uniqueness, and that reading returns the wrong answer here. Take a generator
+anchored at a head that reaches `der` (a `derivation/summary`) which cites a
+`source` `s` (`der` $arrow.r$ `s`, a `derivation` edge), with nothing else pointing
+at `s`:
 
 #[
 #show raw: set text(size: 0.82em)
@@ -683,7 +709,8 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 == `output` — result shape and encoding <sec:rql-output>
 
 - `shape` — `single` (a list of the reached endpoints, one element each) or
-  `path` (a list of routes, each running from the walk's start claim outward).
+  `path` (a list of routes, each running outward from the frontier claim its walk
+  began at).
 - `detail` — how each result is carried: `id` (the id, or the ids along a path);
   `graph` (nodes joined by the edges between them, `n-(e)-n`); or `claims` (the
   full claim for each node — the node with *all* its outgoing edges,

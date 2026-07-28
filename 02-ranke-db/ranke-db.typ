@@ -357,12 +357,12 @@ Each contribution commits as the delta of claims effectively added to a branch; 
 
 == Filtered Reads <sec:query>
 
-A read against RankeDB is a query in *RankeQL* (RQL) — a tree-structured object expressible as JSON. This section gives its conceptual shape; the full grammar and evaluation semantics are fixed by the Ranke normative specification @rankespec. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
+A read against RankeDB is a query in *RankeQL* (RQL) — a tree-structured object expressible as JSON, modelled closely after `cypher` (@francis2018cypher) and the standard it converges on, `gql` (@iso39075gql), and kept a subset of them: small enough that the native walk, or any backend a future adapter reaches, implements the whole language, while a Cypher/GQL-capable layer answers it by lowering. This section gives its conceptual shape; the full grammar and evaluation semantics are fixed by the Ranke normative specification @rankespec. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
 
-A `select` generator answers two questions apart from one another: which graph is read, and where the reading starts. `select.branch` names the *scope* a grant is held against — a branch, the whole archive (`$archive`), or the unconfined `$universe`, the last of these privileged (@sec:access). `select.head` fixes the *closure* the query sees, required under `$universe`, which offers no head to fall back on, and optional elsewhere, where the branch's head, or the branch table itself, serves. `select.claim` is the *start* of the walk inside that closure. Keeping the two apart matters because a walk runs both ways: following references outward stays under the start claim, but asking which claims _cite_ it runs upward, and only the closure decides how far that reaches.
-`select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `min` and `max` bounding its hops, and optionally the `nodes` it may yield. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. A step moves at least one hop unless `min` is `0`, which carries its starting set through alongside what lies beyond it; `max` of `0` leaves the step unbounded. Without `path`, a generator follows every edge outward, unbounded — the full closure (foundation paper §Closures).
+A `select` generator answers two questions apart from one another: which graph is read, and where the reading starts. `select.branch` names the *scope* a grant is held against — a branch, the whole archive (`$archive`), or the unconfined `$universe`, the last of these privileged (@sec:access). `select.head` fixes the *closure* the query sees, required under `$universe`, which offers no head to fall back on, and optional elsewhere, where the branch's head, or the branch table itself, serves. `select.claim` optionally *anchors* the walk at one claim inside that closure; without it the search is unanchored, starting from every claim in the closure at once, as a Cypher `MATCH` does without a bound variable. Keeping closure and anchor apart matters because a walk runs both ways: following references outward stays under the anchor, but asking which claims _cite_ it runs upward, and only the closure decides how far that reaches.
+`select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `min` and `max` bounding its hops, and optionally the `nodes` it may yield. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. A step moves at least one hop unless `min` is `0`, which carries its starting set through alongside what lies beyond it; a `max` of `0`, or none, leaves the step unbounded. Without `path`, a generator follows every edge outward, unbounded — the full closure of its frontier (foundation paper §Closures).
 
-A multi-step `path` is a *frontier pipeline*: each step is an independent bounded walk starting from the set of claims the previous step reached, and the no-repeat rule (a walk does not revisit a node) applies within a step only, resetting at each boundary — so a later step may re-cross an edge or claim an earlier step used. This must be stated because reading the steps as one continuous trail with whole-path edge-uniqueness — the default of Cypher and similar engines — drops results: stepping from a `derivation` to the `source` it cites and then back (`dir: uses`) to the derivations citing that source should return that derivation, yet a single-trail reading returns nothing, having "used up" the shared edge. The result must not depend on how the frontier was reached. (A later opt-in modifier may additionally constrain a returned route's shape — the ISO GQL `WALK`/`TRAIL`/`ACYCLIC`/`SIMPLE` modes; the frontier pipeline remains the default.)
+A multi-step `path` is a *frontier pipeline*: each step is an independent bounded walk starting from the set of claims the previous step reached, and the no-repeat rule (a walk does not revisit a node) applies within a step only, resetting at each boundary — so a later step may re-cross an edge or claim an earlier step used. This is where RQL departs from its model, so it must be stated: reading the steps as one continuous trail with whole-path edge-uniqueness — Cypher's default — drops results: stepping from a `derivation` to the `source` it cites and then back (`dir: uses`) to the derivations citing that source should return that derivation, yet a single-trail reading returns nothing, having "used up" the shared edge. The result must not depend on how the frontier was reached. (A later opt-in modifier may additionally constrain a returned route's shape — the ISO GQL `WALK`/`TRAIL`/`ACYCLIC`/`SIMPLE` modes; the frontier pipeline remains the default.)
 
 #[
 #show raw: set text(size: 0.66em)
@@ -386,7 +386,7 @@ A multi-step `path` is a *frontier pipeline*: each step is an independent bounde
     "output": {"detail": "path"}
     ```,
   ),
-  caption: [Two `path` generators, each choosing an output `detail`. *Left:* the derivation chain to the `source` claims a release rests on. *Right:* two chained steps — a semantic family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then each entity's `derivation` provenance to the `source` claims they derived from — returned as full `path`s.],
+  caption: [Two `path` generators, each choosing an output `detail`. *Left:* anchored at a release claim, the derivation chain to the `source` claims it rests on. *Right:* unanchored, so every family neighbourhood in the branch is found at once — two chained steps — a semantic family neighbourhood (`connections` along `relation/family`, either direction, up to four hops, landing on `entity/person`), then each entity's `derivation` provenance to the `source` claims they derived from — returned as full `path`s.],
 ) <fig:paths>
 ]
 
@@ -412,6 +412,7 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
     {
       "query": {
         "select": {"branch": "project_x",
+                   "claim": "b3d1…9f0a",
                    "path": [{"edges": ["derivation/*"],
                              "max": 3}]},
         "where": {"type": {"glob": "source/*"}},
@@ -423,8 +424,8 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
     }
     ```,
     ```cypher
-    // branch project_x → head 9f2c…e7a1
-    MATCH p = (root {id: '9f2c…e7a1'})
+    // project_x → closure of head 9f2c…e7a1
+    MATCH p = (a:Claim {id: 'b3d1…9f0a'})
               -[:references*1..3]->(c:Claim)
      WHERE all(e IN relationships(p)
                WHERE e.type =~ 'derivation/.*')
@@ -435,7 +436,7 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
      LIMIT 200
     ```,
   ),
-  caption: [A declarative query (left) and its transformation for a specific backend, e.g. Cypher (right).],
+  caption: [A declarative query (left), anchored at a release claim, and its transformation for a specific backend, e.g. Cypher (right).],
 ) <fig:reads>
 ]
 
