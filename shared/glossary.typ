@@ -137,6 +137,9 @@
   (key: "contribution", short: "contribution", group: "02 · RankeDB",
    description: [The set of claims added in one merge — opened against a base, verified and sealed, then merged as a unit. Distinct from the `contribution/*` node and edge class of the foundation paper. (§Sequencer)]),
 
+  (key: "height", short: "height", group: "02 · RankeDB",
+   description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-node"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
+
   (key: "limiting-claim", short: "limiting claim", group: "02 · RankeDB",
    description: [A claim restricting use of another — a purge (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),
 

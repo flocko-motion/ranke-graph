@@ -21,9 +21,10 @@ PDFS := \
   $(PDF_DIR)/04-ranke-retrieval.pdf \
   $(PDF_DIR)/05-retrieval-coordination.pdf \
   $(PDF_DIR)/06-ranke-cryptography.pdf \
-  $(PDF_DIR)/ranke-glossary.pdf
+  $(PDF_DIR)/ranke-glossary.pdf \
+  $(PDF_DIR)/ranke-spec.pdf
 
-.PHONY: all clean 01 02 03 04 05 06 glossary watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary verify release major minor patch breaking feature fix
+.PHONY: all clean 01 02 03 04 05 06 glossary spec watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary watch-spec verify release major minor patch breaking feature fix
 
 all: $(PDFS)
 
@@ -52,6 +53,10 @@ $(PDF_DIR)/06-ranke-cryptography.pdf: 06-ranke-cryptography/ranke-cryptography.t
 $(PDF_DIR)/ranke-glossary.pdf: glossary/ranke-glossary.typ shared/glossary.typ | $(PDF_DIR)
 	$(TYPST) compile --root . $< $@
 
+# Normative specification — the rules an implementation follows (companion doc).
+$(PDF_DIR)/ranke-spec.pdf: spec/ranke-spec.typ | $(PDF_DIR)
+	$(TYPST) compile --root . $< $@
+
 01: $(PDF_DIR)/01-ranke-graph.pdf
 02: $(PDF_DIR)/02-ranke-db.pdf
 03: $(PDF_DIR)/03-ranke-workers.pdf
@@ -59,6 +64,7 @@ $(PDF_DIR)/ranke-glossary.pdf: glossary/ranke-glossary.typ shared/glossary.typ |
 05: $(PDF_DIR)/05-retrieval-coordination.pdf
 06: $(PDF_DIR)/06-ranke-cryptography.pdf
 glossary: $(PDF_DIR)/ranke-glossary.pdf
+spec: $(PDF_DIR)/ranke-spec.pdf
 
 watch-01:
 	$(TYPST) watch --root . 01-ranke-graph/ranke-graph.typ $(PDF_DIR)/01-ranke-graph.pdf
@@ -74,6 +80,8 @@ watch-06:
 	$(TYPST) watch --root . 06-ranke-cryptography/ranke-cryptography.typ $(PDF_DIR)/06-ranke-cryptography.pdf
 watch-glossary:
 	$(TYPST) watch --root . glossary/ranke-glossary.typ $(PDF_DIR)/ranke-glossary.pdf
+watch-spec:
+	$(TYPST) watch --root . spec/ranke-spec.typ $(PDF_DIR)/ranke-spec.pdf
 
 # Remove the built PDFs but keep the directory itself, so an open viewer or
 # file watch holding its inode survives a clean.
