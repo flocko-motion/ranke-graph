@@ -424,8 +424,10 @@ verified against the base stays valid however long it waits before merging.
 access to it; reads require *R*; overlaying an existing claim requires *U*;
 purging bytes requires *D* on every branch holding the claim. Access by head id
 alone, bypassing the branch table, is *privileged* and granted only over the
-reserved `$universe` target, to which only *R* applies. (Paper 02 §Access
-Control)]
+reserved `$universe` target, to which only *R* applies. Within a scope the
+grant covers the whole of it: naming a closure inside that scope, or starting a
+walk anywhere within it (@sec:rql-select), confers no access the scope's own grant
+does not already carry. (Paper 02 §Access Control)]
 
 #rule("R-DELMARK", FREE)[A *requested* deletion MUST be documented by a
 `contribution/delete` claim: a node of class `contribution/delete` carrying a
@@ -484,17 +486,19 @@ Query = {
   execution:  Execution
 }
 
-Select = {                   // a generator: scope, root, traversal
+Select = {                   // a generator: scope, closure, start, traversal
   branch:  string            // "$universe" | "$archive" | a branch name
-  claim?:  Id                // root in the scope; required iff branch = "$universe"
-  path?:   [PathStep]        // step-less -> the full outward closure of the root
+  head?:   Id                // the closure read; required iff branch = "$universe"
+  claim?:  Id                // where the walk starts, inside the closure
+  path?:   [PathStep]        // step-less -> the full outward closure of the start claim
 }
 
-PathStep = {                 // follow typed edges to a bounded depth
+PathStep = {                 // follow typed edges for min..max hops
   edges?:  [string]          // edge-class globs "class/sub"; leading "-" excludes
   dir?:    "provenance" | "uses" | "connections"    // outgoing | incoming | either
-  depth?:  int               // max hops; 0 -> unbounded for this step
-  nodes?:  [string]          // endpoint node-class globs; leading "-" excludes
+  min?:    int               // fewest hops; absent -> 1; 0 -> yields its start too
+  max?:    int               // most hops; 0 -> unbounded for this step
+  nodes?:  [string]          // yielded node-class globs; leading "-" excludes
 }
 
 Where =                      // exactly one form per node
@@ -535,31 +539,64 @@ Execution = {
 ```
 ]
 
-== `select` — scope, root, traversal <sec:rql-select>
+== `select` — closure and walk <sec:rql-select>
+
+A generator answers two separate questions, and the fields divide along them.
+*Which graph is read* — the closure, fixed by `head`. *Where the reading starts* —
+`claim`, a point inside that closure, from which `path` walks.
+
+The two are independent because a walk runs in both directions. A `provenance`
+step follows references outward, and every claim it can reach is inside the
+closure of wherever it started. A `uses` step runs the other way, to the claims
+that *cite* the current one, and those lie *above* the start: the answer is
+whatever cites it — within the graph under consideration. So the closure is what
+decides a reverse step's result, and naming a start point cannot substitute for
+it. In the reference archive, `der₅` (`review`) cites `der₄` (`master`): a `uses`
+step from `der₄` returns `der₅` under `$archive`, and nothing under `master`,
+whose closure does not hold `der₅`. Same start claim, two closures, two answers.
 
 - `branch` is the mandatory *scope*. A real branch name confines the query to that
-  branch's closure, rooted at its current head. Two reserved names widen it:
-  `$archive` confines to the whole Ranke-Archive — the closure of the branch-table
-  header — and `$universe` applies no confinement. An empty `branch` is not
-  allowed. (`$archive` extends the reserved `$`-targets of §Access, which names
-  `$universe` and `$branches`.)
-- `claim` is the *root* in the scope. It is required under `$universe` — there is
-  no head to root at — and optional otherwise, where the scope's current head is
-  the root (the branch head, or the branch-table header under `$archive`).
-  `$universe` is privileged and requires the `$universe` grant (`R-ACCESS`).
+  branch; `$archive` confines to the whole Ranke-Archive; `$universe` applies no
+  confinement. An empty `branch` is not allowed. (`$archive` extends the reserved
+  `$`-targets of §Access, which names `$universe` and `$branches`.) The scope is
+  what a grant is held against (`R-ACCESS`), and `$universe` is privileged.
+- `head` is the *closure* read: the query sees $"closure"("head", cal(U))$ and
+  nothing else. It is *required* under `$universe`, which confines nothing and so
+  offers no head to fall back on, and *optional* under every other scope, where
+  the scope's own head serves — the branch's head, or the branch-table header
+  under `$archive`. Given explicitly under a branch or `$archive`, it MUST resolve
+  to a claim within that scope's closure; it therefore narrows the query and can
+  never widen it past the grant. Under `$universe` it may name any claim the
+  Universe holds.
+- `claim` is the *start* of the walk, and must lie inside the closure; a `claim`
+  outside it is rejected. Absent, the walk starts at the closure's head. It moves
+  where reading begins, never what is visible: reachability within the closure is
+  the check, so no right beyond the scope's *R* is involved.
 - `path` is the *traversal*: an ordered list of steps. Each `PathStep` follows a
   set of typed `edges` (globs over `class/sub`, a leading `-` excluding a type) in
   direction `dir` — `provenance` (outgoing, toward references), `uses` (incoming),
-  or `connections` (either) — to at most `depth` hops (`0` meaning unbounded for
-  that step), optionally constraining the endpoint to `nodes` types. A step-less
-  `path` returns the full outward closure of the root (foundation paper §Closures).
+  or `connections` (either) — for between `min` and `max` hops, optionally
+  constraining what it yields to `nodes` types. `edges` gates every hop; `nodes`
+  gates the claims a step yields, never those it passes through. A step-less `path`
+  returns the full outward closure of the start claim (foundation paper §Closures).
+
+A closure is immutable, so pinning `head` gives a client a snapshot that cannot
+shift under a paged read while the archive advances.
+
+*How far a step reaches.* A step yields every claim it reaches at between `min` and
+`max` hops from its starting set. An absent `min` is 1, so a step moves at least one
+hop; `min: 0` adds the starting set itself to what the step yields, carrying the
+frontier through alongside what lies beyond it — 'this claim and the sources beneath
+it' in one step. For `max`, `0` means unbounded, since a step of at most zero hops
+would move nothing at all. The two zeros therefore read differently, each taking the
+only sense it has. A `min` above a bounded `max` is rejected.
 
 *A path is a frontier pipeline.* Each step is an *independent* bounded walk that
 starts from the *set* of endpoints the previous step produced (the first step from
-the root); those endpoints become the next step's starting set. The no-repeat rule
-— a walk does not revisit a node — applies *within a single step* and *resets* at
-each step boundary, so a later step MAY re-cross a claim or re-traverse an edge an
-earlier step used. A result MUST NOT depend on how the frontier was reached.
+the `claim` the walk starts at); those endpoints become the next step's starting
+set. The no-repeat rule — a walk does not revisit a node — applies *within a single
+step* and *resets* at each step boundary, so a later step MAY re-cross a claim or
+re-traverse an edge an earlier step used. A result MUST NOT depend on how the frontier was reached.
 
 This must be stated because the naive single-trail reading — one continuous path
 with whole-path edge-uniqueness, the default of Cypher and similar engines —
@@ -585,6 +622,56 @@ constrain the route's *shape* — no repeated edges, or no repeated nodes. A fut
 opt-in modifier on a path or step will expose the ISO GQL path modes (`WALK`,
 `TRAIL`, `ACYCLIC`, `SIMPLE`); the default remains the frontier pipeline above.
 
+== `height` — the level a claim sits at <sec:rql-height>
+
+Every claim sits at a *height*: the length of the longest reference chain from it
+down to an initial node, in the graph-theoretic sense of a DAG height. It is the
+level a claim occupies above the sources its provenance rests on.
+
+#rule("R-HEIGHT", FREE)[A claim's height is
+$ "height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1 $
+over the claims $u$ that $v$ references. An initial node references nothing and so
+sits at height 1; every height is therefore $gt.eq 1$, which leaves `0` free to
+mean *unbounded* as it does for a step's `max` or a `limit`. Height is a function
+of the claim's closure alone, hence determined by $op("id")(v)$ (Paper 01 §Merkle
+DAG):
+every Universe holding the claim computes the same value, and appending to the
+archive never changes one. RankeDB MUST compute a claim's height while it verifies
+that claim's closure (`R-CLOSED`) and retain it, so a claim whose bytes are later
+purged keeps the height it entered with (`R-GAP`).]
+
+Height is strictly *decreasing* along every reference — $"height"(u) <
+"height"(v)$ for each reference $u$ of $v$ — which makes it the integer counterpart
+of `created_at`'s monotonicity (`V-MONO`) and a topological rank of the DAG.
+
+#rule("R-HEIGHT-FIELD", FREE)[Height is a *derived field* named `height`, which a
+`where` leaf and an `order` key may name like any field a claim carries
+(@sec:rql-where, @sec:rql-bounds). Its values are integers and compare
+`numeric`ally.]
+
+The field earns its place three times over. A comparison of heights is a cheap
+necessary condition for ancestry, so it prunes before any traversal. Because every
+reference sits strictly lower than the claim citing it, a result bounded by
+`{field: "height", test: {le: h}}` is closed under references — a kept claim's
+references are kept too — so that filter alone yields a valid Ranke-Graph, reaching
+$h$ levels of derivation above its sources, where a filter on any other field
+yields an arbitrary set. And a bound on it is one integer comparison per claim,
+which a layer that indexes the field answers as a range rather than a traversal.
+
+In the reference archive the contributors sit at 1 (`c_seq`, an initial node) and 2
+(`c_alice`, `c_alice2`, `c_bob`); `src₁` and `src₂` at 3; `der₁`, `der₂` and `del₁`
+at 4; `der₃` and the entities at 5; `rel₁` at 6; `der₄` at 7; `der₅` at 8; and the
+archive head `bt₅` at 10. A bound of `le: 4` over `master` therefore keeps `src₁`,
+`der₂` and the contributor claims, leaving `ent₁`/`ent₂` (5), `rel₁` (6) and the
+head `der₄` (7) outside it.
+
+Height is a level in the derivation structure, not a clock. It answers 'up to $h$
+levels of derivation above the sources' exactly, and 'the branch as it stood' not
+at all: a claim contributed today at a low height — a fresh source, or a derivation
+directly over one — satisfies a low bound as readily as the oldest claim in the
+archive. A read of a past state pins that past `head`, whose closure is immutable;
+a read at a past *time* filters `created_at`.
+
 == `where` — the filter <sec:rql-where>
 
 `where` is a boolean tree. Each node is exactly one of the `and` / `or` / `not`
@@ -596,7 +683,7 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 == `output` — result shape and encoding <sec:rql-output>
 
 - `shape` — `single` (a list of the reached endpoints, one element each) or
-  `path` (a list of routes, each root-first).
+  `path` (a list of routes, each running from the walk's start claim outward).
 - `detail` — how each result is carried: `id` (the id, or the ids along a path);
   `graph` (nodes joined by the edges between them, `n-(e)-n`); or `claims` (the
   full claim for each node — the node with *all* its outgoing edges,
@@ -638,14 +725,14 @@ capability. `report` sets a verbosity — `info` (high-level stages), `debug`
 
 A query yields an ordered stream, one element at a time in the query's order. Each
 element is, per `output.shape`, a `single` reached endpoint or a `path` (its
-route, root-first); `output.detail` sets how each node within it is carried:
+route, start-first); `output.detail` sets how each node within it is carried:
 
 #[
 #show raw: set text(size: 0.82em)
 ```
 Result =                // one stream element, per output.shape
     Element             //   shape = "single": a reached endpoint
-  | [Element]           //   shape = "path": its route, root-first
+  | [Element]           //   shape = "path": its route, start-first
 
 Element =               // set by output.detail (field values per output.form)
     Id                  //   "id":     the id

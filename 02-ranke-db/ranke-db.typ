@@ -328,7 +328,7 @@ Example: `webapp CR foo_*, provisioner C $branches` allows `provisioner` to crea
 
 Please note, that R access to one branch $B_1$ and C access to another branch $B_2$ allows referencing a claim from $B_1$ in $B_2$, effectively importing the full closure of the referenced claim into $B_2$. This can be useful for e.g. maintaining a master branch gathering details from multiple projects while keeping each project isolated in its own branch. For details on cross-branch references and propagation see @sec:crossbranch.
 
-A query names a *branch* as the handle for _which_ Ranke-Graph to read. This is what lets RankeDB enforce the grants above and sequence concurrent writes. The foundation paper, however, defines a Ranke-Graph as _any_ tuple `(Universe, id)`, so a graph can also be addressed by a head id directly, bypassing the branch table. We treat such access as *privileged*: given only a head id it can read any graph the Universe holds. It is nonetheless indispensable: restoring a backup, for instance, may begin with nothing but a Universe and a head id kept outside RankeDB. We expose it as a grant over the reserved target `$universe`; because `$` is illegal in ordinary branch names, no glob can match a `$`-name and the privilege is never conferred by accident. Only *R* applies to `$universe`: with no branch and no Sequencer behind it, nothing is written to the Universe this way.
+A query names a *branch* as the handle for _which_ Ranke-Graph to read. This is what lets RankeDB enforce the grants above and sequence concurrent writes. The foundation paper, however, defines a Ranke-Graph as _any_ tuple `(Universe, id)`, so a graph can also be addressed by a head id directly, bypassing the branch table — the `select.head` of an unconfined query (@sec:query). We treat such access as *privileged*: given only a head id it can read any graph the Universe holds. It is nonetheless indispensable: restoring a backup, for instance, may begin with nothing but a Universe and a head id kept outside RankeDB. We expose it as a grant over the reserved target `$universe`; because `$` is illegal in ordinary branch names, no glob can match a `$`-name and the privilege is never conferred by accident. Only *R* applies to `$universe`: with no branch and no Sequencer behind it, nothing is written to the Universe this way.
 
 `$universe` is one of a family of reserved `$`-targets that expose the archive's administrative surfaces through the same CRUD grants. `$branches` grants act on the branch table itself: *C* creates a branch, *R* enumerates the table, *U* repoints an entry, *D* hides a branch by contributing a new archive head that omits it — the authority the retired *A* once carried, now separable into create, read, override, and hide. A `$`-target names a single server-wide surface, so a grant over it is a highly privileged access right.
 
@@ -359,8 +359,8 @@ Each contribution commits as the delta of claims effectively added to a branch; 
 
 A read against RankeDB is a query in *RankeQL* (RQL) — a tree-structured object expressible as JSON. This section gives its conceptual shape; the full grammar and evaluation semantics are fixed by the Ranke normative specification @rankespec. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
 
-A `select` generator specifies a starting point and follows edges from it. `select.branch` roots at a branch's current head and confines the query to that branch; `select.claim` optionally roots at a different claim id within the branch; `select.claim` without a branch is a privileged action using any claim in the _universe_ as starting point (@sec:access). 
-`select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `depth` bounding its hops, and optionally the `nodes` its endpoint may be. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. Without `path`, a generator follows every edge outward, unbounded — the full closure (foundation paper §Closures).
+A `select` generator answers two questions apart from one another: which graph is read, and where the reading starts. `select.branch` names the *scope* a grant is held against — a branch, the whole archive (`$archive`), or the unconfined `$universe`, the last of these privileged (@sec:access). `select.head` fixes the *closure* the query sees, required under `$universe`, which offers no head to fall back on, and optional elsewhere, where the branch's head, or the branch table itself, serves. `select.claim` is the *start* of the walk inside that closure. Keeping the two apart matters because a walk runs both ways: following references outward stays under the start claim, but asking which claims _cite_ it runs upward, and only the closure decides how far that reaches.
+`select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `min` and `max` bounding its hops, and optionally the `nodes` it may yield. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. A step moves at least one hop unless `min` is `0`, which carries its starting set through alongside what lies beyond it; `max` of `0` leaves the step unbounded. Without `path`, a generator follows every edge outward, unbounded — the full closure (foundation paper §Closures).
 
 A multi-step `path` is a *frontier pipeline*: each step is an independent bounded walk starting from the set of claims the previous step reached, and the no-repeat rule (a walk does not revisit a node) applies within a step only, resetting at each boundary — so a later step may re-cross an edge or claim an earlier step used. This must be stated because reading the steps as one continuous trail with whole-path edge-uniqueness — the default of Cypher and similar engines — drops results: stepping from a `derivation` to the `source` it cites and then back (`dir: uses`) to the derivations citing that source should return that derivation, yet a single-trail reading returns nothing, having "used up" the shared edge. The result must not depend on how the frontier was reached. (A later opt-in modifier may additionally constrain a returned route's shape — the ISO GQL `WALK`/`TRAIL`/`ACYCLIC`/`SIMPLE` modes; the frontier pipeline remains the default.)
 
@@ -379,7 +379,7 @@ A multi-step `path` is a *frontier pipeline*: each step is an independent bounde
     ```,
     ```json
     "path": [ {"edges": ["relation/family"],
-               "dir": "connections", "depth": 4,
+               "dir": "connections", "max": 4,
                "nodes": ["entity/person"]},
               {"edges": ["derivation/*"],
                "nodes": ["source/*"]} ],
@@ -391,6 +391,8 @@ A multi-step `path` is a *frontier pipeline*: each step is an independent bounde
 ]
 
 A `where` is a boolean tree of *comparisons*. Each comparison tests one field with `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `in` (membership in a set) or `glob` (shell-style wildcard); `and`, `or` and `not` combine them.
+
+Beyond the fields a claim carries, RankeDB offers one it derives: every claim sits at a *height*, $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$ over the claims $u$ it references, so an initial node sits at 1 and every reference sits strictly lower than the claim citing it. A filter or a sort names it like any other field, and it earns its place twice. A height is one integer per claim, determined by the claim's id and unchanged as the archive grows, so a bound on it is an integer comparison an indexing layer answers as a range. And because a reference always sits lower, a result bounded by height is closed under references for free — a kept claim's references are kept too — making that result a Ranke-Graph in its own right, reaching a stated number of derivation levels above its sources. It measures derivation structure rather than time: a claim contributed today, deriving straight from a source, sits as low as the archive's oldest.
 
 `output` shapes each result: `detail` sets how much it carries — `id`, `claim`, or `path` (the whole route); `content` caps inlined content bytes per claim (`false`, the default, carries none); `overflow` defines how to handle oversized content — `cutoff`, `omit`, or `reference`; `encoding` fixes the wire serialization — `json-seq` (@rfc7464, the default), a text sequence with content base64-encoded, or `cbor-seq` (@rfc8742), binary.
 
@@ -411,7 +413,7 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
       "query": {
         "select": {"branch": "project_x",
                    "path": [{"edges": ["derivation/*"],
-                             "depth": 3}]},
+                             "max": 3}]},
         "where": {"type": {"glob": "source/*"}},
         "output": {"content": "4kb",
                    "overflow": "cutoff",
@@ -423,7 +425,7 @@ A `where` is a boolean tree of *comparisons*. Each comparison tests one field wi
     ```cypher
     // branch project_x → head 9f2c…e7a1
     MATCH p = (root {id: '9f2c…e7a1'})
-              -[:references*0..3]->(c:Claim)
+              -[:references*1..3]->(c:Claim)
      WHERE all(e IN relationships(p)
                WHERE e.type =~ 'derivation/.*')
        AND c.type =~ 'source/.*'
