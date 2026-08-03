@@ -3,8 +3,8 @@
 // A companion document to the Ranke-Graph paper series. Each paper defines its
 // own terms in prose; this collects them in one place for quick lookup and is
 // deliberately EXTERNAL, so it costs no paper its page budget. In case of
-// doubt the papers govern — and among them the foundation paper (Paper 01),
-// which fixes the ADT, wins.
+// doubt the papers govern — and among them the foundation paper, which fixes
+// the ADT, wins.
 //
 // Single-sourced from ../shared/glossary.typ (the `entries` list).
 // Compile:  typst compile --root .. ranke-glossary.typ
@@ -29,8 +29,8 @@
 This glossary is a convenience reference to the vocabulary of the Ranke-Graph
 paper series. The definitions here repeat, in condensed form, terms each paper
 introduces in its own text; the papers themselves remain authoritative, and
-where they might seem to disagree the foundation paper (Paper 01), which defines
-the abstract data type, governs. Terms are grouped by the paper that introduces
+where they might seem to disagree the foundation paper, which defines the abstract
+data type, governs. Terms are grouped by the paper that introduces
 them.
 
 #v(0.5em)

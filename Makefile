@@ -24,7 +24,7 @@ PDFS := \
   $(PDF_DIR)/ranke-glossary.pdf \
   $(PDF_DIR)/ranke-spec.pdf
 
-.PHONY: all clean 01 02 03 04 05 06 glossary spec watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary watch-spec verify release major minor patch breaking feature fix
+.PHONY: all clean 01 02 03 04 05 06 glossary spec watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary watch-spec verify update-testdata release major minor patch breaking feature fix
 
 all: $(PDFS)
 
@@ -92,6 +92,48 @@ clean:
 # (linting, link-checking, …); release depends on this passing.
 verify: all
 	@echo "verify: all papers compiled."
+
+# Regenerate the conformance artifacts under 01-ranke-graph/testdata/cbor.
+#
+# The generator is fetched from a RELEASED ranke-go, never a working copy, so the
+# artifacts trace to a version rather than to whatever someone had checked out.
+# The manifest records that version and the date. Override the release with:
+#   make update-testdata RANKE_GO_VERSION=v0.5.1
+#
+# Implementations fetch the latest of these files, so a regeneration reaches all
+# of them at once. Hence the confirmation.
+RANKE_GO         ?= github.com/flocko-motion/ranke-go
+RANKE_GO_VERSION ?= latest
+TESTDATA_DIR     := 01-ranke-graph/testdata/cbor
+
+update-testdata:
+	@command -v go > /dev/null || { echo "go toolchain not found"; exit 1; }
+	@echo ""; \
+	echo "  ##########################################################"; \
+	echo "  ##                                                      ##"; \
+	echo "  ##       OVERWRITING THE CONFORMANCE ARTIFACTS          ##"; \
+	echo "  ##                                                      ##"; \
+	echo "  ##########################################################"; \
+	echo ""; \
+	echo "  target    : $(TESTDATA_DIR)"; \
+	echo "  generator : $(RANKE_GO)/cmd/vectors@$(RANKE_GO_VERSION)"; \
+	echo ""; \
+	echo "  Every implementation fetches the latest of these files, so"; \
+	echo "  replacing them changes what conformance MEANS for all of"; \
+	echo "  them, at once — no pin shields anyone from this."; \
+	echo ""; \
+	echo "  The directory is DELETED and rewritten. Nothing is"; \
+	echo "  committed; review the diff, then commit by hand."; \
+	echo ""; \
+	printf "  Type YES to proceed: "; \
+	read -r ans; \
+	[ "$$ans" = "YES" ] || { echo ""; echo "  aborted — nothing was touched."; exit 1; }; \
+	echo ""; \
+	rm -rf $(TESTDATA_DIR); \
+	go run $(RANKE_GO)/cmd/vectors@$(RANKE_GO_VERSION) -out $(TESTDATA_DIR) || exit 1; \
+	echo "  wrote $(TESTDATA_DIR)"; \
+	echo ""; \
+	git status --short $(TESTDATA_DIR)
 
 # Cut a release: verify → clean tree → merge to the default branch via PR → tag
 # the merged tip → push the tag (which triggers release.yml) → return to your
