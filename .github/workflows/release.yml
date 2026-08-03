@@ -1,4 +1,4 @@
-name: Release PDFs
+name: Release
 
 on:
   push:
@@ -23,13 +23,19 @@ jobs:
       - name: Build papers and companions
         run: make 01 02 glossary spec
 
+      # The artifacts are committed, so this only packs them.
+      - name: Bundle conformance artifacts
+        run: make testdata-bundle
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             pdf/01-ranke-graph.pdf
             pdf/02-ranke-db.pdf
             pdf/ranke-glossary.pdf
             pdf/ranke-spec.pdf
+            dist/ranke-testdata.tar.gz
