@@ -45,7 +45,7 @@
 // (drives per-paper appendix + section heading; MUST contain "01" or "02").
 #let entries = (
 
-  // ═══════════ Paper 01 — Ranke-Graph (foundation) ═══════════
+  // ═══════════ The foundation paper — Ranke-Graph ═══════════
   (key: "claim", short: "claim", group: "01 · Ranke-Graph",
    description: [A node together with its content and its `edges`; the atom of the Ranke-Graph, created in one atomic transaction and addressed by its `id`. (foundation paper §Claims)]),
 
@@ -116,7 +116,7 @@
    description: [A `contribution/head` claim with edges to every open head, gathering them into a single head. (foundation paper §Consolidation)]),
 
   (key: "valid", short: "valid", group: "01 · Ranke-Graph",
-   description: [Structural well-formedness — `id` recomputes, references resolve, the construction rules hold. A technical property, not a judgement on content. (foundation paper §Validity)]),
+   description: [Structural correctness — `id` recomputes, references resolve, the construction rules hold. A technical property, not a judgement on content. (foundation paper §Validity)]),
 
   (key: "verify", short: "verify", group: "01 · Ranke-Graph",
    description: [The verification of a graph's validity: recompute each `id` $= "Sign"(H(S(v)))$ and confirm the construction rules hold — integrity and authenticity checked in one pass. (foundation paper §Verifiability)]),
@@ -124,7 +124,7 @@
   (key: "anchoring", short: "anchoring", group: "01 · Ranke-Graph",
    description: [Witnessing a head externally — e.g. an RFC 3161 authority — to fix its closure in time. The word is reserved for this external sense. (foundation paper §Anchoring)]),
 
-  // ═══════════ Paper 02 — RankeDB ═══════════
+  // ═══════════ The RankeDB paper ═══════════
   (key: "rankedb", short: "RankeDB", group: "02 · RankeDB",
    description: [The reference database service that serves and manages Ranke-Graphs over interchangeable, content-addressed backends.]),
 
@@ -168,7 +168,8 @@
 }
 
 // Print the glossary for a paper, including the vocabulary it inherits from
-// earlier papers (Paper 02 lists 01 + 02, so every #gls target has a label).
+// earlier papers (the RankeDB paper lists both groups, so every #gls target
+// has a label).
 // Used only if a paper opts to carry an in-line appendix.
 #let glossary-appendix(code) = glossarium.print-glossary(
   entries.filter(e => e.group.slice(0, 2) <= code),
