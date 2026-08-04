@@ -23,6 +23,11 @@ jobs:
       - name: Build papers and companions
         run: make 01 02 glossary spec
 
+      # The schema ships as its own asset, so the release must not publish one
+      # that fails its metaschema or rejects its own examples.
+      - name: Check the RQL schema
+        run: make schema
+
       # The artifacts are committed, so this only packs them.
       - name: Bundle conformance artifacts
         run: make testdata-bundle
@@ -38,4 +43,5 @@ jobs:
             pdf/02-ranke-db.pdf
             pdf/ranke-glossary.pdf
             pdf/ranke-spec.pdf
+            spec/rql.schema.json
             dist/ranke-testdata.tar.gz
