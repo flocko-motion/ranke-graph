@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/flocko-motion/ranke-graph/refs/heads/main/spec/rql.schema.json",
   "title": "RankeQL (RQL)",
-  "description": "The machine-readable form of the query type fixed by the Ranke normative specification, chapter RankeQL (RQL), section 'The query type'. A projection of that chapter: the spec is the reading source, this document checks the shapes it names. Where the two disagree, one is a defect — decide which and fix it. Published with every ranke-graph release at https://github.com/flocko-motion/ranke-graph/releases/latest/download/rql.schema.json. Three classes of rule lie outside a JSON Schema and belong to the implementation: a step's min against its max (R-QHOPS), head and claim resolving inside the closure (R-QHEAD, R-QANCHOR), and the framing of an id's payload.",
+  "description": "The query type of RankeQL (RQL), fixed here. This document governs a query's shape: the RankeQL chapter of the Ranke normative specification is still under review, so where the two differ this schema holds and the chapter follows it. The R-Q… ids below cite that chapter as a cross-reference, those ids being stable handles by its own convention. Published with every ranke-graph release at https://github.com/flocko-motion/ranke-graph/releases/latest/download/rql.schema.json. Three classes of rule lie outside a JSON Schema and belong to the implementation: a step's min against its max (R-QHOPS), head and claim resolving inside the closure (R-QHEAD, R-QANCHOR), and the framing of an id's payload.",
 
   "$ref": "#/$defs/Query",
 
