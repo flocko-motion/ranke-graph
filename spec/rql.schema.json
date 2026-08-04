@@ -73,6 +73,7 @@
           "items": { "$ref": "#/$defs/TypeGlob" }
         },
         "dir": {
+          "type": "string",
           "enum": ["provenance", "uses", "connections"],
           "description": "provenance follows references outward, uses runs to the claims that cite this one, connections either way. Absent, provenance."
         },
@@ -177,19 +178,23 @@
       "description": "Shapes each result along orthogonal axes. detail: claims with form: original and encoding: cbor reproduces the canonical serialization S(v) a claim's id is computed over, and is the only output form directly verifiable against that id (R-QCANON).",
       "properties": {
         "shape": {
+          "type": "string",
           "enum": ["single", "path"],
           "description": "single yields the reached endpoints, one element each; path yields routes, each running outward from the frontier claim its walk began at (R-QOUTPUT)."
         },
         "detail": {
+          "type": "string",
           "enum": ["id", "graph", "claims"],
           "description": "How much each element carries: id (the id, or the ids along a path), graph (nodes joined by the edges between them), or claims (the full claim for each node — the node with all its outgoing edges, so richer than graph) (R-QOUTPUT)."
         },
         "form": {
+          "type": "string",
           "enum": ["original", "materialized"],
           "description": "Which field values a claim carries: original as written, a diff-overlaid claim's delta; materialized with any contribution/diff chain resolved over the predecessor it references, recursively to a base claim. A property of the values, hence orthogonal to detail and encoding (R-QOUTPUT)."
         },
         "content": { "$ref": "#/$defs/OutputContent" },
         "encoding": {
+          "type": "string",
           "enum": ["json", "cbor"],
           "description": "json is text with content base64-encoded, cbor is binary; the same information either way (R-QOUTPUT)."
         }
@@ -208,6 +213,7 @@
           "description": "Cap in bytes on the content inlined per claim."
         },
         "overflow": {
+          "type": "string",
           "enum": ["cutoff", "omit", "reference"],
           "description": "What becomes of content past the cap: cutoff truncates, omit drops it, reference leaves a content_hash stub in its place."
         }
@@ -231,10 +237,12 @@
           "description": "The field sorted on — any field a claim carries, or the derived height."
         },
         "compare": {
+          "type": "string",
           "enum": ["numeric", "lexical"],
           "description": "How the values compare (R-QSORT)."
         },
         "dir": {
+          "type": "string",
           "enum": ["asc", "desc"],
           "description": "Sort direction (R-QSORT)."
         }
@@ -269,6 +277,7 @@
           "description": "Pins the query to one named storage or execution layer; absent, the backend chooses by capability."
         },
         "report": {
+          "type": "string",
           "enum": ["info", "debug", "trace"],
           "description": "Report verbosity: info gives high-level stages, debug routing and lowering, trace per-claim detail. Set, and only then, the stream carries one final report record after the last element, typed distinctly from result claims (R-QREPORT)."
         }

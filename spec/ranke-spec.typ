@@ -51,7 +51,7 @@
 // handle; `tier` is FORCED (ADT-mandated, portable across implementations) or
 // FREE (a RankeDB choice). Rendered as a hanging label so the rules scan.
 #let rule(id, tier, body) = block(above: 0.6em, below: 0.6em, inset: (left: 0.2em))[
-  #grid(columns: (5.5em, 1fr), column-gutter: 0.6em,
+  #grid(columns: (8.5em, 1fr), column-gutter: 0.6em,
     [#text(weight: "bold")[#id] \ #text(size: 0.78em, fill: rgb("#666"))[#tier]],
     [#body])
 ]
