@@ -24,7 +24,7 @@ PDFS := \
   $(PDF_DIR)/ranke-glossary.pdf \
   $(PDF_DIR)/ranke-spec.pdf
 
-.PHONY: all clean 01 02 03 04 05 06 glossary spec watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary watch-spec verify update-testdata testdata-bundle release major minor patch breaking feature fix
+.PHONY: all clean 01 02 03 04 05 06 glossary spec schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-06 watch-glossary watch-spec verify update-testdata testdata-bundle release major minor patch breaking feature fix
 
 all: $(PDFS)
 
@@ -88,10 +88,34 @@ watch-spec:
 clean:
 	rm -f $(PDF_DIR)/*.pdf
 
-# Pre-release gate: every paper must compile. Extend with more checks later
-# (linting, link-checking, …); release depends on this passing.
-verify: all
-	@echo "verify: all papers compiled."
+# The RQL schema — the machine-readable form of the specification's RankeQL
+# chapter, released as its own asset so every implementation downloads the same
+# document. Two checks: the schema itself against the 2020-12 metaschema, and
+# each of its `examples` against the schema, so a released schema never carries
+# an example it would reject.
+RQL_SCHEMA := spec/rql.schema.json
+
+schema:
+	@command -v jq > /dev/null || { echo "jq not found"; exit 1; }
+	@command -v npx > /dev/null || { echo "npx not found — the schema check runs ajv-cli through it"; exit 1; }
+	@npx --yes ajv-cli@5 compile --spec=draft2020 -s $(RQL_SCHEMA)
+	@n=$$(jq '.examples | length // 0' $(RQL_SCHEMA)); \
+	[ "$$n" -gt 0 ] || { echo "$(RQL_SCHEMA) carries no examples — nothing to check them against"; exit 1; }; \
+	work=$$(mktemp -d); \
+	i=0; while [ $$i -lt $$n ]; do \
+		jq -c ".examples[$$i]" $(RQL_SCHEMA) > "$$work/example-$$i.json"; \
+		i=$$((i + 1)); \
+	done; \
+	npx --yes ajv-cli@5 validate --spec=draft2020 -s $(RQL_SCHEMA) -d "$$work/*.json"; \
+	status=$$?; \
+	rm -rf "$$work"; \
+	exit $$status
+
+# Pre-release gate: every paper must compile and the schema must hold. Extend
+# with more checks later (linting, link-checking, …); release depends on this
+# passing.
+verify: all schema
+	@echo "verify: all papers compiled, schema valid."
 
 # Regenerate the conformance artifacts under 01-ranke-graph/testdata/cbor.
 #
