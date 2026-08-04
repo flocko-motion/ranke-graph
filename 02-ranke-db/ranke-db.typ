@@ -248,13 +248,13 @@ _Discharges R4 (composability)._
 
 == Deletion <sec:deletion>
 
-The ADT is immutable and append-only, yet a legal requirement or an administrative choice can force a claim's bytes to be removed. RankeDB purges the bytes while leaving an explained gap in their place, so the removal is documented rather than silent. Deletion takes two forms.
+The ADT is immutable and append-only, yet a legal requirement or an administrative choice can force a claim's bytes to be removed. RankeDB deletes the bytes while leaving an explained gap in their place, so the deletion is documented rather than silent. Deletion takes two forms.
 
-_Planned_ deletion is intrinsic: a `delete_by` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so once the bytes are purged the gap stays explained wherever the claim is reached — the schedule travels with each reference, and no propagation is needed. A claim carrying `delete_by` is replicated only into layers configured to allow deletion; a purge removes due claims at an interval set in the configuration.
+_Planned_ deletion is intrinsic: a `delete_by` date the claim carries in its signed content from creation. Every edge referencing the claim copies that date, so once the bytes are deleted the gap stays explained wherever the claim is reached — the schedule travels with each reference, and no propagation is needed. A claim carrying `delete_by` is replicated only into layers configured to allow deletion; a sweep deletes due claims at an interval set in the configuration.
 
-_Requested_ deletion is extrinsic: a later claim whose `contribution/delete` edge names the target by id (foundation paper §Types), documenting the gap once the bytes are purged. It is a limiting claim, so @sec:crossbranch carries it to any branch that references the target.
+_Requested_ deletion is extrinsic: a later claim whose `contribution/delete` edge names the target by id (foundation paper §Types), documenting the gap once the bytes are deleted. It is a limiting claim, so @sec:crossbranch carries it to any branch that references the target.
 
-Verification must still pass for a graph whose claims were purged, which extends the foundation's verification algorithm with a callback that accepts an explained gap — a `contribution/delete` reference, or a copied `delete_by` date — in place of the missing bytes.
+Verification must still pass for a graph whose claims were deleted, which extends the foundation's verification algorithm with a callback that accepts an explained gap — a `contribution/delete` reference, or a copied `delete_by` date — in place of the missing bytes.
 
 Deletion right is a *D* grant per branch (@sec:access). As a delete reaches every branch that holds the claim, configure access rights with tenancy in mind. 
 
@@ -322,7 +322,7 @@ For *planned expiry* we add an optional field `pubkey_expires_after` (RFC 3339) 
 
 == Access Control <sec:access>
 
-Access Control in RankeDB is expressed as system accounts defined in the configuration that each have a set of grants. Each grant allows one system account a set of rights to one or more branches within the Ranke-Archive. We encode access rights with the classic *CRUD* letters. *C* allows contributing claims to the target branch, *R* read access, *U* updating existing claims by overlaying them with newer versions (e.g. @sec:keyrotation), and *D* deleting claims; since a physical purge removes bytes from the shared Universe, deleting a claim held in several branches requires *D* on every branch that holds it (see @sec:crossbranch). The target of each grant is given as a glob.
+Access Control in RankeDB is expressed as system accounts defined in the configuration that each have a set of grants. Each grant allows one system account a set of rights to one or more branches within the Ranke-Archive. We encode access rights with the classic *CRUD* letters. *C* allows contributing claims to the target branch, *R* read access, *U* updating existing claims by overlaying them with newer versions (e.g. @sec:keyrotation), and *D* deleting claims; since deletion removes bytes from the shared Universe, deleting a claim held in several branches requires *D* on every branch that holds it (see @sec:crossbranch). The target of each grant is given as a glob.
 
 Example: `webapp CR foo_*, provisioner C $branches` allows `provisioner` to create branches such as `foo_bar` and `webapp` to read and contribute to them.
 
