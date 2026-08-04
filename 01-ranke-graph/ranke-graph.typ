@@ -373,7 +373,7 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 Scoping selects a sub-RG of $"RG"_k$ via an indicator $sigma : "RG"_k -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope; σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_k$, for example claims derived from one contributor's contributions, or claims related to one project.
 
-The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(k_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(k_s)$, merge with the previous selection, mint a new head.
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(k_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(k_s)$, merge with the previous selection, create a new head.
 
 == Set Algebra <sec:set-algebra>
 

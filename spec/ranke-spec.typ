@@ -101,8 +101,9 @@ data structure.]
 leaves open. Another implementation of the ADT *MAY* decide differently; a
 conformant *RankeDB* MUST follow it.]
 
-Where a chapter's subject warrants a family of its own, the `R` is followed by a
-category prefix e.g. `R-Q…` for rules regarding the RankeDB query language.
+Where a subject warrants a family of its own, the `R` is followed by a category
+prefix: `R-C…` for contributions, `R-A…` for access, `R-D…` for deletion, and
+`R-Q…` for the query language.
 
 *Examples.* Every example in this specification is stated against the reference
 archive (@sec:fixture) with labelled claims e.g. `src₁`, `bt₂`.
@@ -110,10 +111,11 @@ archive (@sec:fixture) with labelled claims e.g. `src₁`, `bt₂`.
 = Graph Verification <sec:verification>
 
 *Verification* decides whether a set of claims is a *valid* Ranke-Graph and,
-in RankeDB, whether a contribution may merge into an existing archive. The ADT
-rules (@sec:v-adt) decide validity; the RankeDB rules (@sec:v-rankedb) add what a
-contribution must satisfy to merge (foundation paper
-§Verifiability, RankeDB paper §Verification and Witnessing).
+in RankeDB, whether a contribution may be admitted to an existing archive. The ADT
+rules (@sec:v-adt) decide validity, and every one is FORCED — portable to any Ranke
+implementation. The rest are RankeDB's own: contributions (@sec:v-contribution),
+deletion (@sec:v-deletion), and access (@sec:v-access). (foundation paper
+§Verifiability, RankeDB paper §Verification and Witnessing)
 
 Given a Ranke-Archive, verification walks the closure of its head — every claim
 reached by following edges to their references — and checks each against the rules
@@ -166,88 +168,137 @@ added, and MUST NOT predate what it references:
 `created_at`$(v) gt.eq max$ `created_at`$(u)$ over every reference $u$ of $v$.
 (foundation paper §Nodes, §Claims, §Merkle DAG)]
 
-== RankeDB rules — added policy <sec:v-rankedb>
+== Contribution rules <sec:v-contribution>
 
-RankeDB enforces every *V-* rule above and adds the following. Each is a choice
-the ADT leaves open; together they are what a contribution must satisfy to merge
-(RankeDB paper §Sequencer, §Timestamping, §Keyrotation, §Cross Branch Propagation).
+A *contribution* is a set of claims added to the archive in one transaction: all of
+them, or none. Its procedure is fixed by the RankeDB paper §Sequencer in six steps,
+whose numbers the rule ids below carry:
 
-#rule("R-BASE", FREE)[Every claim added in a contribution MUST be dated
-`created_at`$lt.eq t$, where $t$ is the contribution's base time — the server
-time stamped when the contribution was opened against head $k$, the pair $(k,t)$
-(RankeDB paper §Sequencer, step 2).]
+1. *Opening* — the base $(k, t)$ is taken.
+2. *Adding* — the contribution's claims are added.
+3. *Completing* — it is closed over its references.
+4. *Verifying* — every claim is checked against the base, and the contribution
+   sealed.
+5. *Persisting* — its whole closure is stored durably.
+6. *Merging* — the Sequencer contributes a new branch table claim referencing the
+   contribution's head claims, and the archive's head advances, $k arrow.r k'$.
 
-#rule("R-CEIL", FREE)[A claim merged by the server MUST NOT be dated later than
-the server's own clock at merge. This ceiling, with *V-MONO*, prevents
-future-dating; judging whether a date is otherwise *plausible* is out of scope
-and left to client applications. (RankeDB paper §Timestamping)]
+Step 1's access check is the `R-A…` family of @sec:v-access.
 
-#rule("R-KEYWIN", FREE)[A claim MUST verify against a contributor key that is
-valid at the claim's `created_at`. A key's validity is the closed window from
-`pubkey_valid_from` through `pubkey_expires_after` (both RFC 3339, both optional)
-on the contributor claim; a claim dated strictly after `pubkey_expires_after`
-fails verification. Rotation adds a further contributor claim with a later
-window; windows MAY overlap. (RankeDB paper §Contributor Keys Life Cycle)]
+#rule("R-C1BASE", FREE)[Opening a contribution takes its *base* $(k, t)$: $k$ the
+archive's current head, $t$ the current system time. (RankeDB paper §Sequencer,
+step 1)]
 
-#rule("R-RESERVED", FREE)[A contribution from a system account MUST NOT contain
+#rule("R-C2DATE", FREE)[Every claim added in a contribution MUST be dated
+`created_at`$lt.eq t$, the base time. Since $t$ precedes the merge, no claim can be
+future-dated. (RankeDB paper §Sequencer, step 2; §Timestamping)]
+
+#rule("R-C2TYPE", FREE)[A contribution from a system account MUST NOT contain
 *limiting claims* (`contribution/delete`, `contribution/expiry`) or *branch-table*
-claims (`contribution/branches`): these types are minted by the Sequencer alone.
-A system account MAY only commit a *request* for one (e.g. an
-`expires_after_request` edge), which the Sequencer honours, subject to access
-policy, when it advances the head. (RankeDB paper §Sequencer, §Contributor Keys Life
-Cycle)]
+claims (`contribution/branches`): these types are created by the Sequencer alone.
+A system account MAY commit a *request* instead — a
+`contribution/expires_after_request` or `contribution/delete_request` edge — which the
+Sequencer honours at merge (`R-C6REQUEST`). (RankeDB paper §Sequencer, step 2;
+§Contributor Keys Life Cycle)]
 
-#rule("R-CLOSED", FREE)[Before verification a contribution MUST be *closed*: each
+#rule("R-C3CLOSE", FREE)[Before verification a contribution MUST be *closed*: each
 claim's references are followed, drawing in every referenced claim outside the
-contribution — from another branch or the wider Universe — together with the
-limiting claims against it, recursively, until every path reaches a claim already
-in the base's closure. Drawing in a branch-external claim requires read access to
-its branch (*R-ACCESS*). (RankeDB paper §Sequencer, step 3)]
+contribution — from another branch or the wider Universe — recursively, until every
+path reaches a claim already in the base's closure. Drawing in a branch-external
+claim requires read access to its branch (*R-ABRANCH*) and carries its limiting
+claims with it (`R-C3LIMIT`). (RankeDB paper §Sequencer, step 3)]
 
-#rule("R-LIMIT-PROP", FREE)[A limitation MUST NOT be lost across branches: when a
-contribution adds a claim that is the target of a limiting claim, the Sequencer
-MUST add that limiting claim to the same branch in the same contribution. A limit
-thus stays attached to its target wherever the target is referenced. (RankeDB paper
-§Cross Branch Propagation)]
+#rule("R-C3LIMIT", FREE)[A branch that holds a claim MUST also hold every limiting
+claim against it — a `contribution/delete` or `contribution/expiry` naming it as
+target. (RankeDB paper §Cross Branch Propagation)]
 
-#rule("R-PERSIST", FREE)[The sealed contribution's whole closure MUST be durably
-present in the Universe — stored and propagated across the storage layers —
-*before* the head advances $k arrow.r k'$. A head therefore never commits to a
-claim that failed to persist. (RankeDB paper §Sequencer, step 5)]
+#rule("R-C4KEY", FREE)[Each claim MUST be dated within the validity of the key it is
+signed under — the `pubkey` of the contributor it references, valid as `R-DEXPIRY`
+defines. (RankeDB paper §Sequencer, step 4)]
 
-#rule("R-SEAL", FREE)[Once verified, a contribution is *sealed*: its contents are
+#rule("R-C4SEAL", FREE)[Once verified, a contribution is *sealed*: its contents are
 fixed and admit no further addition or removal. By immutability, whatever
 verified against the base stays valid however long it waits before merging.
 (RankeDB paper §Sequencer, step 4)]
 
-#rule("R-ACCESS", FREE)[A contribution to a branch requires *C* (contribute)
-access to it; reads require *R*; overlaying an existing claim requires *U*;
-deleting bytes requires *D* on every branch holding the claim. Access by head id
-alone, bypassing the branch table, is *privileged* and granted only over the
-reserved `$universe` target, to which only *R* applies. Within a scope the
-grant covers the whole of it: naming a closure inside that scope, or starting a
-walk anywhere within it (@sec:rql-select), confers no access the scope's own grant
-does not already carry. (RankeDB paper §Access Control)]
+#rule("R-C5PERSIST", FREE)[The sealed contribution's whole closure MUST be durably
+present in the Universe — stored and propagated across the storage layers —
+*before* the Sequencer merges it. (RankeDB paper §Sequencer, step 5)]
 
-#rule("R-DELMARK", FREE)[A *requested* deletion MUST be documented by a
-`contribution/delete` claim: a node of class `contribution/delete` carrying a
-`contribution/delete` edge to the deleted claim (its *target*). It is a limiting
-claim — minted by the Sequencer (`R-RESERVED`) and propagated across branches
-(`R-LIMIT-PROP`). `contribution/delete` is both a node and an edge class (foundation paper
-§Type Vocabulary); mandating the *node* is what guarantees a deletion always leaves
-a typed, documented gap. (RankeDB paper §Deletion)]
+#rule("R-C6MERGE", FREE)[Every branch table MUST hold its predecessor in provenance,
+so the chain from the archive's head reaches the initial table unbroken (foundation
+paper §Ranke-Archive). Its `contribution/branch` edges MUST name, for each branch
+they bind, the head claims of the contribution merged there. (RankeDB paper
+§Sequencer, step 6)]
 
-#rule("R-DELBY", FREE)[A *planned* deletion is a `delete_by` date carried in a
-claim's signed content. Every edge referencing that claim MUST copy the
-`delete_by` date, so once the bytes are deleted the gap stays explained wherever
-the claim is reached — no limiting claim and no cross-branch propagation are
-involved. (RankeDB paper §Deletion)]
+#rule("R-C6REQUEST", FREE)[Every request a merged contribution carries (`R-C2TYPE`)
+MUST produce its limiting claim in the same merge. That claim MUST carry the same
+`created_at` as the branch table (`V-MONO` admits equality), and a
+`pubkey_expires_after` it sets MUST fall no earlier than that date. Every claim
+already in the archive stays valid, and so does every claim in a contribution still
+open, whose base time precedes the merge (`R-C1BASE`). (RankeDB paper §Sequencer,
+step 6; §Contributor Keys Life Cycle)]
 
-#rule("R-GAP", FREE)[Verification MUST still pass over a graph whose claims were
-deleted, accepting a target's absent bytes when — and only when — an *explained
-gap* covers it: a `contribution/delete` mark against it (`R-DELMARK`), or a copied
-`delete_by` (`R-DELBY`). An unexplained missing reference fails `V-REF`. (RankeDB paper
-§Deletion)]
+#rule("R-C6SIGN", FREE)[Every claim the Sequencer creates (`R-C2TYPE`) MUST carry a
+`contribution/contributor` edge naming the contributor claim configured as the
+Sequencer's identity. (RankeDB paper §Sequencer)]
+
+== Deletion rules <sec:v-deletion>
+
+Deletion takes two forms (RankeDB paper §Deletion). A *planned* deletion is intrinsic:
+the claim carries its own `delete_by` date from creation, and a sweep deletes it when
+due. A *requested* deletion is extrinsic and retroactive: a later limiting claim names
+the target, and the Sequencer carries it out. Each leaves an explained gap of its own
+kind, which is what lets verification pass over either (`R-DGAP`).
+
+#rule("R-DPLANNED", FREE)[A *planned* deletion is a `delete_by` date carried in a claim's
+signed content from creation. Every edge referencing that claim MUST copy the date, so
+the gap stays explained wherever the claim is reached. (RankeDB paper §Deletion)]
+
+#rule("R-DREQUEST", FREE)[A *requested* deletion is documented by a `contribution/delete`
+claim: a node of that class carrying a `contribution/delete` edge to its *target*, the
+deleted claim. A system account requests a deletion (`R-C2TYPE`); the Sequencer carries
+it out (`R-C6REQUEST`). (RankeDB paper §Deletion)]
+
+#rule("R-DGAP", FREE)[Verification MUST pass over a graph holding a physically deleted
+claim when — and only when — an *explained gap* covers it: a `contribution/delete` mark
+against it (`R-DREQUEST`), or a copied `delete_by` (`R-DPLANNED`). Without such a gap,
+the missing claim fails `V-REF`. (RankeDB paper §Deletion)]
+
+#rule("R-DEXPIRY", FREE)[A contributor's key is valid within the closed window from
+`pubkey_valid_from` through `pubkey_expires_after` (both RFC 3339, both optional) on
+the contributor claim; a contributor carrying neither is valid at any date. A
+`contribution/expiry` edge against that contributor carries an earlier
+`pubkey_expires_after` and moves the end of the window to it. That edge is carried
+either by a `contribution/expiry` claim or by the `contribution/contributor` claim
+introducing the successor key, and `R-C3LIMIT` keeps that claim in every branch
+reaching the contributor. (RankeDB paper §Contributor Keys Life Cycle, §Cross Branch
+Propagation)]
+
+== Access rules <sec:v-access>
+
+The `R-A…` family of access rules governs reads, contributions, and administration
+(RankeDB paper §Access Control).
+
+#rule("R-AGRANT", FREE)[A *grant* is a triple: a system account, a target, and the
+rights it holds there, written as the letters *C*, *R*, *U*, and *D*. Accounts and
+their grants are fixed in the configuration; a target is a branch-name glob or a
+reserved `$`-target. Every operation requires its letter on its target, and the rules
+below fix what each letter does at each target.]
+
+#rule("R-ABRANCH", FREE)[On a branch: *C* contributes a claim, *R* reads, *U* requests
+an early expiry (`R-DEXPIRY`), and *D* requests a deletion — the `contribution/delete`
+mark and the physical removal that follows (`R-DREQUEST`). *U* and *D* are each
+required on every branch reaching the claim, since a limiting claim propagates to all
+of them (`R-C3LIMIT`).]
+
+#rule("R-ATABLE", FREE)[On `$branches`, the branch tables: *C* adds a new branch to the
+table, *R* reads it, and *D* soft-deletes a branch by creating a new table that omits it.]
+
+#rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged* — a head id
+bypasses the branch table, so it reaches any graph the Universe holds. Because `$`
+is illegal in ordinary branch names, no glob matches a `$`-name and the privilege is
+never conferred by accident.]
 
 = RankeQL (RQL) <sec:rql>
 
@@ -363,12 +414,11 @@ it. In the reference archive, `der₅` (`review`) cites `der₄` (`master`): a `
 step from `der₄` returns `der₅` under `$archive`, and nothing under `master`,
 whose closure does not hold `der₅`. Same start claim, two closures, two answers.
 
-#rule("R-QSCOPE", FREE)[`branch` is the mandatory *scope*. A real branch name
-confines the query to that branch; `$archive` confines it to the whole
-Ranke-Archive; `$universe` applies no confinement. An empty `branch` MUST be
-rejected. The scope is what a grant is held against (`R-ACCESS`), and `$universe`
-is privileged. (`$archive` extends the reserved `$`-targets of §Access, which names
-`$universe` and `$branches`.)]
+#rule("R-QSCOPE", FREE)[`branch` is the mandatory *scope*, and every scope names a
+graph: a branch name confines the query to that branch, `$branches` to the branch
+tables, `$archive` to the whole Ranke-Archive, and `$universe` applies no
+confinement. An empty `branch` MUST be rejected. The scope is what a grant is held
+against (`R-AGRANT`), and `$universe` is privileged.]
 
 #rule("R-QHEAD", FREE)[`head` fixes the *closure* read: the query sees
 $"closure"("head", cal(U))$ and nothing outside it. It is *required* under
@@ -438,8 +488,8 @@ of the claim's closure alone, hence determined by $op("id")(v)$
 (foundation paper §Merkle DAG): every Universe holding the claim computes the same value,
 and appending to the
 archive never changes one. RankeDB MUST compute a claim's height while it verifies
-that claim's closure (`R-CLOSED`) and retain it, so a claim whose bytes are later
-deleted keeps the height it entered with (`R-GAP`).]
+that claim's closure (`R-C3CLOSE`) and retain it, so a claim later deleted keeps the
+height it entered with (`R-DGAP`).]
 
 Height is strictly *decreasing* along every reference — $"height"(u) <
 "height"(v)$ for each reference $u$ of $v$ — so it is a topological rank of the
@@ -588,12 +638,21 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule or chapter it belongs to is incomplete, and an
 implementation is free where the specification is silent.
 
+#todo[*Which edge holds the predecessor.* `R-C6MERGE` requires the new branch table
+to hold the previous one in its provenance, and foundation paper §Ranke-Archive
+requires the same. §Branches names only `contribution/diff` as the link, and permits
+a revision that restates the whole table — which carries no diff edge. Fix the edge
+that holds the predecessor when the revision is not a diff. (Taxonomy and
+well-formedness)]
+
 #todo[*The closed `contribution/*` subtype set.* Fix its exact members and their
-names: whether the deletion marker is `delete`, as foundation paper §Type Vocabulary and
-`R-DELMARK` have it, or another name; and whether `expiry` is a member, which
-`R-RESERVED` and RankeDB paper §Contributor Keys Life Cycle assume. The set is closed,
-so the membership is normative, unlike the open subtypes of the other classes.
-(Taxonomy and well-formedness)]
+names: whether the deletion marker is `delete`, as foundation paper §Type Vocabulary
+and `R-DREQUEST` have it; whether `expiry` is a member, which `R-C2TYPE` and RankeDB
+paper §Contributor Keys Life Cycle assume; and the request edges a system account uses
+to ask for each — `contribution/expires_after_request` and
+`contribution/delete_request` — which the papers name only for expiry, and without the
+class prefix. The set is closed, so the membership is normative, unlike the
+open subtypes of the other classes. (Taxonomy and well-formedness)]
 
 #todo[*Whether `height` is carried or derived.* @sec:rql-height states it as a
 derived field a query may name. If instead it is carried in the node record it
@@ -618,10 +677,9 @@ query needs of it. (foundation paper §Claims, Taxonomy and well-formedness)]
 = Annex — The Reference Archive <sec:fixture>
 
 Every example in this specification is stated against one small, fixed archive,
-defined once in this annex. The chapters above point at its claims by *symbolic*
-label (`src₁`, `bt₂`, …) rather than by real id, because a real id is
-$"Sign"(H(S(v)))$ — opaque. The labels are a reading convenience; the archive's
-authoritative structure is the claim listing in @tbl:archive.
+defined once in this annex. Chapters above point at its claims by *symbolic* label
+(`src₁`, `bt₂`, …), a reading convenience: a real id is $"Sign"(H(S(v)))$, and
+opaque. The claim listing in @tbl:archive is the archive's authoritative structure.
 
 This annex is also the source for the fixture a conformance suite (RankeDB paper
 §Conformance) runs on: there the same archive is materialised into real
@@ -651,17 +709,17 @@ fresh key — a second `contribution/contributor`, `c_alice2`, with its own
 `pubkey_valid_from` overlapping the old window (RankeDB paper §Keyrotation). `der₃` and
 `der₄`, dated after the first key lapsed, are signed by `c_alice2`; her earlier
 claims by `c_alice`. A claim dated outside a key's window fails verification
-(`R-KEYWIN`). `c_bob` is a third author, with his own key window.
+(`R-C4KEY`). `c_bob` is a third author, with his own key window.
 
 Both forms of deletion (RankeDB paper §Deletion) appear. `src₂` carries a `delete_by`
-date, a *planned* deletion (`R-DELBY`); `der₅`'s edge to it copies that date, so
+date, a *planned* deletion (`R-DPLANNED`); `der₅`'s edge to it copies that date, so
 the schedule travels with the reference, no propagation needed. `del₁` is a
-*requested* deletion (`R-DELMARK`): a `contribution/delete` claim naming `src₁` as
-its target, minted by the Sequencer and held in the reserved system branch
+*requested* deletion (`R-DREQUEST`): a `contribution/delete` claim naming `src₁` as
+its target, created by the Sequencer and held in the reserved system branch
 `$system` — the archive's internal index of limiting claims, read at startup for
 fast lookup by target (RankeDB paper §Cross-Branch). Because `src₁` is reached from
-every content branch, the delete propagates to each (`R-LIMIT-PROP`); verification
-then accepts the explained gap (`R-GAP`).
+every content branch, the delete propagates to each (`R-C3LIMIT`); verification
+then accepts the explained gap (`R-DGAP`).
 
 A Ranke-Archive is a single graph and its branches are only subgraphs, so a claim
 may reference one in another branch as a matter of course — `der₂` (`master`)
@@ -742,7 +800,7 @@ references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
 ) <fig:archive>
 
 The listing is authoritative. `created_at` is monotone along every reference
-(`V-MONO`); each contributor's key window covers the dates it signs (`R-KEYWIN`);
+(`V-MONO`); each contributor's key window covers the dates it signs (`R-C4KEY`);
 the `name` on a `contribution/branch` edge is its branch label.
 
 #figure(
@@ -785,15 +843,15 @@ Each branch-table revision is one contribution. `bt₀` initialises the archive
 `rel₁` (its head). `bt₃` extends both, contributing `der₃` and `der₄`, the latter
 distilling `master`'s cluster, both signed by Alice's rotated key `c_alice2`. `bt₄`
 adds `review`, registering `c_bob` and contributing `src₂` and `der₅`, and `bt₅`
-records the requested deletion, where the Sequencer mints `del₁` and opens
+records the requested deletion, where the Sequencer creates `del₁` and opens
 `$system` over it. Every revision restates only its delta, so materialising back to
 `bt₀` yields the current table: `project_x` → `der₃`, `master` → `der₄`,
 `review` → `der₅`, `$system` → `del₁`.
 
 Every claim signs under the initial node `c_seq`, the Sequencer, which alone
-signs branch tables and limiting claims (`R-RESERVED`, `V-SIG`). The content
+signs branch tables and limiting claims (`R-C2TYPE`, `V-SIG`). The content
 authors are Alice — two keys, `c_alice` and its rotation `c_alice2` — and Bob
 (`c_bob`), each a `contribution/contributor` resolving to `c_seq`. For legibility
-the fixture keeps `del₁` only in `$system`; `R-LIMIT-PROP` places a reference to
+the fixture keeps `del₁` only in `$system`; `R-C3LIMIT` places a reference to
 it in every content branch that reaches `src₁`. The papers leave the system
 branch's name open: `$system` is this document's choice.
