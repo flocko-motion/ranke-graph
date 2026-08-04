@@ -44,7 +44,7 @@
 )
 // Faint style for the contribution/contributor edge every claim carries.
 #let ctr-stroke = 0.35pt + rgb("#b3b3b3")
-// The contribution/diff chain between branch tables — the archive's head history.
+// The branch-table chain: each table holds its predecessor in provenance.
 #let diff-stroke = 1pt + rgb("#2563eb")
 
 // A normative rule: a tagged, numbered statement. `id` is the stable citation
@@ -222,7 +222,7 @@ verified against the base stays valid however long it waits before merging.
 
 #rule("R-ACCESS", FREE)[A contribution to a branch requires *C* (contribute)
 access to it; reads require *R*; overlaying an existing claim requires *U*;
-purging bytes requires *D* on every branch holding the claim. Access by head id
+deleting bytes requires *D* on every branch holding the claim. Access by head id
 alone, bypassing the branch table, is *privileged* and granted only over the
 reserved `$universe` target, to which only *R* applies. Within a scope the
 grant covers the whole of it: naming a closure inside that scope, or starting a
@@ -231,20 +231,20 @@ does not already carry. (RankeDB paper §Access Control)]
 
 #rule("R-DELMARK", FREE)[A *requested* deletion MUST be documented by a
 `contribution/delete` claim: a node of class `contribution/delete` carrying a
-`contribution/delete` edge to the purged claim (its *target*). It is a limiting
+`contribution/delete` edge to the deleted claim (its *target*). It is a limiting
 claim — minted by the Sequencer (`R-RESERVED`) and propagated across branches
 (`R-LIMIT-PROP`). `contribution/delete` is both a node and an edge class (foundation paper
-§Type Vocabulary); mandating the *node* is what guarantees a purge always leaves a
-typed, documented gap. (RankeDB paper §Deletion)]
+§Type Vocabulary); mandating the *node* is what guarantees a deletion always leaves
+a typed, documented gap. (RankeDB paper §Deletion)]
 
 #rule("R-DELBY", FREE)[A *planned* deletion is a `delete_by` date carried in a
 claim's signed content. Every edge referencing that claim MUST copy the
-`delete_by` date, so once the bytes are purged the gap stays explained wherever
+`delete_by` date, so once the bytes are deleted the gap stays explained wherever
 the claim is reached — no limiting claim and no cross-branch propagation are
 involved. (RankeDB paper §Deletion)]
 
 #rule("R-GAP", FREE)[Verification MUST still pass over a graph whose claims were
-purged, accepting a target's absent bytes when — and only when — an *explained
+deleted, accepting a target's absent bytes when — and only when — an *explained
 gap* covers it: a `contribution/delete` mark against it (`R-DELMARK`), or a copied
 `delete_by` (`R-DELBY`). An unexplained missing reference fails `V-REF`. (RankeDB paper
 §Deletion)]
@@ -439,7 +439,7 @@ of the claim's closure alone, hence determined by $op("id")(v)$
 and appending to the
 archive never changes one. RankeDB MUST compute a claim's height while it verifies
 that claim's closure (`R-CLOSED`) and retain it, so a claim whose bytes are later
-purged keeps the height it entered with (`R-GAP`).]
+deleted keeps the height it entered with (`R-GAP`).]
 
 Height is strictly *decreasing* along every reference — $"height"(u) <
 "height"(v)$ for each reference $u$ of $v$ — so it is a topological rank of the
@@ -589,7 +589,7 @@ Until one is settled, the rule or chapter it belongs to is incomplete, and an
 implementation is free where the specification is silent.
 
 #todo[*The closed `contribution/*` subtype set.* Fix its exact members and their
-names: whether the purge marker is `delete`, as foundation paper §Type Vocabulary and
+names: whether the deletion marker is `delete`, as foundation paper §Type Vocabulary and
 `R-DELMARK` have it, or another name; and whether `expiry` is a member, which
 `R-RESERVED` and RankeDB paper §Contributor Keys Life Cycle assume. The set is closed,
 so the membership is normative, unlike the open subtypes of the other classes.
@@ -671,8 +671,9 @@ references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
 #figure(
   caption: [The reference archive at head `bt₅`. Nodes are claims, tinted by
   class. Solid black edges are reference edges — `derivation`, `relation/*`
-  (labelled `from`/`to`), and `del₁`'s `contribution/delete` edge to the purged
-  `src₁`. Blue edges are the `contribution/diff` head-history chain. Dotted edges
+  (labelled `from`/`to`), and `del₁`'s `contribution/delete` edge to the deleted
+  `src₁`. Blue edges are the branch-table chain, each table referencing its
+  predecessor. Dotted edges
   are `contribution/branch`, naming each branch's current head, including the
   reserved `$system` branch that indexes limiting claims. The faint grey lines are
   the `contribution/contributor` edges — every claim to its contributor: content
@@ -705,7 +706,7 @@ references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
     node((3.4, 7.2), $c_"alice2"$, name: <ca2>, fill: tint.contribution)
     node((4.8, 7.2), $c_"bob"$,    name: <cb>,  fill: tint.contribution)
 
-    // diff chain — the archive's head history
+    // branch-table chain — each table holds its predecessor
     edge(<bt1>, <bt0>, "-|>", stroke: diff-stroke)
     edge(<bt2>, <bt1>, "-|>", stroke: diff-stroke)
     edge(<bt3>, <bt2>, "-|>", stroke: diff-stroke)

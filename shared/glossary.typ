@@ -109,6 +109,9 @@
   (key: "branch-table", short: "branch table", group: "01 · Ranke-Graph",
    description: [A `contribution/branches` claim indexing the archive's branches — each edge names one branch and references its head — chained to its predecessor as provenance. (foundation paper §Branches)]),
 
+  (key: "branch-table-chain", short: "branch-table chain", group: "01 · Ranke-Graph",
+   description: [The chain of #glspl("branch-table") from an archive's current head back to the initial empty table, each holding its predecessor in provenance, so it carries every state the archive has held. Called the *spine* colloquially, and in the reference implementation. Distinct from the Sequencer's head history, which is the sequence of branch-table #gls("id")s it keeps outside the graph. (foundation paper §Branches, §Ranke-Archive)]),
+
   (key: "ranke-archive", short: "Ranke-Archive", group: "01 · Ranke-Graph",
    description: [$"RA"_k$, a Ranke-Graph whose head $cal(U)(k)$ is a branch-table claim; the tuple $(cal(U), k)$ of the Universe and a head id. Adding yields a new tuple $(cal(U)', k')$ — nothing is mutated. (foundation paper §Ranke-Archive)]),
 
@@ -141,7 +144,7 @@
    description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-node"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
 
   (key: "limiting-claim", short: "limiting claim", group: "02 · RankeDB",
-   description: [A claim restricting use of another — a purge (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),
+   description: [A claim restricting use of another — a deletion (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),
 
   (key: "blob-store", short: "blob store", group: "02 · RankeDB",
    description: [A content-addressed byte store with `get` / `put` / `has`; the ground any RankeDB #gls("universe") rests on. (§Blob Store)]),
