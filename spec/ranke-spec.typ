@@ -403,8 +403,8 @@ conformance testing. (RankeDB paper §Filtered Reads, §Conformance)]
 
 The `select` block is the *generator*. It answers two questions, and its fields divide
 along them: *which graph is read*, and optionally *where a traversal starts* — the
-*frontier* that `path` walks from: either from the single claim defined by `claim` or from
-every claim in the closure when it names none.
+*frontier*, the set of claims a walk starts from, either the single claim `claim` defines
+or every claim in the closure when it names none.
 
 `path` is a series of steps, and a walk takes them in order without leaving the graph
 read. A `provenance` step follows references outward; a `uses` step runs the other way,
@@ -443,31 +443,26 @@ a `max` of `0` or an absent `max` leaves the step unbounded. A `min` above a bou
 MUST be rejected. An absent `path` returns the full outward closure of the frontier
 (foundation paper §Closures).]
 
-An anchored generator asks what one claim reaches; an unanchored one asks where a
-shape occurs, which is Cypher's `MATCH` with and without a bound variable. Both are
-bounded alike by the closure, and unanchored with no step names the closure itself.
-
-The two zeros of `R-QHOPS` differ because each has only one useful sense: a step of
+The two zeros of `R-QSTEPS` differ because each has only one useful sense: a step of
 at most zero hops would move nothing, so `max: 0` means unbounded, while `min: 0`
 yields the starting set alongside what lies beyond it.
 
-#rule("R-QFRONTIER", FREE)[A `path` is a *frontier pipeline*. Each step is an
-*independent* bounded walk that starts from the *set* of endpoints the previous step
-produced — the first step from the anchor, or from every claim in the closure when
-the path is unanchored — and its own endpoints become the next step's starting set.
-The no-repeat rule (a walk does not revisit a node) applies *within a single step*
-and *resets* at each step boundary, so a later step MAY re-cross a claim or
-re-traverse an edge an earlier step used. A result MUST NOT depend on how the
-frontier was reached.]
+#rule("R-QFRONTIER", FREE)[A `path` is a sequence of steps over *frontiers*, each frontier
+a *set* of claims. The first is the claim `claim` anchors, or every claim in the closure
+when it names none (`R-QANCHOR`); each step's yield is the frontier the next step starts
+from (`R-QSTEPS`). Membership is all a frontier carries, so a result MUST NOT depend on
+the route by which a claim entered one. The no-repeat rule — a walk does not revisit a
+claim — holds within a single step and resets at each boundary, so a later step MAY
+re-cross a claim or re-traverse an edge an earlier step used.]
 
 This is the one place RQL departs from Cypher, whose single-trail reading with
-whole-path edge-uniqueness drops results a frontier pipeline returns; the RankeDB
+whole-path edge-uniqueness drops results `R-QFRONTIER` admits; the RankeDB
 paper §Filtered Reads works the case through.
 
-*(Planned.)* When a query returns a route (`detail: path`), a caller may want to
+*(Planned.)* When a query returns a route (`shape: path`), a caller may want to
 constrain the route's *shape* — no repeated edges, or no repeated nodes. A future
 opt-in modifier on a path or step will expose the ISO GQL path modes (`WALK`,
-`TRAIL`, `ACYCLIC`, `SIMPLE`); the default remains the frontier pipeline above.
+`TRAIL`, `ACYCLIC`, `SIMPLE`); the default remains `R-QFRONTIER` above.
 
 == `height` — the level a claim sits at <sec:rql-height>
 
@@ -506,7 +501,7 @@ reference sits strictly lower than the claim citing it, a result bounded by
 references are kept too. That filter alone therefore yields a valid Ranke-Graph,
 reaching $h$ levels of derivation above its sources, where a filter on any other
 field yields an arbitrary set. And a bound on it is one integer comparison per claim,
-which a layer that indexes the field answers as a range rather than a traversal.
+which a layer that indexes the field answers as a range lookup.
 
 In the reference archive the contributors sit at 1 (`c_seq`, an initial node) and 2
 (`c_alice`, `c_alice2`, `c_bob`); `src₁` and `src₂` at 3; `der₁`, `der₂` and `del₁`
@@ -515,9 +510,8 @@ archive head `bt₅` at 10. A bound of `le: 4` over `master` therefore keeps `sr
 `der₂` and the contributor claims, leaving `ent₁`/`ent₂` (5), `rel₁` (6) and the
 head `der₄` (7) outside it.
 
-Height is a level in the derivation structure, not a clock. It answers 'up to $h$
-levels of derivation above the sources' exactly, and 'the branch as it stood' not at
-all. A claim contributed today at a low height — a fresh source, or a derivation
+Height measures derivation structure: it answers 'up to $h$ levels of derivation above
+the sources'. A claim contributed today at a low height — a fresh source, or a derivation
 directly over one — satisfies a low bound as readily as the oldest claim in the
 archive. A read of a past state pins that past `head`, whose closure is immutable;
 a read at a past *time* filters `created_at`.
@@ -549,8 +543,8 @@ paper §Content). *`encoding`*: `json` (text, content base64-encoded) or `cbor`
 
 A claim always carries every outgoing edge of its node (foundation paper §Claims),
 so `claims` is richer than the `graph` view, which shows only the edges linking
-results. `form` is a property of the values rather than the structure, which is what
-makes it orthogonal to `detail` and `encoding`.
+results. `form` is a property of the values, which is what makes it orthogonal to
+`detail` and `encoding`.
 
 Materialisation resolves field values only. A claim's id, contributor, signature
 and `created_at` are always its own, whatever a diff chain supplies for its other
@@ -563,7 +557,7 @@ view.
 computed over (foundation paper §Primitives). It is the only output form directly
 verifiable against the id.]
 
-== `order`, `limit`, `execution` <sec:rql-bounds>
+== `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
 #rule("R-QSORT", FREE)[`order` is a list of sort keys applied in priority order.
 Each key names a `field`, a `compare` — how its values are ordered, `numeric` or
@@ -579,10 +573,13 @@ Because the order is total, paging is stable: carry the last row's key into a
 `time` the execution budget, each `0` meaning unbounded. A read cut short by either
 bound is a complete answer to the query as bounded, not an error.]
 
-`execution` controls where the query runs and how it reports. `layer` pins the
-query to one named storage/execution layer; without it the backend chooses by
-capability. `report` sets a verbosity — `info` (high-level stages), `debug`
-(routing and lowering), or `trace` (per-claim detail).
+#rule("R-QLAYER", FREE)[`execution.layer` pins the query to one named storage or
+execution layer, and an empty name MUST be rejected. Absent, the backend chooses by
+capability. The choice reaches execution alone: the result set MUST be identical
+whichever layer serves it (`R-QEVAL`).]
+
+`report` sets a verbosity — `info` (high-level stages), `debug` (routing and
+translation), or `trace` (per-claim detail).
 
 == Results and streaming <sec:rql-results>
 
@@ -607,9 +604,42 @@ Element =               // set by output.detail (field values per output.form)
 
 #rule("R-QREPORT", FREE)[When, and only when, `execution.report` is set, the stream
 carries one final *report* record after the last element: the layer that served the
-query, the query it was lowered to (the Cypher/GQL text, or `native`), and per-stage
+query, the query it was translated to (the Cypher/GQL text, or `native`), and per-stage
 timings. It MUST be typed distinctly from result claims, so a reader never mistakes
 it for data.]
+
+== Translation to Cypher <sec:rql-cypher>
+
+A query translates to a single Cypher statement, which is what lets a graph database
+serve it natively. This section fixes that translation. It defines no meaning of its
+own: a translated query answers exactly what the rules above define, and the native
+reference engine settles any disagreement (`R-QEVAL`).
+
+#rule("R-QCYPHER", FREE)[A translation MUST deliver the result set this chapter defines,
+in the order it defines. Where a translated query and the native engine disagree, the
+translation is the defect.]
+
+#rule("R-QCCLAUSE", FREE)[Block by block: `select` translates to a `MATCH`, bound to a
+variable when `claim` anchors it; `where` to a `WHERE` over the endpoint; `order` to an
+`ORDER BY` carrying the `(created_at, id)` tie-break (`R-QSORT`); `limit.results` to a
+`LIMIT`; and `output.detail` to the `RETURN` projection — the id alone, or the node with
+its labels and outgoing edges. The remaining fields stay outside the statement:
+`output`'s `form`, `content`, and `encoding`, `limit.time`, and `execution` (`R-QEVAL`).]
+
+#rule("R-QCSTEP", FREE)[A `PathStep` translates to a variable-length segment in its
+`dir`, `*min..max`, an absent or `0` `max` leaving it unbounded. Its `edges` and `nodes`
+globs translate to full-match conditions on that segment's relationship and node, and an
+absent list imposes no condition (`R-QSTEPS`).]
+
+#rule("R-QCFRONTIER", FREE)[A `path` MUST translate to one `MATCH` per step, each
+carrying the previous step's endpoints forward as a distinct set. Cypher's edge-uniqueness
+holds within a single pattern, so the step boundary is what resets it, as `R-QFRONTIER`
+requires. A `path` translated as one continuous pattern drops results the frontier
+pipeline returns.]
+
+#rule("R-QCSCOPE", FREE)[However a translation confines a query — a walk from the scope's
+head, or an index the backend maintains — the confined set MUST equal the scope's graph
+(`R-QSCOPE`), and a reverse step MUST reach no claim outside it (`R-QHEAD`).]
 
 = Remaining chapters <sec:remaining>
 
@@ -618,8 +648,8 @@ the same form — sentences, ids, FORCED/FREE tiers, grounded in the papers:
 
 - *Serialization and identity* — the canonical $S$, the hash $H$, the signature
   scheme, and the alias table, decided here: the choices an implementation must
-  make to reproduce a byte-identical serialization, stated as decisions rather
-  than as code (foundation paper §Primitives).
+  make to reproduce a byte-identical serialization, stated as decisions
+  (foundation paper §Primitives).
 - *Taxonomy and well-formedness* — the fixed node and edge classes, and the
   structural constraints each imposes (e.g. a `relation/*` node's edges land on
   `entity/*` claims and carry `relation_direction`) (foundation paper §Type Vocabulary,
@@ -635,11 +665,27 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule or chapter it belongs to is incomplete, and an
 implementation is free where the specification is silent.
 
+#todo[*The schema's authority over this chapter.* While the RankeQL chapter is under
+review, the published query schema governs a query's shape and the chapter follows it
+(@sec:rql). Settle the chapter, then restore the schema to what every artifact built
+from this document is: a projection that checks the shapes stated here.]
+
+#todo[*Whole-route uniqueness for a path shape.* `R-QFRONTIER` resets edge-uniqueness at
+every step boundary, `shape: path` included, and `R-QCFRONTIER` requires a translation to
+match. A route assembled that way may re-cross an edge, which GQL calls a `WALK`; the
+stricter readings are `TRAIL`, `ACYCLIC`, and `SIMPLE` (@sec:rql-select). Decide whether a
+path shape keeps the `WALK` reading, and if not, whether the stricter one is a mode the
+caller asks for or the only reading available.]
+
+#todo[*Which route a path shape returns.* `R-QOUTPUT` says a `path` yields routes without
+fixing how many per endpoint. Decide whether an endpoint reached by several routes yields
+one — the shortest, ties broken node-by-node on `(created_at, id)` — or all of them.]
+
 #todo[*Which edge holds the predecessor.* `R-C6MERGE` requires the new branch table
 to hold the previous one in its provenance, and foundation paper §Ranke-Archive
 requires the same. §Branches names only `contribution/diff` as the link, and permits
 a revision that restates the whole table — which carries no diff edge. Fix the edge
-that holds the predecessor when the revision is not a diff. (Taxonomy and
+that holds the predecessor when the revision restates the whole table. (Taxonomy and
 well-formedness)]
 
 #todo[*The closed `contribution/*` subtype set.* Fix its exact members and their

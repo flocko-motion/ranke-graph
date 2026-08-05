@@ -180,7 +180,7 @@ Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4
 To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name abbreviates to the dot and one character (`content_size` → `.s`); a class to the dot, one character, and a slash (`contribution/*` → `.c/*`); a full type to the dot and two characters (`contribution/contributor` → `.cc`). The full table is fixed in the normative specification (@rankespec).
 An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
 
-Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = H(S(e))$ for edges. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges, while `S(e)` is the serialization of a single edge. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial node).
+Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = H(S(e))$ for edges. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges, while `S(e)` is the serialization of a single edge. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
 
 == Content <sec:content>
 
@@ -269,7 +269,7 @@ The *semantic reading* of a graph inverts each `relation/*` edge's direction if 
 
 == Ranke-Graph <sec:ranke-graph>
 
-A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references (making it an *initial node*) or carries a `contribution/contributor` edge whose closure resolves to one or more initial nodes (@sec:types).
+A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if every claim either has no references (making it an *initial claim*) or carries a `contribution/contributor` edge whose closure resolves to one or more initial claims (@sec:types).
 
 == Universe <sec:universe>
 
@@ -287,13 +287,13 @@ A *branch* is a name resolving to a closure, anchored by a `contribution/head` c
 
 A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a branch-table claim, with the previous branch tables in its provenance — the tuple $(cal(U), k)$ of the Universe and its head id $k$. From it all branches, their history, and all their graphs derive. Adding to the archive yields a new tuple $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$: the head id $k$ is not mutated but superseded, the earlier $"RA"_k$ remaining recoverable. Multiple archives can share $cal(U)$; each with its own head id.
 
-A new archive is created by writing the initial node and an empty `contribution/branches` claim, whose id is the archive's head $k$.
+A new archive is created by writing the initial claim and an empty `contribution/branches` claim, whose id is the archive's head $k$.
 
 = Discharging the Desiderata <sec:emerges>
 
 == Validity <sec:validity>
 
-An $"RG"_k$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_k$ produced via those rules is therefore valid by construction. An invalid graph (broken construction, missing initial node, unresolved references) is structurally just an arbitrary graph $G$, not a Ranke-Graph.
+An $"RG"_k$ is *valid* when it satisfies the construction rules of @sec:ranke-graph. Every $"RG"_k$ produced via those rules is therefore valid by construction. An invalid graph (broken construction, missing initial claim, unresolved references) is structurally just an arbitrary graph $G$, not a Ranke-Graph.
 
 == Consolidation <sec:consolidate>
 
@@ -314,9 +314,9 @@ Under this assumption, standard Merkle-DAG properties hold without further proof
 
 == Provenance <sec:provenance>
 
-By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_k$ is acyclic and finite, terminating at an *initial node* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
+By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_k$ is acyclic and finite, terminating at an *initial claim* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
-Traversal terminates at *one or more* initial nodes: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial node of each — the multi-root case @sec:validity admits.
+Traversal terminates at *one or more* initial claims: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial claim of each — the multi-root case @sec:validity admits.
 
 #dref[D1, this section]
 
@@ -334,7 +334,7 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 == Identity and Authenticity <sec:authenticity>
 
-Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial node, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
+Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
 
 When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Key management and usage policies are application-layer patterns over normal claims, which the Ranke-Graph merely documents. 
 
@@ -373,7 +373,7 @@ Provenance traversal (`derivation/*`, `contribution/*`) is identical in both. Th
 
 Scoping selects a sub-RG of $"RG"_k$ via an indicator $sigma : "RG"_k -> {0, 1}$. A claim $v$ is in scope when $sigma(v) = 1$ and every claim $v$ references is in scope; σ propagates through the closure. This produces a valid, consolidated subgraph of $"RG"_k$, for example claims derived from one contributor's contributions, or claims related to one project.
 
-The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(k_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial node, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(k_s)$, merge with the previous selection, create a new head.
+The in-scope claims form a set closed under references; consolidate them (@sec:consolidate) into $"RG"_(k_s)$. The result is a valid Ranke-Graph (@sec:validity): every reference path reaches an initial claim, full provenance. Incremental updates are cheap: apply $sigma$ to claims appended to the main line _after_ the timestamp of $"RG"_(k_s)$, merge with the previous selection, create a new head.
 
 == Set Algebra <sec:set-algebra>
 

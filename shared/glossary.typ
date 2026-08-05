@@ -85,7 +85,7 @@
   (key: "closure", short: "closure", group: "01 · Ranke-Graph",
    description: [The transitive set of claims reachable from a claim by following its edges to their references. (foundation paper §Closures)]),
 
-  (key: "initial-node", short: "initial node", group: "01 · Ranke-Graph",
+  (key: "initial-claim", short: "initial claim", group: "01 · Ranke-Graph",
    description: [A claim with no references; a root at which provenance traversal terminates. (foundation paper §Ranke-Graph)]),
 
   (key: "id", short: "id", group: "01 · Ranke-Graph",
@@ -141,7 +141,7 @@
    description: [A set of claims added to the archive in one transaction, all of them or none — opened against a base, verified and sealed, then merged as a unit. Distinct from the `contribution/*` node and edge class of the foundation paper. (§Sequencer)]),
 
   (key: "height", short: "height", group: "02 · RankeDB",
-   description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-node"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
+   description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-claim"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
 
   (key: "frontier", short: "frontier", group: "02 · RankeDB",
    description: [The set of claims a `path` step starts from. The first frontier is the anchor claim, or every claim in the #gls("closure") when the path is unanchored; each step's yield is the next step's frontier. (§Filtered Reads)]),
