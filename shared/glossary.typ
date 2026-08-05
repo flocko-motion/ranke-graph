@@ -50,7 +50,7 @@
    description: [A node together with its content and its `edges`; the atom of the Ranke-Graph, created in one atomic transaction and addressed by its `id`. (foundation paper §Claims)]),
 
   (key: "node", short: "node", group: "01 · Ranke-Graph",
-   description: [The record carrying a claim's fields — `type`, `encoding`, `created_at`, content, `edges`. (foundation paper §Nodes)]),
+   description: [The record carrying a claim's fields — `type`, `encoding`, `created_at`, `height`, content, `edges`. (foundation paper §Nodes)]),
 
   (key: "edge", short: "edge", group: "01 · Ranke-Graph",
    description: [A typed link from the claim that owns it to the claim it references. (foundation paper §Edges)]),
@@ -85,14 +85,17 @@
   (key: "closure", short: "closure", group: "01 · Ranke-Graph",
    description: [The transitive set of claims reachable from a claim by following its edges to their references. (foundation paper §Closures)]),
 
-  (key: "initial-node", short: "initial node", group: "01 · Ranke-Graph",
+  (key: "initial-claim", short: "initial claim", group: "01 · Ranke-Graph",
    description: [A claim with no references; a root at which provenance traversal terminates. (foundation paper §Ranke-Graph)]),
 
   (key: "id", short: "id", group: "01 · Ranke-Graph",
    description: [$op("id")(v) = "Sign"(H(S(v)))$: a claim's content address — a signature over the hash of its canonical serialization; written $k$ where a bare id is needed. (foundation paper §Primitives)]),
 
+  (key: "height", short: "height", group: "01 · Ranke-Graph",
+   description: [A mandatory node field: $"height"(v) = max({"height"(u) + 1 : u in "refs"(v)} union {0})$, the longest path from the claim following references, an #gls("initial-claim") carrying 0. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (foundation paper §Nodes)]),
+
   (key: "type", short: "type", group: "01 · Ranke-Graph",
-   description: [A claim's `type`: a #gls("class") from a fixed set together with an open #gls("subtype"), e.g. `source/conversation`. (foundation paper §Nodes, §Type Vocabulary)]),
+   description: [A node's or an edge's `type`: a #gls("class") from a fixed set together with an open #gls("subtype"), e.g. `source/conversation`. (foundation paper §Nodes, §Type Vocabulary)]),
 
   (key: "class", short: "class", group: "01 · Ranke-Graph",
    description: [The fixed, closed part of a #gls("type") — one of `source`, `derivation`, `entity`, `relation`, `contribution`. (foundation paper §Type Vocabulary)]),
@@ -140,8 +143,8 @@
   (key: "contribution", short: "contribution", group: "02 · RankeDB",
    description: [A set of claims added to the archive in one transaction, all of them or none — opened against a base, verified and sealed, then merged as a unit. Distinct from the `contribution/*` node and edge class of the foundation paper. (§Sequencer)]),
 
-  (key: "height", short: "height", group: "02 · RankeDB",
-   description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-node"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
+  (key: "frontier", short: "frontier", group: "02 · RankeDB",
+   description: [The set of claims a `path` step starts from. The first frontier is the anchor claim, or every claim in the #gls("closure") when the path is unanchored; each step's yield is the next step's frontier. (§Filtered Reads)]),
 
   (key: "limiting-claim", short: "limiting claim", group: "02 · RankeDB",
    description: [A claim restricting use of another — a deletion (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),

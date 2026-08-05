@@ -58,6 +58,13 @@
 #let FORCED = "FORCED"
 #let FREE = "FREE"
 
+// A long type listing. The space beneath keeps a following #rule from reading
+// as the listing's caption.
+#let listing(body) = block(below: 1.4em)[
+  #show raw: set text(size: 0.82em)
+  #body
+]
+
 // An open decision: a detail this document must fix before the chapter that
 // owns it can be written. Deliberately loud — an unresolved TODO is a hole in
 // the normative surface, not a note.
@@ -126,7 +133,8 @@ paper §Sequencer).
 == ADT rules <sec:v-adt>
 
 These hold for any Ranke-Graph, in any implementation. They are the definition
-of *valid* (foundation paper §Validity, §Verifiability).
+of *valid* (foundation paper §Validity, §Verifiability). The foundation paper states
+all but one: `V-HEIGHT` was added in the reference implementation.
 
 #rule("V-TYPE", FORCED)[Every node and every edge MUST carry a `type` whose
 `class` is one of the fixed set: `source`, `derivation`, `entity`, `relation`, or
@@ -138,8 +146,8 @@ Vocabulary)]
 in the closure, and MUST reference a *claim* — never an edge. (foundation paper
 §Edges, §Relations, §Validity)]
 
-#rule("V-ROOT", FORCED)[Every claim MUST either be an *initial node* — one with
-no references — or carry a `contribution/contributor` edge. Several initial nodes
+#rule("V-ROOT", FORCED)[Every claim MUST either be an *initial claim* — one with
+no references — or carry a `contribution/contributor` edge. Several initial claims
 are admitted, as a federated merge of independent lines produces. (foundation
 paper §Ranke-Graph, §Validity, §Provenance)]
 
@@ -150,16 +158,13 @@ and the referenced bytes in $cal(U)$ MUST hash to it: $H(c) = $ `content_hash`.
 A claim MUST NOT carry both `content` and `content_hash`. (foundation paper §Content,
 §Verifiability)]
 
-#rule("V-ID", FORCED)[Every claim's stored id MUST recompute:
-$op("id")(v) = "Sign"(H(S(v)))$ for a node, $op("id")(e) = H(S(e))$ for an edge.
-$S$ MUST be the canonical serialization (deterministic, complete,
-self-delimiting) and $H$ the declared, self-describing hash. Since $S(v)$ covers
-the node's whole `edges` field, one recomputation fixes the node and every edge it
-owns. (foundation paper §Primitives, §Verifiability)]
+#rule("V-ID", FORCED)[Every claim's stored id MUST verify against the claim's stored bytes:
+the id is the signature over their hash, checked with the key `V-SIG` names. (foundation
+paper §Primitives, §Verifiability)]
 
 #rule("V-SIG", FORCED)[The signature in $op("id")(v)$ MUST verify against the
 contributor's `pubkey` — reached through $v$'s `contribution/contributor` edge, or,
-when $v$ is an initial node, in $v$'s own content. Where no `pubkey` is set, the
+when $v$ is an initial claim, in $v$'s own content. Where no `pubkey` is set, the
 signature scheme is *identity*, $"Sign"(h) = h$. (foundation paper §Primitives,
 §Identity and Authenticity)]
 
@@ -167,6 +172,17 @@ signature scheme is *identity*, $"Sign"(h) = h$. (foundation paper §Primitives,
 added, and MUST NOT predate what it references:
 `created_at`$(v) gt.eq max$ `created_at`$(u)$ over every reference $u$ of $v$.
 (foundation paper §Nodes, §Claims, §Merkle DAG)]
+
+#rule("V-TIME", FORCED)[Every timestamp — `created_at`, `delete_by`,
+`pubkey_valid_from`, `pubkey_expires_after`, and every timestamp a read returns — MUST be
+text in RFC 3339 form, UTC, with nanosecond precision:
+`2026-01-05T12:00:00.000000000Z`. Text in every encoding, so `json` and `cbor` carry one
+representation (`R-QENCODING`), and a reader parses what any implementation wrote.]
+
+#rule("V-HEIGHT", FORCED)[Every node MUST carry `height`, the longest path from its
+claim following references:
+$ "height"(v) = max({"height"(u) + 1 : u in "refs"(v)} union {0}) $
+An initial claim references nothing and so carries 0.]
 
 == Contribution rules <sec:v-contribution>
 
@@ -283,7 +299,7 @@ The `R-A…` family of access rules governs reads, contributions, and administra
 #rule("R-AGRANT", FREE)[A *grant* is a triple: a system account, a target, and the
 rights it holds there, written as the letters *C*, *R*, *U*, and *D*. Accounts and
 their grants are fixed in the configuration; a target is a branch-name glob or a
-reserved `$`-target. Every operation requires its letter on its target, and the rules
+reserved `$`-prefixed target. Every operation requires its letter on its target, and the rules
 below fix what each letter does at each target.]
 
 #rule("R-ABRANCH", FREE)[On a branch: *C* contributes a claim, *R* reads, *U* requests
@@ -296,67 +312,59 @@ of them (`R-C3LIMIT`).]
 table, *R* reads it, and *D* soft-deletes a branch by creating a new table that omits it.]
 
 #rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged* — a head id
-bypasses the branch table, so it reaches any graph the Universe holds. Because `$`
-is illegal in ordinary branch names, no glob matches a `$`-name and the privilege is
-never conferred by accident.]
+bypasses the branch table, so it reaches any graph the Universe holds.]
 
 = RankeQL (RQL) <sec:rql>
 
-A read is a *RankeQL* query: a declarative value of the data type `Query` fixed
-below, independent of any programming language and of the wire encoding that
-carries it. RQL is entirely a RankeDB construct — the ADT defines no query
-language — so this whole chapter is `[FREE]`. Its blocks and their roles are those
-of the RankeDB paper §Filtered Reads.
+A read is a *RankeQL* (RQL) query: a declarative value of the data type `Query` fixed
+below. RQL is RankeDB's own — a query language over the Ranke-Graph, introduced in the
+RankeDB paper §Filtered Reads — and the ADT defines no query language, so this whole
+chapter is `[FREE]`.
 
-RQL is a subset of Cypher and the ISO standard it converges on, the Graph Query
-Language (GQL), so reading a construct as its Cypher counterpart is usually right:
-anchored and unanchored generators are `MATCH` with and without a bound variable, a
-step's `min`/`max` is `*min..max`. The one departure is the frontier pipeline
-(`R-QFRONTIER`).
+RQL's capabilities are a subset of Cypher and of the ISO standard it converges on, the
+Graph Query Language (GQL), and a query is designed to transform directly into a Cypher
+query that executes efficiently on Neo4j. 
 
-This chapter fixes the type and what each field's values *mean*. Defaulting for
-omitted fields is an implementation and binding concern. A query that depends on a
-particular behaviour — a materialised result, a `cbor` encoding, a traversal
-direction — must state it explicitly.
-
-#rule("R-QEVAL", FREE)[A query is evaluated in a fixed logical order: (1) `select`
-generates the result set, (2) `where` filters it, (3) `order` sorts it, (4) `limit`
-truncates it, (5) `output` shapes and encodes each surviving claim. An engine MAY
-reorder or lower these steps, provided the delivered result set is identical to
-what this order produces; the native reference engine is the oracle. (RankeDB paper
-§Filtered Reads, §Conformance)]
+RQL is natively expressed in JSON, which is well known and has robost encoders and encoders
+in many languages. 
 
 == The query type <sec:rql-type>
 
-Field names ending in `?` are optional; `|` lists the allowed values or forms;
-`[T]` is a list of `T`. `Id`, `Claim`, `bytes`, and `duration` are the ambient
-domains of @sec:fixture.
+This chapter fixes the type, what each field's values *mean*, and the value an omitted
+field takes. `select` is the only required field; every other default is stated with
+the type below, so a caller may rely on it.
 
-#[
-#show raw: set text(size: 0.82em)
+Field names ending in `?` are optional, and each carries its default; `|` lists the
+allowed values or forms; `[T]` is a list of `T`. An `Id` is a claim id in textual form:
+multibase base32 of the self-describing payload, matching `^b[a-z2-7]+$`. A `duration`
+is a decimal sequence with unit suffixes — `ns`, `us`, `ms`, `s`, `m`, `h`, as in `5s`
+or `1m30s` — where the bare `0` means unbounded. A `Claim` is a claim record as
+`output` carries it (@sec:rql-output).
+
+#listing[
 ```
 Query = {
   select:     Select
-  where?:     Where          // optional filter
-  output:     Output
-  order?:     Order          // optional re-sort
-  limit:      Limit
-  execution:  Execution
+  where?:     Where          // absent -> no filter
+  output?:    Output         // absent -> every axis at its default
+  order?:     Order          // absent -> natural (created_at, id)
+  limit?:     Limit          // absent -> unbounded
+  execution?: Execution      // absent -> backend picks the layer, no report
 }
 
 Select = {                   // a generator: scope, closure, start, traversal
   branch:  string            // "$universe" | "$archive" | a branch name
-  head?:   Id                // the closure read; required iff branch = "$universe"
-  claim?:  Id                // anchor in the closure; absent -> the closure entire
+  head?:   Id                // narrows to closure(head); required under "$universe"
+  claim?:  Id                // walk start in the closure; absent -> unanchored
   path?:   [PathStep]        // absent -> the full outward closure of the frontier
 }
 
 PathStep = {                 // follow typed edges for min..max hops
-  edges?:  [string]          // edge-class globs "class/sub"; leading "-" excludes
-  dir?:    "provenance" | "uses" | "connections"    // outgoing | incoming | either
+  edges?:  [string]          // "class/sub" globs, "-" excludes; absent -> any edge
+  dir?:    "provenance" | "uses" | "connections"    // absent -> "provenance"
   min?:    int               // fewest hops; absent -> 1; 0 -> yields its start too
-  max?:    int               // most hops; 0 -> unbounded for this step
-  nodes?:  [string]          // yielded node-class globs; leading "-" excludes
+  max?:    int               // most hops; 0 or absent -> unbounded
+  nodes?:  [string]          // yielded node globs, "-" excludes; absent -> any node
 }
 
 Where =                      // exactly one form per node
@@ -371,21 +379,21 @@ Comparison =                 // exactly one operator
   | { glob: string }         // shell-style wildcard
 
 Output = {
-  shape?:    "single" | "path"                      // list of single elements | list of paths
-  detail?:   "id" | "graph" | "claims"              // per element: id | graph | full claims
-  form?:     "original" | "materialized"            // field values: as written | resolved
+  shape?:    "single" | "path"                      // elements | routes; absent -> "single"
+  detail?:   "id" | "claims"                        // absent -> "id"
+  form?:     "original" | "materialized"            // as written | resolved; absent -> "original"
   content?:  {                                      // inline content per claim; absent -> none
-    max:      int                                   // cap in bytes
-    overflow: "cutoff" | "omit" | "reference"       // handling past max
+    max:      int                                   // cap in bytes; 0 -> unbounded
+    overflow: "cutoff" | "omit"                     // handling past max
   }
-  encoding?: "json" | "cbor"                        // text (base64 content) | binary
+  encoding?: "json" | "cbor"                        // text (base64) | binary; absent -> "json"
 }
 
 Order    = [OrderKey]      // sort keys in priority order; ties -> natural (created_at, id)
 OrderKey = {
   field:    string
-  compare?: "numeric" | "lexical"   // how values compare (collation)
-  dir?:     "asc" | "desc"          // direction
+  compare?: "numeric" | "lexical"   // absent -> the field's own domain
+  dir?:     "asc" | "desc"          // absent -> "asc"
 }
 
 Limit = { results?: int, time?: duration }          // each 0 -> unbounded
@@ -397,133 +405,73 @@ Execution = {
 ```
 ]
 
-== `select` — closure and walk <sec:rql-select>
 
-A generator answers two separate questions, and the fields divide along them.
-*Which graph is read* — the closure, fixed by `head`. *Where the reading starts* —
-the *frontier* `path` walks from: one point inside that closure when `claim` anchors
-it; naming none leaves `path` to match anywhere in the closure.
+#rule("R-QEVAL", FREE)[A query is evaluated in a fixed logical order: (1) `select`
+generates the result set, (2) `where` filters it, (3) `order` sorts it, (4)
+`limit.results` truncates it, (5) `output` shapes and encodes the result set. The fields
+`limit.time` and `execution` configure the engine that runs the query, leaving its logic
+untouched. An engine MAY reorder or translate these steps, provided the delivered result set
+is identical to what this order produces; the native reference engine is the oracle for
+conformance testing. (RankeDB paper §Filtered Reads, §Conformance)]
 
-The two are independent because a walk runs in both directions. A `provenance`
-step follows references outward, and every claim it can reach is inside the
-closure of wherever it started. A `uses` step runs the other way, to the claims
-that *cite* the current one, and those lie *above* the start: the answer is
-whatever cites it — within the graph under consideration. So the closure is what
-decides a reverse step's result, and naming a start point cannot substitute for
-it. In the reference archive, `der₅` (`review`) cites `der₄` (`master`): a `uses`
-step from `der₄` returns `der₅` under `$archive`, and nothing under `master`,
-whose closure does not hold `der₅`. Same start claim, two closures, two answers.
+== `select` — the generator <sec:rql-select>
 
-#rule("R-QSCOPE", FREE)[`branch` is the mandatory *scope*, and every scope names a
-graph: a branch name confines the query to that branch, `$branches` to the branch
-tables, `$archive` to the whole Ranke-Archive, and `$universe` applies no
-confinement. An empty `branch` MUST be rejected. The scope is what a grant is held
-against (`R-AGRANT`), and `$universe` is privileged.]
+The `select` block is the *generator*. It answers two questions, and its fields divide
+along them: *which graph is read*, and optionally *where a traversal starts* — the
+*frontier*, the set of claims a walk starts from, either the single claim `claim` defines
+or every claim in the closure when it names none.
 
-#rule("R-QHEAD", FREE)[`head` fixes the *closure* read: the query sees
-$"closure"("head", cal(U))$ and nothing outside it. It is *required* under
-`$universe`, which confines nothing and so offers no head to fall back on, and
-*optional* under every other scope, where the scope's own head serves — the
-branch's head, or the branch-table header under `$archive`. Given explicitly under
-a branch or `$archive`, it MUST resolve to a claim within that scope's closure, so
-it narrows a query and can never widen it past the grant. Under `$universe` it MAY
-name any claim the Universe holds.]
+`path` is a series of steps, and a walk takes them in order without leaving the graph
+read. A `provenance` step follows references outward; a `uses` step runs the other way,
+to the claims that cite the current one.
 
-#rule("R-QANCHOR", FREE)[`claim` *anchors* the walk at one claim, which MUST lie
-inside the closure; a `claim` outside it is rejected. Absent, the path is
-*unanchored*, matching wherever it fits in the closure. Either way the anchor moves
-where reading begins, never what is visible: reachability within the closure is the
-check, so no right beyond the scope's *R* is involved.]
+#rule("R-QSCOPE", FREE)[`branch` defines the *scope*: the graph within which the query is
+executed. Only that graph is read. A branch name confines the query to that branch's
+closure, `$archive` to the whole Ranke-Archive, and `$universe` to the closure of the
+`head` it requires (`R-QHEAD`). An empty `branch` MUST be rejected. The scope is what a
+grant is held against (`R-AGRANT`).]
 
-#rule("R-QHOPS", FREE)[A `PathStep` follows a set of typed `edges` (globs over
-`class/sub`, a leading `-` excluding a type) in direction `dir` — `provenance`
-(outgoing, towards references), `uses` (incoming), or `connections` (either) — and
-yields every claim it reaches at between `min` and `max` hops from its starting
-set, optionally constrained to `nodes` types. `edges` gates every hop; `nodes`
-gates the claims a step yields, never those it passes through. An absent `min` is
-1; `min: 0` also yields the starting set. A `max` of `0`, or an absent `max`,
-leaves the step unbounded. A `min` above a bounded `max` MUST be rejected. An
-absent `path` returns the full outward closure of the frontier (foundation paper
-§Closures).]
+#rule("R-QHEAD", FREE)[`head` fixes the *closure* read: the query sees the intersection
+of the scope's graph and $"closure"("head", cal(U))$, so a `head` narrows a query. Under
+`$universe` it is *required* and MAY name any claim the Universe holds; under every other
+scope it is *optional*.]
+
+#rule("R-QANCHOR", FREE)[`claim` *anchors* the frontier at the single claim it names,
+which MUST lie inside the closure. Absent, the frontier is every claim in the closure
+and the path is *unanchored*.]
 
 An anchored generator asks what one claim reaches; an unanchored one asks where a
 shape occurs, which is Cypher's `MATCH` with and without a bound variable. Both are
 bounded alike by the closure, and unanchored with no step names the closure itself.
 
-The two zeros of `R-QHOPS` differ because each has only one useful sense: a step of
+#rule("R-QSTEPS", FREE)[A `PathStep` states the conditions one section of a path MUST
+satisfy. `edges` bounds the walk: every hop MUST follow an edge whose `type` is listed.
+`nodes` bounds the answer: a step yields a claim only when its node's `type` is listed,
+whatever the nodes it crossed to reach it. Both take globs over `class/sub`, a leading `-`
+excluding a type, and filter only when given. Exclusion decides: a type matching an
+excluded pattern is refused whatever the included patterns say, and a list of exclusions
+alone admits every other type. `dir` sets the traversal direction:
+`provenance` (outgoing, towards references, and the default), `uses` (incoming), or
+`connections` (either). `min` and `max` bound the hops
+a step takes: an absent `min` is 1, `min: 0` also yields the frontier it starts from, and
+a `max` of `0` or an absent `max` leaves the step unbounded. A `min` above a bounded `max`
+MUST be rejected. An absent `path` returns the full outward closure of the frontier
+(foundation paper §Closures).]
+
+The two zeros of `R-QSTEPS` differ because each has only one useful sense: a step of
 at most zero hops would move nothing, so `max: 0` means unbounded, while `min: 0`
 yields the starting set alongside what lies beyond it.
 
-#rule("R-QFRONTIER", FREE)[A `path` is a *frontier pipeline*. Each step is an
-*independent* bounded walk that starts from the *set* of endpoints the previous step
-produced — the first step from the anchor, or from every claim in the closure when
-the path is unanchored — and its own endpoints become the next step's starting set.
-The no-repeat rule (a walk does not revisit a node) applies *within a single step*
-and *resets* at each step boundary, so a later step MAY re-cross a claim or
-re-traverse an edge an earlier step used. A result MUST NOT depend on how the
-frontier was reached.]
+#rule("R-QFRONTIER", FREE)[A `path` is a sequence of steps over *frontiers*, each frontier
+a *set* of claims. The first is the claim `claim` anchors, or every claim in the closure
+when it names none (`R-QANCHOR`); each step's yield is the frontier the next step starts
+from (`R-QSTEPS`). Membership is all a frontier carries, so a result MUST NOT depend on
+the route by which a claim entered one. The no-repeat rule — a walk does not revisit a
+claim — holds within a single step and resets at each boundary, so a later step MAY
+re-cross a claim or re-traverse an edge an earlier step used.]
 
-This is the one place RQL departs from Cypher, whose single-trail reading with
-whole-path edge-uniqueness drops results a frontier pipeline returns; the RankeDB
-paper §Filtered Reads works the case through.
-
-*(Planned.)* When a query returns a route (`detail: path`), a caller may want to
-constrain the route's *shape* — no repeated edges, or no repeated nodes. A future
-opt-in modifier on a path or step will expose the ISO GQL path modes (`WALK`,
-`TRAIL`, `ACYCLIC`, `SIMPLE`); the default remains the frontier pipeline above.
-
-== `height` — the level a claim sits at <sec:rql-height>
-
-Every claim sits at a *height*: the length of the longest reference chain from it
-down to an initial node — height in the graph-theoretic sense, over the directed
-acyclic graph the claims form. It is the level a claim occupies above the sources
-its provenance rests on.
-
-#rule("R-HEIGHT", FREE)[A claim's height is
-$ "height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1 $
-over the claims $u$ that $v$ references. An initial node references nothing and so
-sits at height 1; every height is therefore $gt.eq 1$, which leaves `0` free to
-mean *unbounded* as it does for a step's `max` or a `limit`. Height is a function
-of the claim's closure alone, hence determined by $op("id")(v)$
-(foundation paper §Merkle DAG): every Universe holding the claim computes the same value,
-and appending to the
-archive never changes one. RankeDB MUST compute a claim's height while it verifies
-that claim's closure (`R-C3CLOSE`) and retain it, so a claim later deleted keeps the
-height it entered with (`R-DGAP`).]
-
-Height is strictly *decreasing* along every reference — $"height"(u) <
-"height"(v)$ for each reference $u$ of $v$ — so it is a topological rank of the
-graph. A height assignment therefore exists only for an acyclic graph: a cycle
-would need a strictly decreasing chain of integers bounded below by 1. Computing
-height is thus a cycle check, and needs no appeal to hashing or to `created_at`.
-
-#rule("R-HEIGHT-FIELD", FREE)[Height is a *derived field* named `height`, which a
-`where` leaf and an `order` key may name like any field a claim carries
-(@sec:rql-where, @sec:rql-bounds). Its values are integers and compare
-`numeric`ally.]
-
-The field earns its place three times over. A comparison of heights is a cheap
-necessary condition for ancestry, so it prunes before any traversal. Because every
-reference sits strictly lower than the claim citing it, a result bounded by
-`{field: "height", test: {le: h}}` is closed under references: a kept claim's
-references are kept too. That filter alone therefore yields a valid Ranke-Graph,
-reaching $h$ levels of derivation above its sources, where a filter on any other
-field yields an arbitrary set. And a bound on it is one integer comparison per claim,
-which a layer that indexes the field answers as a range rather than a traversal.
-
-In the reference archive the contributors sit at 1 (`c_seq`, an initial node) and 2
-(`c_alice`, `c_alice2`, `c_bob`); `src₁` and `src₂` at 3; `der₁`, `der₂` and `del₁`
-at 4; `der₃` and the entities at 5; `rel₁` at 6; `der₄` at 7; `der₅` at 8; and the
-archive head `bt₅` at 10. A bound of `le: 4` over `master` therefore keeps `src₁`,
-`der₂` and the contributor claims, leaving `ent₁`/`ent₂` (5), `rel₁` (6) and the
-head `der₄` (7) outside it.
-
-Height is a level in the derivation structure, not a clock. It answers 'up to $h$
-levels of derivation above the sources' exactly, and 'the branch as it stood' not at
-all. A claim contributed today at a low height — a fresh source, or a derivation
-directly over one — satisfies a low bound as readily as the oldest claim in the
-archive. A read of a past state pins that past `head`, whose closure is immutable;
-a read at a past *time* filters `created_at`.
+The RankeDB paper §Filtered Reads works this case through, and @sec:rql-cypher states how
+a frontier sequence is expressed in Cypher.
 
 == `where` — the filter <sec:rql-where>
 
@@ -535,38 +483,33 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 
 == `output` — result shape and encoding <sec:rql-output>
 
-#rule("R-QOUTPUT", FREE)[`output` shapes each result along five orthogonal axes.
-*`shape`*: `single` (a list of the reached endpoints, one element each) or `path` (a
-list of routes, each running outward from the frontier claim its walk began at).
-*`detail`*: `id` (the id, or the ids along a path), `graph` (nodes joined by the
-edges between them, `n-(e)-n`), or `claims` (the full claim for each node — the node
-with *all* its outgoing edges, `-(e)-n-(e)-n`). *`form`*: `original` (values as
-written, a diff-overlaid claim's delta) or `materialized` (values with any
-`contribution/diff` chain resolved over the predecessor it references, recursively
-to a base claim). *`content`*: a pair, `max`
-capping the bytes inlined per claim and `overflow` handling anything past the cap —
-`cutoff` (truncate), `omit` (drop it), or `reference` (a `content_hash` stub);
-absent, no content is inlined and a claim carries only `content_hash` (foundation
-paper §Content). *`encoding`*: `json` (text, content base64-encoded) or `cbor`
-(binary), carrying the same information either way.]
+`output` shapes each result along five orthogonal axes.
 
-A claim always carries every outgoing edge of its node (foundation paper §Claims),
-so `claims` is richer than the `graph` view, which shows only the edges linking
-results. `form` is a property of the values rather than the structure, which is what
-makes it orthogonal to `detail` and `encoding`.
+#rule("R-QSHAPE", FREE)[`shape` sets what each result element is: `single`, one reached
+endpoint per element, or `path`, a route running outward from the frontier claim its walk
+began at.]
 
-Materialisation resolves field values only. A claim's id, contributor, signature
-and `created_at` are always its own, whatever a diff chain supplies for its other
-fields — a diff claim is an ordinary claim, and every rule of @sec:v-adt applies to
-it as stored. So verification runs against the stored claim, never a materialised
-view.
+#rule("R-QDETAIL", FREE)[`detail` sets what each element carries: `id`, the id alone, or
+`claims`, the claim in full. Under `shape: path` it applies to every claim in the route.]
+
+#rule("R-QFORM", FREE)[`form` sets which field values a claim carries: `original` as
+stored, or `materialized` with any `contribution/diff` chain resolved recursively over
+the predecessor it references.]
+
+#rule("R-QCONTENT", FREE)[`content` is a pair: `max` caps the bytes inlined per claim, and
+`overflow` applies where a claim's content exceeds the cap — `cutoff` inlines the bytes up
+to it, `omit` inlines none. A `max` of `0` inlines every claim's content in full, leaving
+`overflow` no effect. An absent `content` inlines nothing (foundation paper §Content).]
+
+#rule("R-QENCODING", FREE)[`encoding` sets the results encoding format: `json`, text with content
+base64-encoded, or `cbor`, binary. Both carry the same information.]
 
 #rule("R-QCANON", FREE)[The combination `detail: claims` + `form: original` +
-`encoding: cbor` MUST reproduce the canonical serialization $S(v)$ the id is
-computed over (foundation paper §Primitives). It is the only output form directly
-verifiable against the id.]
+`encoding: cbor` + `content: {max: 0}` MUST deliver each claim as the bytes $S(v)$ whose
+hash its id was computed over (foundation paper §Primitives). It is the only output form a
+client can hash and check against the id.]
 
-== `order`, `limit`, `execution` <sec:rql-bounds>
+== `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
 #rule("R-QSORT", FREE)[`order` is a list of sort keys applied in priority order.
 Each key names a `field`, a `compare` — how its values are ordered, `numeric` or
@@ -578,41 +521,66 @@ resolve to a total order.]
 Because the order is total, paging is stable: carry the last row's key into a
 `where` on the next request.
 
-#rule("R-QLIMIT", FREE)[`limit` bounds the read: `results` caps the claim count and
-`time` the execution budget, each `0` meaning unbounded. A read cut short by either
-bound is a complete answer to the query as bounded, not an error.]
+#rule("R-QLIMIT", FREE)[`limit` bounds the read: `results` caps the number of results and
+`time` the execution budget, a `duration` with unit suffixes as in `5h30m`
+(@sec:rql-type). Each `0` means unbounded. A read cut short by either bound is a complete
+answer to the query as bounded, not an error.]
 
-`execution` controls where the query runs and how it reports. `layer` pins the
-query to one named storage/execution layer; without it the backend chooses by
-capability. `report` sets a verbosity — `info` (high-level stages), `debug`
-(routing and lowering), or `trace` (per-claim detail).
+#rule("R-QLAYER", FREE)[`execution.layer` pins the query to one named storage or
+execution layer, and an empty name MUST be rejected. Absent, the backend chooses by
+capability. The choice reaches execution alone: the result set MUST be identical
+whichever layer serves it (`R-QEVAL`).]
+
+`report` sets a verbosity — `info` (high-level stages), `debug` (routing and
+translation), or `trace` (highest available detail).
 
 == Results and streaming <sec:rql-results>
 
-A query yields an ordered stream, one element at a time in the query's order. Each
-element is, per `output.shape`, a `single` reached endpoint or a `path` (its
-route, start-first); `output.detail` sets how each node within it is carried:
+#rule("R-QSTREAM", FREE)[A query yields an ordered stream: its results, one element at a
+time, in the order `order` fixes (`R-QSORT`), then the report where one was asked for
+(`R-QREPORT`). A result element carries one result under `shape: single`, or a route's
+results under `shape: path` (`R-QSHAPE`). Every element MUST carry a tag naming what it
+holds, so a reader never inspects a payload to find out.]
 
-#[
-#show raw: set text(size: 0.82em)
-```
-Result =                // one stream element, per output.shape
-    Element             //   shape = "single": a reached endpoint
-  | [Element]           //   shape = "path": its route, start-first
+#rule("R-QREPORT", FREE)[When, and only when, `execution.report` is set, the stream's final
+element is a *report*, tagged as such (`R-QSTREAM`). It carries the original query, the
+query it was translated to (the Cypher/GQL text, or `native`), and per-stage timings as
+integers of nanoseconds, each such field naming its unit — `elapsed_ns`, `at_ns`. These
+field names are part of the read contract; further fields are implementation-dependent, so
+a client relies on them at its own risk.]
 
-Element =               // set by output.detail (field values per output.form)
-    Id                  //   "id":     the id
-  | Graph               //   "graph":  node + linking edges  (n-(e)-n)
-  | Claim               //   "claims": node + all its edges  (-(e)-n-(e)-n)
-// a Graph/Claim inlines content per content.{max, overflow}
-```
-]
+== Translation to Cypher <sec:rql-cypher>
 
-#rule("R-QREPORT", FREE)[When, and only when, `execution.report` is set, the stream
-carries one final *report* record after the last element: the layer that served the
-query, the query it was lowered to (the Cypher/GQL text, or `native`), and per-stage
-timings. It MUST be typed distinctly from result claims, so a reader never mistakes
-it for data.]
+An RQL query translates to a single Cypher statement, which is what lets a graph database
+serve it natively. This section fixes that translation. The rules above define what a
+query answers; a translated query answers the same, and the native reference engine
+settles any disagreement (`R-QEVAL`).
+
+#rule("R-QCYPHER", FREE)[A translation MUST deliver the result set this chapter defines,
+in the order it defines. Where a translated query and the native engine disagree, the
+translation is the defect.]
+
+#rule("R-QCCLAUSE", FREE)[Block by block: `select` translates to a `MATCH`, bound to a
+variable when `claim` anchors it; `where` to a `WHERE` over the endpoint; `order` to an
+`ORDER BY` carrying the `(created_at, id)` tie-break (`R-QSORT`); `limit.results` to a
+`LIMIT`; and `output.detail` to the `RETURN` projection — the id alone, or the node with
+its labels and outgoing edges. The remaining fields stay outside the statement:
+`output`'s `form`, `content`, and `encoding`, `limit.time`, and `execution` (`R-QEVAL`).]
+
+#rule("R-QCSTEP", FREE)[A `PathStep` translates to a variable-length segment in its
+`dir`, `*min..max`, an absent or `0` `max` leaving it unbounded. Its `edges` and `nodes`
+globs translate to full-match conditions on that segment's relationship and node, and an
+absent list imposes no condition (`R-QSTEPS`).]
+
+#rule("R-QCFRONTIER", FREE)[A `path` MUST translate to one `MATCH` per step, each
+carrying the previous step's endpoints forward as a distinct set. Cypher's edge-uniqueness
+holds within a single pattern, so the step boundary is what resets it, as `R-QFRONTIER`
+requires. A `path` translated as one continuous pattern drops results the frontier
+pipeline returns.]
+
+#rule("R-QCSCOPE", FREE)[However a translation confines a query — a walk from the scope's
+head, or an index the backend maintains — the confined set MUST equal the scope's graph
+(`R-QSCOPE`), and a reverse step MUST reach no claim outside it (`R-QHEAD`).]
 
 = Remaining chapters <sec:remaining>
 
@@ -621,8 +589,7 @@ the same form — sentences, ids, FORCED/FREE tiers, grounded in the papers:
 
 - *Serialization and identity* — the canonical $S$, the hash $H$, the signature
   scheme, and the alias table, decided here: the choices an implementation must
-  make to reproduce a byte-identical serialization, stated as decisions rather
-  than as code (foundation paper §Primitives).
+  make to serialize a claim, stated as decisions (foundation paper §Primitives).
 - *Taxonomy and well-formedness* — the fixed node and edge classes, and the
   structural constraints each imposes (e.g. a `relation/*` node's edges land on
   `entity/*` claims and carry `relation_direction`) (foundation paper §Type Vocabulary,
@@ -638,11 +605,27 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule or chapter it belongs to is incomplete, and an
 implementation is free where the specification is silent.
 
+#todo[*The schema's authority over this chapter.* While the RankeQL chapter is under
+review, the published query schema governs a query's shape and the chapter follows it
+(@sec:rql). Settle the chapter, then restore the schema to what every artifact built
+from this document is: a projection that checks the shapes stated here.]
+
+#todo[*Whole-route uniqueness for a path shape.* `R-QFRONTIER` resets edge-uniqueness at
+every step boundary, `shape: path` included, and `R-QCFRONTIER` requires a translation to
+match. A route assembled that way may re-cross an edge, which GQL calls a `WALK`; the
+stricter readings are `TRAIL`, `ACYCLIC`, and `SIMPLE` (@sec:rql-select). Decide whether a
+path shape keeps the `WALK` reading, and if not, whether the stricter one is a mode the
+caller asks for or the only reading available.]
+
+#todo[*Which route a path shape returns.* `R-QSHAPE` says a `path` yields routes without
+fixing how many per endpoint. Decide whether an endpoint reached by several routes yields
+one — the shortest, ties broken node-by-node on `(created_at, id)` — or all of them.]
+
 #todo[*Which edge holds the predecessor.* `R-C6MERGE` requires the new branch table
 to hold the previous one in its provenance, and foundation paper §Ranke-Archive
 requires the same. §Branches names only `contribution/diff` as the link, and permits
 a revision that restates the whole table — which carries no diff edge. Fix the edge
-that holds the predecessor when the revision is not a diff. (Taxonomy and
+that holds the predecessor when the revision restates the whole table. (Taxonomy and
 well-formedness)]
 
 #todo[*The closed `contribution/*` subtype set.* Fix its exact members and their
@@ -653,14 +636,6 @@ to ask for each — `contribution/expires_after_request` and
 `contribution/delete_request` — which the papers name only for expiry, and without the
 class prefix. The set is closed, so the membership is normative, unlike the
 open subtypes of the other classes. (Taxonomy and well-formedness)]
-
-#todo[*Whether `height` is carried or derived.* @sec:rql-height states it as a
-derived field a query may name. If instead it is carried in the node record it
-falls inside $S(v)$ — signed, and part of $op("id")(v)$ — and a rule MUST then
-require the carried value to equal the computed one, since otherwise a contributor
-can assert a level its references do not support. Decide which, and add that
-consistency rule if carried — checking a carried height against the recursion also
-checks the closure for cycles. (`R-HEIGHT`, `R-HEIGHT-FIELD`)]
 
 #todo[*Whether `contribution/branch` is a node type.* foundation paper §Type Vocabulary
 calls the branch entry edge-only — an edge naming a branch in a `name` field and
@@ -703,7 +678,7 @@ plus the reserved system branch:
 - *`review`* — Bob's branch: a `derivation/review` (`der₅`) over `master`'s `der₄`
   and over a `source` Bob captured (`src₂`), its head.
 
-The author keys sign under the Sequencer's initial node `c_seq`. `c_alice`'s first
+The author keys sign under the Sequencer's initial claim `c_seq`. `c_alice`'s first
 key carries a `pubkey_expires_after` date; when it lapses, Alice *rotates* into a
 fresh key — a second `contribution/contributor`, `c_alice2`, with its own
 `pubkey_valid_from` overlapping the old window (RankeDB paper §Keyrotation). `der₃` and
@@ -736,7 +711,7 @@ references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
   reserved `$system` branch that indexes limiting claims. The faint grey lines are
   the `contribution/contributor` edges — every claim to its contributor: content
   to `c_alice` or `c_bob`, branch tables and `del₁` to `c_seq` (the Sequencer),
-  and `c_alice`/`c_bob` to the initial node `c_seq`.],
+  and `c_alice`/`c_bob` to the initial claim `c_seq`.],
   diagram(spacing: (10mm, 9mm), node-stroke: 0.5pt, node-inset: 4pt, {
     // branch-table chain (archive head bt5), across the top
     node((0, 0),   $"bt"_0$, name: <bt0>, fill: tint.contribution)
@@ -813,7 +788,7 @@ the `name` on a `contribution/branch` edge is its branch label.
     inset: (x: 6pt, y: 3pt),
     stroke: 0.4pt + gray,
     table.header([*label*], [*type*], [*`created_at`*], [*edges*]),
-    [`c_seq`],  [`contribution/contributor`], [2026-01-05], [— (initial node; the Sequencer; `pubkey` in content)],
+    [`c_seq`],  [`contribution/contributor`], [2026-01-05], [— (initial claim; the Sequencer; `pubkey` in content)],
     [`c_alice`], [`contribution/contributor`], [2026-01-20], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-01-20, `pubkey_expires_after` 2026-03-31 in content (Alice's first key)],
     [`c_alice2`],[`contribution/contributor`], [2026-03-20], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-03-20 in content (Alice's rotated key)],
     [`c_bob`],   [`contribution/contributor`], [2026-05-01], [`c_seq` (ctr); `pubkey`, `pubkey_valid_from` 2026-05-01, `pubkey_expires_after` 2026-11-30 in content],
@@ -848,7 +823,7 @@ records the requested deletion, where the Sequencer creates `del₁` and opens
 `bt₀` yields the current table: `project_x` → `der₃`, `master` → `der₄`,
 `review` → `der₅`, `$system` → `del₁`.
 
-Every claim signs under the initial node `c_seq`, the Sequencer, which alone
+Every claim signs under the initial claim `c_seq`, the Sequencer, which alone
 signs branch tables and limiting claims (`R-C2TYPE`, `V-SIG`). The content
 authors are Alice — two keys, `c_alice` and its rotation `c_alice2` — and Bob
 (`c_bob`), each a `contribution/contributor` resolving to `c_seq`. For legibility
