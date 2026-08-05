@@ -283,7 +283,7 @@ The `R-A…` family of access rules governs reads, contributions, and administra
 #rule("R-AGRANT", FREE)[A *grant* is a triple: a system account, a target, and the
 rights it holds there, written as the letters *C*, *R*, *U*, and *D*. Accounts and
 their grants are fixed in the configuration; a target is a branch-name glob or a
-reserved `$`-target. Every operation requires its letter on its target, and the rules
+reserved `$`-prefixed target. Every operation requires its letter on its target, and the rules
 below fix what each letter does at each target.]
 
 #rule("R-ABRANCH", FREE)[On a branch: *C* contributes a claim, *R* reads, *U* requests
@@ -296,67 +296,60 @@ of them (`R-C3LIMIT`).]
 table, *R* reads it, and *D* soft-deletes a branch by creating a new table that omits it.]
 
 #rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged* — a head id
-bypasses the branch table, so it reaches any graph the Universe holds. Because `$`
-is illegal in ordinary branch names, no glob matches a `$`-name and the privilege is
-never conferred by accident.]
+bypasses the branch table, so it reaches any graph the Universe holds.]
 
 = RankeQL (RQL) <sec:rql>
 
-A read is a *RankeQL* query: a declarative value of the data type `Query` fixed
-below, independent of any programming language and of the wire encoding that
-carries it. RQL is entirely a RankeDB construct — the ADT defines no query
-language — so this whole chapter is `[FREE]`. Its blocks and their roles are those
-of the RankeDB paper §Filtered Reads.
+A read is a *RankeQL* (RQL) query: a declarative value of the data type `Query` fixed
+below. RQL is RankeDB's own — a query language over the Ranke-Graph, introduced in the
+RankeDB paper §Filtered Reads — and the ADT defines no query language, so this whole
+chapter is `[FREE]`.
 
-RQL is a subset of Cypher and the ISO standard it converges on, the Graph Query
-Language (GQL), so reading a construct as its Cypher counterpart is usually right:
-anchored and unanchored generators are `MATCH` with and without a bound variable, a
-step's `min`/`max` is `*min..max`. The one departure is the frontier pipeline
-(`R-QFRONTIER`).
+RQL's capabilities are a subset of Cypher and of the ISO standard it converges on, the
+Graph Query Language (GQL), and a query is designed to transform directly into a Cypher
+query that executes efficiently on Neo4j. 
 
-This chapter fixes the type and what each field's values *mean*. Defaulting for
-omitted fields is an implementation and binding concern. A query that depends on a
-particular behaviour — a materialised result, a `cbor` encoding, a traversal
-direction — must state it explicitly.
-
-#rule("R-QEVAL", FREE)[A query is evaluated in a fixed logical order: (1) `select`
-generates the result set, (2) `where` filters it, (3) `order` sorts it, (4) `limit`
-truncates it, (5) `output` shapes and encodes each surviving claim. An engine MAY
-reorder or lower these steps, provided the delivered result set is identical to
-what this order produces; the native reference engine is the oracle. (RankeDB paper
-§Filtered Reads, §Conformance)]
+RQL is natively expressed in JSON, which is well known and has robost encoders and encoders
+in many languages. 
 
 == The query type <sec:rql-type>
 
-Field names ending in `?` are optional; `|` lists the allowed values or forms;
-`[T]` is a list of `T`. `Id`, `Claim`, `bytes`, and `duration` are the ambient
-domains of @sec:fixture.
+This chapter fixes the type, what each field's values *mean*, and the value an omitted
+field takes. `select` is the only required field; every other default is stated with
+the type below, so a caller may rely on it.
+
+Field names ending in `?` are optional, and each carries its default; `|` lists the
+allowed values or forms; `[T]` is a list of `T`. An `Id` is a claim id in textual form:
+multibase base32 of the self-describing payload, matching `^b[a-z2-7]+$`. A `duration`
+is a decimal sequence with unit suffixes — `ns`, `us`, `ms`, `s`, `m`, `h`, as in `5s`
+or `1m30s` — where the bare `0` means unbounded. A `Claim` is a claim record as
+`output` carries it (@sec:rql-output).
 
 #[
 #show raw: set text(size: 0.82em)
 ```
 Query = {
   select:     Select
-  where?:     Where          // optional filter
-  output:     Output
-  order?:     Order          // optional re-sort
-  limit:      Limit
-  execution:  Execution
+  where?:     Where          // absent -> no filter
+  output?:    Output         // absent -> every axis at its default
+  order?:     Order          // absent -> natural (created_at, id)
+  limit?:     Limit          // absent -> unbounded
+  execution?: Execution      // absent -> backend picks the layer, no report
 }
 
 Select = {                   // a generator: scope, closure, start, traversal
   branch:  string            // "$universe" | "$archive" | a branch name
-  head?:   Id                // the closure read; required iff branch = "$universe"
-  claim?:  Id                // anchor in the closure; absent -> the closure entire
+  head?:   Id                // narrows to closure(head); required under "$universe"
+  claim?:  Id                // walk start in the closure; absent -> unanchored
   path?:   [PathStep]        // absent -> the full outward closure of the frontier
 }
 
 PathStep = {                 // follow typed edges for min..max hops
-  edges?:  [string]          // edge-class globs "class/sub"; leading "-" excludes
-  dir?:    "provenance" | "uses" | "connections"    // outgoing | incoming | either
+  edges?:  [string]          // "class/sub" globs, "-" excludes; absent -> any edge
+  dir?:    "provenance" | "uses" | "connections"    // absent -> "provenance"
   min?:    int               // fewest hops; absent -> 1; 0 -> yields its start too
-  max?:    int               // most hops; 0 -> unbounded for this step
-  nodes?:  [string]          // yielded node-class globs; leading "-" excludes
+  max?:    int               // most hops; 0 or absent -> unbounded
+  nodes?:  [string]          // yielded node globs, "-" excludes; absent -> any node
 }
 
 Where =                      // exactly one form per node
@@ -371,21 +364,21 @@ Comparison =                 // exactly one operator
   | { glob: string }         // shell-style wildcard
 
 Output = {
-  shape?:    "single" | "path"                      // list of single elements | list of paths
-  detail?:   "id" | "graph" | "claims"              // per element: id | graph | full claims
-  form?:     "original" | "materialized"            // field values: as written | resolved
+  shape?:    "single" | "path"                      // elements | routes; absent -> "single"
+  detail?:   "id" | "graph" | "claims"              // absent -> "id"
+  form?:     "original" | "materialized"            // as written | resolved; absent -> "original"
   content?:  {                                      // inline content per claim; absent -> none
     max:      int                                   // cap in bytes
     overflow: "cutoff" | "omit" | "reference"       // handling past max
   }
-  encoding?: "json" | "cbor"                        // text (base64 content) | binary
+  encoding?: "json" | "cbor"                        // text (base64) | binary; absent -> "json"
 }
 
 Order    = [OrderKey]      // sort keys in priority order; ties -> natural (created_at, id)
 OrderKey = {
   field:    string
-  compare?: "numeric" | "lexical"   // how values compare (collation)
-  dir?:     "asc" | "desc"          // direction
+  compare?: "numeric" | "lexical"   // absent -> the field's own domain
+  dir?:     "asc" | "desc"          // absent -> "asc"
 }
 
 Limit = { results?: int, time?: duration }          // each 0 -> unbounded
@@ -397,54 +390,58 @@ Execution = {
 ```
 ]
 
-== `select` — closure and walk <sec:rql-select>
 
-A generator answers two separate questions, and the fields divide along them.
-*Which graph is read* — the closure, fixed by `head`. *Where the reading starts* —
-the *frontier* `path` walks from: one point inside that closure when `claim` anchors
-it; naming none leaves `path` to match anywhere in the closure.
+#rule("R-QEVAL", FREE)[A query is evaluated in a fixed logical order: (1) `select`
+generates the result set, (2) `where` filters it, (3) `order` sorts it, (4)
+`limit.results` truncates it, (5) `output` shapes and encodes the result set. The fields
+`limit.time` and `execution` configure the engine that runs the query, leaving its logic
+untouched. An engine MAY reorder or translate these steps, provided the delivered result set
+is identical to what this order produces; the native reference engine is the oracle for
+conformance testing. (RankeDB paper §Filtered Reads, §Conformance)]
 
-The two are independent because a walk runs in both directions. A `provenance`
-step follows references outward, and every claim it can reach is inside the
-closure of wherever it started. A `uses` step runs the other way, to the claims
-that *cite* the current one, and those lie *above* the start: the answer is
-whatever cites it — within the graph under consideration. So the closure is what
-decides a reverse step's result, and naming a start point cannot substitute for
-it. In the reference archive, `der₅` (`review`) cites `der₄` (`master`): a `uses`
-step from `der₄` returns `der₅` under `$archive`, and nothing under `master`,
-whose closure does not hold `der₅`. Same start claim, two closures, two answers.
+== `select` — the generator <sec:rql-select>
 
-#rule("R-QSCOPE", FREE)[`branch` is the mandatory *scope*, and every scope names a
-graph: a branch name confines the query to that branch, `$branches` to the branch
-tables, `$archive` to the whole Ranke-Archive, and `$universe` applies no
-confinement. An empty `branch` MUST be rejected. The scope is what a grant is held
-against (`R-AGRANT`), and `$universe` is privileged.]
+The `select` block is the *generator*. It answers two questions, and its fields divide
+along them: *which graph is read*, and optionally *where a traversal starts* — the
+*frontier* that `path` walks from: either from the single claim defined by `claim` or from
+every claim in the closure when it names none.
 
-#rule("R-QHEAD", FREE)[`head` fixes the *closure* read: the query sees
-$"closure"("head", cal(U))$ and nothing outside it. It is *required* under
-`$universe`, which confines nothing and so offers no head to fall back on, and
-*optional* under every other scope, where the scope's own head serves — the
-branch's head, or the branch-table header under `$archive`. Given explicitly under
-a branch or `$archive`, it MUST resolve to a claim within that scope's closure, so
-it narrows a query and can never widen it past the grant. Under `$universe` it MAY
-name any claim the Universe holds.]
+`path` is a series of steps, and a walk takes them in order without leaving the graph
+read. A `provenance` step follows references outward; a `uses` step runs the other way,
+to the claims that cite the current one.
 
-#rule("R-QANCHOR", FREE)[`claim` *anchors* the walk at one claim, which MUST lie
-inside the closure; a `claim` outside it is rejected. Absent, the path is
-*unanchored*, matching wherever it fits in the closure. Either way the anchor moves
-where reading begins, never what is visible: reachability within the closure is the
-check, so no right beyond the scope's *R* is involved.]
+#rule("R-QSCOPE", FREE)[`branch` defines the *scope*: the graph within which the query is
+executed. Only that graph is read. A branch name confines the query to that branch's
+closure, `$archive` to the whole Ranke-Archive, and `$universe` to the closure of the
+`head` it requires (`R-QHEAD`). An empty `branch` MUST be rejected. The scope is what a
+grant is held against (`R-AGRANT`).]
 
-#rule("R-QHOPS", FREE)[A `PathStep` follows a set of typed `edges` (globs over
-`class/sub`, a leading `-` excluding a type) in direction `dir` — `provenance`
-(outgoing, towards references), `uses` (incoming), or `connections` (either) — and
-yields every claim it reaches at between `min` and `max` hops from its starting
-set, optionally constrained to `nodes` types. `edges` gates every hop; `nodes`
-gates the claims a step yields, never those it passes through. An absent `min` is
-1; `min: 0` also yields the starting set. A `max` of `0`, or an absent `max`,
-leaves the step unbounded. A `min` above a bounded `max` MUST be rejected. An
-absent `path` returns the full outward closure of the frontier (foundation paper
-§Closures).]
+#rule("R-QHEAD", FREE)[`head` fixes the *closure* read: the query sees the intersection
+of the scope's graph and $"closure"("head", cal(U))$, so a `head` narrows a query. Under
+`$universe` it is *required* and MAY name any claim the Universe holds; under every other
+scope it is *optional*.]
+
+#rule("R-QANCHOR", FREE)[`claim` *anchors* the frontier at the single claim it names,
+which MUST lie inside the closure. Absent, the frontier is every claim in the closure
+and the path is *unanchored*.]
+
+An anchored generator asks what one claim reaches; an unanchored one asks where a
+shape occurs, which is Cypher's `MATCH` with and without a bound variable. Both are
+bounded alike by the closure, and unanchored with no step names the closure itself.
+
+#rule("R-QSTEPS", FREE)[A `PathStep` states the conditions one section of a path MUST
+satisfy. `edges` bounds the walk: every hop MUST follow an edge whose `type` is listed.
+`nodes` bounds the answer: a step yields a claim only when its node's `type` is listed,
+whatever the nodes it crossed to reach it. Both take globs over `class/sub`, a leading `-`
+excluding a type, and filter only when given. Exclusion decides: a type matching an
+excluded pattern is refused whatever the included patterns say, and a list of exclusions
+alone admits every other type. `dir` sets the traversal direction:
+`provenance` (outgoing, towards references, and the default), `uses` (incoming), or
+`connections` (either). `min` and `max` bound the hops
+a step takes: an absent `min` is 1, `min: 0` also yields the frontier it starts from, and
+a `max` of `0` or an absent `max` leaves the step unbounded. A `min` above a bounded `max`
+MUST be rejected. An absent `path` returns the full outward closure of the frontier
+(foundation paper §Closures).]
 
 An anchored generator asks what one claim reaches; an unanchored one asks where a
 shape occurs, which is Cypher's `MATCH` with and without a bound variable. Both are

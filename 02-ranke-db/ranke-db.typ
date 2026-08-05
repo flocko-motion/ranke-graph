@@ -240,7 +240,7 @@ Arbitrary replication strategies can be modelled from the provided composition p
 
 _Discharges R3 (replicability)._
 
-Beyond storage, a layer may offer a *query engine* the planner can target. The stacking primitive surfaces the most capable engine among its layers, and RankeDB lowers each read to it (@sec:query), falling back to the native filter when no layer offers more. The current implementation wraps Neo4j (@neo4j), whose `cypher` (@francis2018cypher) — converging on the standardised `gql` (@iso39075gql) — ranks above the native filter. A layer thus contributes not only durability but capability, and a query's meaning is unchanged by which layer answers it.
+Beyond storage, a layer may offer a *query engine* the planner can target. The stacking primitive surfaces the most capable engine among its layers, and RankeDB translates each read to it (@sec:query), falling back to the native filter when no layer offers more. The current implementation wraps Neo4j (@neo4j), whose `cypher` (@francis2018cypher) — converging on the standardised `gql` (@iso39075gql) — ranks above the native filter. A layer thus contributes not only durability but capability, and a query's meaning is unchanged by which layer answers it.
 
 Direct access to a layer sits outside this boundary. A client holding a backing store's own credentials — Neo4j, Postgres, a filesystem — can read and write it directly, with that platform's full power and none of RankeDB's scoping or verification. This is a demarcation, not a gap: RankeDB enforces its rules on requests that pass through it, and the substrate remains whatever it is. Where the guarantees must hold, the substrate credentials are withheld and only RankeDB is exposed.
 
@@ -363,7 +363,7 @@ Each contribution commits as the delta of claims effectively added to a branch; 
 
 == Filtered Reads <sec:query>
 
-A read against RankeDB is a query in *RankeQL* (RQL) — a tree-structured object expressible as JSON, modelled closely after `cypher` (@francis2018cypher) and the standard it converges on, `gql` (@iso39075gql), and kept a subset of them: small enough that the native walk, or any backend a future adapter reaches, implements the whole language, while a Cypher/GQL-capable layer answers it by lowering. This section gives its conceptual shape; the full grammar and evaluation semantics are fixed by the Ranke normative specification @rankespec. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
+A read against RankeDB is a query in *RankeQL* (RQL) — a tree-structured object expressible as JSON, modelled closely after `cypher` (@francis2018cypher) and the standard it converges on, `gql` (@iso39075gql), and kept a subset of them: small enough that the native walk, or any backend a future adapter reaches, implements the whole language, while a Cypher/GQL-capable layer answers it by translation. This section gives its conceptual shape; the full grammar and evaluation semantics are fixed by the Ranke normative specification @rankespec. `select` blocks are *generators* that define result sets of claims; `where` blocks are *filters* that select subsets from those results; `and`, `or` and `not` combine comparisons by boolean logic, and `or` also unions whole result sets. Generators may select any claims within the access scope of the system account used.
 
 A `select` generator answers two questions apart from one another: which graph is read, and where the reading starts. `select.branch` names the *scope* a grant is held against — a branch, the whole archive (`$archive`), or the unconfined `$universe`, the last of these privileged (@sec:access) — which is what lets RankeDB enforce those grants and sequence concurrent writes. `select.head` fixes the *closure* the query sees, required under `$universe`, which offers no head to fall back on, and optional elsewhere, where the branch's head, or the branch table itself, serves. `select.claim` optionally *anchors* the walk at one claim inside that closure; naming none leaves `select.path` unanchored, matching wherever it fits in the closure, as a Cypher `MATCH` does without a bound variable. Keeping closure and anchor apart matters because a walk runs both ways: following references outward stays under the anchor, but asking which claims _cite_ it runs upward, and only the closure decides how far that reaches.
 `select.path` specifies the traversal: a sequence of *steps* each naming the `edges` it follows, a `dir` — `provenance` (outgoing, the default), `uses` (incoming), or `connections` (either) — a `min` and `max` bounding its hops, and optionally the `nodes` it may yield. `edges` and `nodes` are both type lists; a leading `-` on an entry excludes that type. A step moves at least one hop unless `min` is `0`, which carries its starting set through alongside what lies beyond it; a `max` of `0`, or none, leaves the step unbounded. Without `path`, a generator follows every edge outward, unbounded — the full closure of its frontier (foundation paper §Closures).
@@ -404,7 +404,7 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
 
 `limit` bounds the read: `results` caps the claim count, `time` the execution. Results order by `(created_at, id)` unless a named `order` of `{field, dir}` sorts otherwise, claims lacking the field last; to page, carry the last row's order key into a `where` on the next request.
 
-@fig:reads shows one read: the declarative form the client sends (left) and the Cypher RankeDB lowers it to on a Cypher/GQL-capable stack (right).
+@fig:reads shows one read: the declarative form the client sends (left) and the Cypher RankeDB translates it to on a Cypher/GQL-capable stack (right).
 
 #[
 #show raw: set text(size: 0.66em)
@@ -446,9 +446,9 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
 ) <fig:reads>
 ]
 
-Queries are declarative and backend agnostic. RankeDB lowers them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
+Queries are declarative and backend agnostic. RankeDB translates them to whichever execution engine the storage stack offers, ranked by capability: a Cypher/GQL-capable layer (@sec:composition) is preferred over the built-in native graph walk, which is simple, the reference for conformance tests, but not performance optimised. 
 
-The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length 5) materialise each result into the requested `output`. This order is easy to implement but not performant; optimised execution may divert from it as long as the result set stays identical. An `execution` block tunes and inspects this: `execution.layer` selects a layer explicitly; `execution.report` appends a final *report* record to the result stream — the layer that processed the query, the query it was lowered to (the Cypher/GQL text, or `native`), and per-step timings in milliseconds — typed distinctly from the result claims. The conformance suite compares the native reference against more performant engines.
+The logical execution order is: 1) generate the full result set 2) filter it 3) sort it 4) limit it to the requested output length 5) materialise each result into the requested `output`. This order is easy to implement but not performant; optimised execution may divert from it as long as the result set stays identical. An `execution` block tunes and inspects this: `execution.layer` selects a layer explicitly; `execution.report` appends a final *report* record to the result stream — the layer that processed the query, the query it was translated to (the Cypher/GQL text, or `native`), and per-step timings in milliseconds — typed distinctly from the result claims. The conformance suite compares the native reference against more performant engines.
 
 
 _Discharges R14._
@@ -522,7 +522,7 @@ The RankeDB repository ships a conformance suite: it runs a series of commits an
 #todo[Blob-store `get`/`put`/`has` across S3 vs local vs a stacked cache+shard composition; cost of the write-through/read-fill paths. Substantiates R1 (persistence agnosticism), R4 (composability).]
 
 == Query Engines: Native Walk vs Cypher/GQL
-#todo[The same declarative query lowered to the native graph walk vs the Neo4j Cypher/GQL layer; latency against traversal depth and result size; confirms "a query's meaning is unchanged by which layer answers it" (@sec:composition). Substantiates R14.]
+#todo[The same declarative query translated to the native graph walk vs the Neo4j Cypher/GQL layer; latency against traversal depth and result size; confirms "a query's meaning is unchanged by which layer answers it" (@sec:composition). Substantiates R14.]
 
 == Sequencer Throughput
 #todo[Merge cost against contribution (batch) size; contributions/second; the verification-before-merge cost and how it parallelises. Substantiates R5 (coordination) and the "no bottleneck" claim (@sec:coordinate).]

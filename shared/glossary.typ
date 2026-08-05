@@ -92,7 +92,7 @@
    description: [$op("id")(v) = "Sign"(H(S(v)))$: a claim's content address — a signature over the hash of its canonical serialization; written $k$ where a bare id is needed. (foundation paper §Primitives)]),
 
   (key: "type", short: "type", group: "01 · Ranke-Graph",
-   description: [A claim's `type`: a #gls("class") from a fixed set together with an open #gls("subtype"), e.g. `source/conversation`. (foundation paper §Nodes, §Type Vocabulary)]),
+   description: [A node's or an edge's `type`: a #gls("class") from a fixed set together with an open #gls("subtype"), e.g. `source/conversation`. (foundation paper §Nodes, §Type Vocabulary)]),
 
   (key: "class", short: "class", group: "01 · Ranke-Graph",
    description: [The fixed, closed part of a #gls("type") — one of `source`, `derivation`, `entity`, `relation`, `contribution`. (foundation paper §Type Vocabulary)]),
@@ -142,6 +142,9 @@
 
   (key: "height", short: "height", group: "02 · RankeDB",
    description: [The level a claim sits at: $"height"(v) = max({"height"(u) : u in "refs"(v)} union {0}) + 1$, the longest reference chain from it down to an #gls("initial-node"), which sits at 1. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (§Filtered Reads)]),
+
+  (key: "frontier", short: "frontier", group: "02 · RankeDB",
+   description: [The set of claims a `path` step starts from. The first frontier is the anchor claim, or every claim in the #gls("closure") when the path is unanchored; each step's yield is the next step's frontier. (§Filtered Reads)]),
 
   (key: "limiting-claim", short: "limiting claim", group: "02 · RankeDB",
    description: [A claim restricting use of another — a deletion (`contribution/delete`) or an early key-expiry (`contribution/expiry`). Minted only by the Sequencer and propagated across branches. (§Cross Branch Propagation)]),
