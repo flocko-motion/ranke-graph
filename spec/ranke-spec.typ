@@ -158,12 +158,9 @@ and the referenced bytes in $cal(U)$ MUST hash to it: $H(c) = $ `content_hash`.
 A claim MUST NOT carry both `content` and `content_hash`. (foundation paper §Content,
 §Verifiability)]
 
-#rule("V-ID", FORCED)[Every claim's stored id MUST recompute:
-$op("id")(v) = "Sign"(H(S(v)))$ for a node, $op("id")(e) = H(S(e))$ for an edge.
-$S$ MUST be the canonical serialization (deterministic, complete,
-self-delimiting) and $H$ the declared, self-describing hash. Since $S(v)$ covers
-the node's whole `edges` field, one recomputation fixes the node and every edge it
-owns. (foundation paper §Primitives, §Verifiability)]
+#rule("V-ID", FORCED)[Every claim's stored id MUST verify against the claim's stored bytes:
+the id is the signature over their hash, checked with the key `V-SIG` names. (foundation
+paper §Primitives, §Verifiability)]
 
 #rule("V-SIG", FORCED)[The signature in $op("id")(v)$ MUST verify against the
 contributor's `pubkey` — reached through $v$'s `contribution/contributor` edge, or,
@@ -592,8 +589,7 @@ the same form — sentences, ids, FORCED/FREE tiers, grounded in the papers:
 
 - *Serialization and identity* — the canonical $S$, the hash $H$, the signature
   scheme, and the alias table, decided here: the choices an implementation must
-  make to reproduce a byte-identical serialization, stated as decisions
-  (foundation paper §Primitives).
+  make to serialize a claim, stated as decisions (foundation paper §Primitives).
 - *Taxonomy and well-formedness* — the fixed node and edge classes, and the
   structural constraints each imposes (e.g. a `relation/*` node's edges land on
   `entity/*` claims and carry `relation_direction`) (foundation paper §Type Vocabulary,
