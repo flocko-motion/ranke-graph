@@ -204,7 +204,7 @@
     "OutputContent": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["max", "overflow"],
+      "required": ["max"],
       "description": "Inline content per claim. Absent, no content is inlined (R-QCONTENT).",
       "properties": {
         "max": {
@@ -215,7 +215,7 @@
         "overflow": {
           "type": "string",
           "enum": ["cutoff", "omit"],
-          "description": "What becomes of content past the cap: cutoff truncates it, omit drops it. A claim keeps every field it carries either way."
+          "description": "What becomes of content past the cap: cutoff inlines the bytes up to it, omit inlines whole values only. Absent, omit. A claim keeps every field it carries either way (R-QCONTENT)."
         }
       }
     },
