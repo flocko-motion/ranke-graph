@@ -89,7 +89,7 @@ database, RankeDB. While the papers _Ranke-Graph: A Provenance-First Data
 Structure_ and _RankeDB: Serving the Ranke-Graph_ lay the foundation and describe
 the mechanisms — cited below as the *foundation paper* and the *RankeDB paper* —
 this specification adds the exhaustive detail and design decisions required for a
-full implementation.
+full implementation. Where it is silent, the cited paper section governs.
 
 = How to Read This <sec:conventions>
 
@@ -183,6 +183,69 @@ representation (`R-QENCODING`), and a reader parses what any implementation wrot
 claim following references:
 $ "height"(v) = max({"height"(u) + 1 : u in "refs"(v)} union {0}) $
 An initial claim references nothing and so carries 0.]
+
+#rule("V-SER", FORCED)[$S$ MUST be CBOR Deterministic Encoding (RFC 8949 §4.2). A node
+and an edge each serialize as a map under the numeric keys of @tbl:keys, a node's `edges`
+key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`).]
+
+#rule("V-HASH", FORCED)[$H$ MUST be a multihash over SHA2-256, self-describing in its
+leading code.]
+
+#rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032), the signature and the
+`pubkey` each multikey-framed as a multicodec varint followed by the raw bytes.]
+
+#figure(
+  table(
+    columns: (auto, 1fr, auto, 1fr),
+    align: (right, left, right, left),
+    stroke: none,
+    table.header([*key*], [*node*], [*key*], [*edge*]),
+    table.hline(),
+    [1], [type class],      [1],  [reference],
+    [2], [type subtype],    [2],  [type class],
+    [3], [encoding class],  [3],  [type subtype],
+    [4], [encoding subtype],[4],  [`content_hash`],
+    [5], [`content_hash`],  [5],  [`relation_direction`],
+    [6], [`created_at`],    [6],  [fields],
+    [7], [`edges`],         [7],  [`content_size`],
+    [8], [fields],          [8],  [encoding class],
+    [9], [`content`],       [9],  [encoding subtype],
+    [11], [`content_size`], [10], [`content`],
+    [12], [`height`],       [], [],
+  ),
+  caption: [Numeric keys of the node and edge records. Node key 10 is unassigned.],
+) <tbl:keys>
+
+#rule("V-ALIAS", FORCED)[A well-known field name MAY appear in the alias form of
+@tbl:aliases, carrying the reserved `.` prefix on the wire. An alias is semantically
+identical to its long form.]
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto),
+    align: (left, left, left, left),
+    stroke: none,
+    table.header([*field*], [*alias*], [*field*], [*alias*]),
+    table.hline(),
+    [`name`],             [`.n`], [`edges_diff_omit`],       [`.E`],
+    [`edges`],            [`.e`], [`fields_diff_omit`],      [`.F`],
+    [`content`],          [`.c`], [`pubkey_valid_from`],     [`.v`],
+    [`content_size`],     [`.s`], [`pubkey_expires_after`],  [`.x`],
+    [`content_hash`],     [`.h`], [`delete_by`],             [`.d`],
+    [`height`],           [`.H`], [], [],
+  ),
+  caption: [Field-name aliases. The reserved `.` namespace admits no user field name.],
+) <tbl:aliases>
+
+#rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
+or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
+
+#rule("V-PROV", FORCED)[A `derivation/*`, `entity/*`, or `relation/*` node MUST carry at
+least one `derivation/*` edge. (foundation paper §Type Vocabulary)]
+
+#rule("R-FIELDS", FREE)[A field name MUST be at most 128 bytes over `[a-z0-9_]` with no
+leading `_`; a value at most 64 KiB; a record at most 256 fields; inline content at most
+1 MiB. Larger data belongs in external content (`V-CONTENT`).]
 
 == Contribution rules <sec:v-contribution>
 
@@ -384,7 +447,7 @@ Output = {
   form?:     "original" | "materialized"            // as written | resolved; absent -> "original"
   content?:  {                                      // inline content per claim; absent -> none
     max:      int                                   // cap in bytes; 0 -> unbounded
-    overflow: "cutoff" | "omit"                     // handling past max
+    overflow?: "cutoff" | "omit"                    // past max; absent -> "omit"
   }
   encoding?: "json" | "cbor"                        // text (base64) | binary; absent -> "json"
 }
@@ -497,17 +560,20 @@ stored, or `materialized` with any `contribution/diff` chain resolved recursivel
 the predecessor it references.]
 
 #rule("R-QCONTENT", FREE)[`content` is a pair: `max` caps the bytes inlined per claim, and
-`overflow` applies where a claim's content exceeds the cap — `cutoff` inlines the bytes up
-to it, `omit` inlines none. A `max` of `0` inlines every claim's content in full, leaving
-`overflow` no effect. An absent `content` inlines nothing (foundation paper §Content).]
+`overflow` decides a claim whose content exceeds it — `cutoff` inlines the bytes up to the
+cap, `omit` inlines whole values only. An absent `overflow` is `omit`. A claim's inlined
+content is the longest prefix of its content sequence — its edges' content in $S(v)$'s
+order, then the node's — that fits within `max`; under `cutoff` that prefix may end inside
+a value, under `omit` at the last whole value that fits. A `max` of `0` inlines every
+claim's content in full. An absent `content` inlines nothing (foundation paper §Content).]
 
 #rule("R-QENCODING", FREE)[`encoding` sets the results encoding format: `json`, text with content
 base64-encoded, or `cbor`, binary. Both carry the same information.]
 
 #rule("R-QCANON", FREE)[The combination `detail: claims` + `form: original` +
-`encoding: cbor` + `content: {max: 0}` MUST deliver each claim as the bytes $S(v)$ whose
-hash its id was computed over (foundation paper §Primitives). It is the only output form a
-client can hash and check against the id.]
+`encoding: cbor`, with `content` inlining every claim in full (`R-QCONTENT`), MUST deliver
+each claim as the bytes $S(v)$ whose hash its id was computed over (foundation paper
+§Primitives). It is the only output form a client can hash and check against the id.]
 
 == `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
@@ -556,59 +622,50 @@ serve it natively. This section fixes that translation. The rules above define w
 query answers; a translated query answers the same, and the native reference engine
 settles any disagreement (`R-QEVAL`).
 
-#rule("R-QCYPHER", FREE)[A translation MUST deliver the result set this chapter defines,
-in the order it defines. Where a translated query and the native engine disagree, the
+#rule("R-QCYPHER", FREE)[A translation MUST deliver the result set `R-QEVAL` defines, in
+the order `R-QSORT` fixes. Where a translated query and the native engine disagree, the
 translation is the defect.]
 
-#rule("R-QCCLAUSE", FREE)[Block by block: `select` translates to a `MATCH`, bound to a
-variable when `claim` anchors it; `where` to a `WHERE` over the endpoint; `order` to an
-`ORDER BY` carrying the `(created_at, id)` tie-break (`R-QSORT`); `limit.results` to a
-`LIMIT`; and `output.detail` to the `RETURN` projection — the id alone, or the node with
-its labels and outgoing edges. The remaining fields stay outside the statement:
-`output`'s `form`, `content`, and `encoding`, `limit.time`, and `execution` (`R-QEVAL`).]
+#rule("R-QCCLAUSE", FREE)[Block by block: `select` translates to a `MATCH` whose start
+node is pinned by id where `claim` anchors it and reached from the scope's head otherwise;
+`where` to a `WHERE` over the endpoint; `order` to an `ORDER BY` carrying the
+`(created_at, id)` tie-break (`R-QSORT`); `limit.results` to a `LIMIT`; and
+`output.detail` to the `RETURN` projection — the id alone, or the node with its labels and
+outgoing edges. A read with no `path` translates to a scan of the scope. The remaining
+fields stay outside the statement: `output`'s `form` and `content`, `limit.time`, and
+`execution` (`R-QEVAL`).]
 
 #rule("R-QCSTEP", FREE)[A `PathStep` translates to a variable-length segment in its
 `dir`, `*min..max`, an absent or `0` `max` leaving it unbounded. Its `edges` and `nodes`
-globs translate to full-match conditions on that segment's relationship and node, and an
-absent list imposes no condition (`R-QSTEPS`).]
+globs translate to full-match conditions, `edges` over every relationship of the segment
+and `nodes` over its endpoint, and an absent list imposes no condition (`R-QSTEPS`).]
 
 #rule("R-QCFRONTIER", FREE)[A `path` MUST translate to one `MATCH` per step, each
 carrying the previous step's endpoints forward as a distinct set. Cypher's edge-uniqueness
 holds within a single pattern, so the step boundary is what resets it, as `R-QFRONTIER`
-requires. A `path` translated as one continuous pattern drops results the frontier
-pipeline returns.]
+requires. A `path` translated as one continuous pattern drops results `R-QFRONTIER`
+admits.]
 
 #rule("R-QCSCOPE", FREE)[However a translation confines a query — a walk from the scope's
 head, or an index the backend maintains — the confined set MUST equal the scope's graph
-(`R-QSCOPE`), and a reverse step MUST reach no claim outside it (`R-QHEAD`).]
-
-= Remaining chapters <sec:remaining>
-
-The normative surface beyond verification is to be written here, each chapter in
-the same form — sentences, ids, FORCED/FREE tiers, grounded in the papers:
-
-- *Serialization and identity* — the canonical $S$, the hash $H$, the signature
-  scheme, and the alias table, decided here: the choices an implementation must
-  make to serialize a claim, stated as decisions (foundation paper §Primitives).
-- *Taxonomy and well-formedness* — the fixed node and edge classes, and the
-  structural constraints each imposes (e.g. a `relation/*` node's edges land on
-  `entity/*` claims and carry `relation_direction`) (foundation paper §Type Vocabulary,
-  §Relations).
-- *Wire encoding and endpoints* — request and response formats and the
-  authentication surface (RankeDB paper §Endpoints and Authentication).
-
-Until a chapter is written, the cited paper section governs.
+(`R-QSCOPE`). The anchor and every claim a step reaches MUST lie inside it, a reverse step
+included (`R-QANCHOR`, `R-QHEAD`).]
 
 = Open decisions <sec:open>
 
 Details this document must fix, each a decision no other layer may make for it.
-Until one is settled, the rule or chapter it belongs to is incomplete, and an
-implementation is free where the specification is silent.
+Until one is settled, the rule it belongs to is incomplete, and an implementation is
+free where the specification is silent.
 
-#todo[*The schema's authority over this chapter.* While the RankeQL chapter is under
-review, the published query schema governs a query's shape and the chapter follows it
-(@sec:rql). Settle the chapter, then restore the schema to what every artifact built
-from this document is: a projection that checks the shapes stated here.]
+#todo[*Class and type aliases.* The foundation paper §Primitives promises aliases for
+classes and full types as well as field names — `contribution/*` to `.c/*`,
+`contribution/contributor` to `.cc`. `V-ALIAS` fixes the field names alone, those being what
+the reference implementation carries. Decide whether the class and type forms enter the
+alias table, or whether the paper's sketch narrows to field names.]
+
+#todo[*Node record key 10.* @tbl:keys assigns 1 to 9 and 11 to 12, leaving 10 unassigned
+(`V-SER`). Decide whether it stays reserved, and for what, or whether the record renumbers
+before the encoding is published.]
 
 #todo[*Whole-route uniqueness for a path shape.* `R-QFRONTIER` resets edge-uniqueness at
 every step boundary, `shape: path` included, and `R-QCFRONTIER` requires a translation to
