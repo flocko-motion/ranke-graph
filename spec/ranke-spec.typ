@@ -194,48 +194,14 @@ leading code.]
 #rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032), the signature and the
 `pubkey` each multikey-framed as a multicodec varint followed by the raw bytes.]
 
-#figure(
-  table(
-    columns: (auto, 1fr, auto, 1fr),
-    align: (right, left, right, left),
-    stroke: none,
-    table.header([*key*], [*node*], [*key*], [*edge*]),
-    table.hline(),
-    [1], [type class],      [1],  [reference],
-    [2], [type subtype],    [2],  [type class],
-    [3], [encoding class],  [3],  [type subtype],
-    [4], [encoding subtype],[4],  [`content_hash`],
-    [5], [`content_hash`],  [5],  [`relation_direction`],
-    [6], [`created_at`],    [6],  [fields],
-    [7], [`edges`],         [7],  [`content_size`],
-    [8], [fields],          [8],  [encoding class],
-    [9], [`content`],       [9],  [encoding subtype],
-    [11], [`content_size`], [10], [`content`],
-    [12], [`height`],       [], [],
-  ),
-  caption: [Numeric keys of the node and edge records. Node key 10 is unassigned.],
-) <tbl:keys>
-
-#rule("V-ALIAS", FORCED)[A well-known field name MAY appear in the alias form of
-@tbl:aliases, carrying the reserved `.` prefix on the wire. An alias is semantically
-identical to its long form.]
-
-#figure(
-  table(
-    columns: (auto, auto, auto, auto),
-    align: (left, left, left, left),
-    stroke: none,
-    table.header([*field*], [*alias*], [*field*], [*alias*]),
-    table.hline(),
-    [`name`],             [`.n`], [`edges_diff_omit`],       [`.E`],
-    [`edges`],            [`.e`], [`fields_diff_omit`],      [`.F`],
-    [`content`],          [`.c`], [`pubkey_valid_from`],     [`.v`],
-    [`content_size`],     [`.s`], [`pubkey_expires_after`],  [`.x`],
-    [`content_hash`],     [`.h`], [`delete_by`],             [`.d`],
-    [`height`],           [`.H`], [], [],
-  ),
-  caption: [Field-name aliases. The reserved `.` namespace admits no user field name.],
-) <tbl:aliases>
+#rule("V-ALIAS", FORCED)[A well-known field name, a type class, a type subtype, and an
+encoding class or subtype MAY appear in its alias form: the reserved `.` followed by the
+letter @tbl:aliases and @tbl:encsub give it. An alias is semantically identical to its long
+form, and a name with none passes through unchanged. Each half of a type aliases on its own
+and occupies its own record key (`V-SER`), so the `/` of a written type is not serialized
+and one letter may serve both halves — `.c` is the `contribution` class and the
+`contributor` subtype. A mapping MUST only be added, never changed: an id is computed over
+the aliased bytes, so a remapped letter changes what a stored claim says.]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
@@ -657,12 +623,6 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule it belongs to is incomplete, and an implementation is
 free where the specification is silent.
 
-#todo[*Class and type aliases.* The foundation paper §Primitives promises aliases for
-classes and full types as well as field names — `contribution/*` to `.c/*`,
-`contribution/contributor` to `.cc`. `V-ALIAS` fixes the field names alone, those being what
-the reference implementation carries. Decide whether the class and type forms enter the
-alias table, or whether the paper's sketch narrows to field names.]
-
 #todo[*Node record key 10.* @tbl:keys assigns 1 to 9 and 11 to 12, leaving 10 unassigned
 (`V-SER`). Decide whether it stays reserved, and for what, or whether the record renumbers
 before the encoding is published.]
@@ -705,6 +665,103 @@ restatement, so decide how a diff *removes* one — which fields name the droppe
 set, and how materialisation applies them — or rule the removal out. The chapter
 that owns claim semantics owns this definition; @sec:rql-output states only what a
 query needs of it. (foundation paper §Claims, Taxonomy and well-formedness)]
+
+= Annex — Serialization Tables <sec:serialization>
+
+`V-SER` and `V-ALIAS` cite these tables: the record keys a claim serializes under, and
+the aliases its names and types may take.
+
+#figure(
+  table(
+    columns: (auto, 1fr, auto, 1fr),
+    align: (right, left, right, left),
+    stroke: none,
+    table.header([*key*], [*node*], [*key*], [*edge*]),
+    table.hline(),
+    [1], [type class],      [1],  [reference],
+    [2], [type subtype],    [2],  [type class],
+    [3], [encoding class],  [3],  [type subtype],
+    [4], [encoding subtype],[4],  [`content_hash`],
+    [5], [`content_hash`],  [5],  [`relation_direction`],
+    [6], [`created_at`],    [6],  [fields],
+    [7], [`edges`],         [7],  [`content_size`],
+    [8], [fields],          [8],  [encoding class],
+    [9], [`content`],       [9],  [encoding subtype],
+    [11], [`content_size`], [10], [`content`],
+    [12], [`height`],       [], [],
+  ),
+  caption: [Numeric keys of the node and edge records. Node key 10 is unassigned.],
+) <tbl:keys>
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto, auto, auto, auto, auto),
+    align: (left, left, left, left, left, left, left, left),
+    stroke: none,
+    table.header(
+      [*field*], [], [*type class*], [], [*type subtype*], [], [*encoding class*], [],
+    ),
+    table.hline(),
+    [`name`],                 [`n`], [`contribution`], [`c`], [`branch`],      [`b`], [`application`], [`a`],
+    [`edges`],                [`e`], [`source`],       [`s`], [`branches`],    [`B`], [`audio`],       [`A`],
+    [`content`],              [`c`], [`derivation`],   [`d`], [`contributor`], [`c`], [`example`],     [`e`],
+    [`content_size`],         [`s`], [`entity`],       [`e`], [`diff`],        [`d`], [`font`],        [`f`],
+    [`content_hash`],         [`h`], [`relation`],     [`r`], [`head`],        [`h`], [`image`],       [`i`],
+    [`height`],               [`H`], [], [],                  [`prune`],       [`p`], [`message`],     [`m`],
+    [`edges_diff_omit`],      [`E`], [], [],                  [`delete`],      [`x`], [`model`],       [`l`],
+    [`fields_diff_omit`],     [`F`], [], [],                  [`expiry`],      [`e`], [`multipart`],   [`M`],
+    [`pubkey_valid_from`],    [`v`], [], [], [], [],                                  [`text`],        [`t`],
+    [`pubkey_expires_after`], [`x`], [], [], [], [],                                  [`video`],       [`V`],
+    [`delete_by`],            [`d`], [], [], [], [], [], [],
+  ),
+  caption: [Aliases, each serialized with the reserved `.`. `source` and `entity`
+  are node classes alone, `prune` an edge subtype alone. Encoding subtypes are @tbl:encsub.],
+) <tbl:aliases>
+
+Every predefined media subtype carries a one-character alias (`V-ALIAS`), written with the
+reserved `.`. A subtype absent from this table passes through in full. RFC 6838
+forbids a literal subtype from beginning with `.`, so an alias and a literal never collide.
+The table is append-only: 56 of the 62 single-character slots are taken.
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto, auto, auto),
+    align: (left, left, left, left, left, left),
+    stroke: none,
+    table.header([*subtype*], [], [*subtype*], [], [*subtype*], []),
+    table.hline(),
+    table.cell(colspan: 6)[*`application/*`*],
+    [`json`],         [`j`], [`zip`],             [`z`], [`msword`],       [`W`],
+    [`ld+json`],      [`J`], [`gzip`],            [`g`], [`vnd.ms-excel`], [`E`],
+    [`xml`],          [`x`], [`x-tar`],           [`t`], [`vnd.ms-powerpoint`], [`Y`],
+    [`xhtml+xml`],    [`X`], [`x-bzip2`],         [`b`], [`…wordprocessingml.document`], [`d`],
+    [`pdf`],          [`p`], [`x-7z-compressed`], [`7`], [`…spreadsheetml.sheet`], [`s`],
+    [`octet-stream`], [`o`], [`vnd.rar`],         [`R`], [`…presentationml.presentation`], [`P`],
+    [`manifest+json`],[`w`], [`java-archive`],    [`k`], [`vnd.oasis.opendocument.text`], [`T`],
+    [`rtf`],          [`r`], [`epub+zip`],        [`e`], [`vnd.oasis.opendocument.spreadsheet`], [`S`],
+    [], [], [], [], [`vnd.oasis.opendocument.presentation`], [`Q`],
+    table.cell(colspan: 6)[*`text/*`*],
+    [`plain`],      [`n`], [`css`],        [`c`], [`markdown`], [`m`],
+    [`html`],       [`h`], [`javascript`], [`a`], [`calendar`], [`l`],
+    [`csv`],        [`v`], [], [], [], [],
+    table.cell(colspan: 6)[*`image/*`*],
+    [`png`],  [`G`], [`webp`],    [`B`], [`tiff`], [`F`],
+    [`apng`], [`A`], [`avif`],    [`V`], [`vnd.microsoft.icon`], [`I`],
+    [`jpeg`], [`i`], [`svg+xml`], [`y`], [], [],
+    [`gif`],  [`f`], [`bmp`],     [`M`], [], [],
+    table.cell(colspan: 6)[*`audio/*` and `video/*`*],
+    [`mpeg`], [`q`], [`webm`], [`K`], [`mp2t`],  [`2`],
+    [`aac`],  [`C`], [`midi`], [`D`], [`3gpp`],  [`3`],
+    [`wav`],  [`U`], [`mp4`],  [`4`], [], [],
+    [`ogg`],  [`O`], [`x-msvideo`], [`Z`], [], [],
+    table.cell(colspan: 6)[*`font/*`*],
+    [`woff`],  [`L`], [`ttf`], [`5`], [], [],
+    [`woff2`], [`H`], [`otf`], [`6`], [], [],
+  ),
+  caption: [Encoding subtype aliases. `mpeg`, `ogg`, and `webm` are shared by `audio/*` and
+  `video/*`, one subtype and one alias. The three truncated names are the
+  `vnd.openxmlformats-officedocument` types.],
+) <tbl:encsub>
 
 = Annex — The Reference Archive <sec:fixture>
 
