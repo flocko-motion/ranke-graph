@@ -190,11 +190,14 @@ key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`). A k
 only be added, never reassigned: an id is computed over the encoded bytes, so a reassigned
 key changes what a stored claim says.]
 
-#rule("V-HASH", FORCED)[$H$ MUST be a multihash over SHA2-256, self-describing in its
-leading code.]
+#rule("V-HASH", FORCED)[$H$ MUST be a multihash: the multicodec varint `0x12`
+(`sha2-256`), the digest length, then the digest.]
 
-#rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032), the signature and the
-`pubkey` each multikey-framed as a multicodec varint followed by the raw bytes.]
+#rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032). A `pubkey` is framed as the
+multicodec varint `0xed` (`ed25519-pub`) followed by the raw key; a signature as `0xd0ed`
+(`eddsa`) followed by the raw signature. The leading code names what a payload holds, so a
+signed id reads `eddsa` and an identity-signed one the `sha2-256` of its multihash
+(`V-HASH`).]
 
 #rule("V-ALIAS", FORCED)[A well-known field name, a type class, a type subtype, and an
 encoding class or subtype MAY appear in its alias form: the reserved `.` followed by the
@@ -204,6 +207,20 @@ and occupies its own record key (`V-SER`), so the `/` of a written type is not s
 and one letter may serve both halves — `.c` is the `contribution` class and the
 `contributor` subtype. A mapping MUST only be added, never changed: an id is computed over
 the aliased bytes, so a remapped letter changes what a stored claim says.]
+
+#rule("V-DIFF", FORCED)[A claim carrying a `contribution/diff` edge *overlays* the claim it
+references, which is materialised first, recursively to a base claim. Its materialised
+fields are the predecessor's, less each name listed in `fields_diff_omit`, with its own
+fields overlaid on top — so a name both omitted and restated keeps the restated value.
+Content is inherited whole: the claim's own `content` or `content_hash` where it sets
+either, else the predecessor's. An omit list is an ordinary field, inherited as data, and
+applies only where the claim itself states it. (foundation paper §Claims)]
+
+#rule("V-DIFFEDGE", FORCED)[An edge's `name` field is its identity for inheritance. A diff
+claim's materialised edges are the predecessor's *named* edges, less each name listed in
+`edges_diff_omit`, with the claim's own named edges overlaid by name. Its own unnamed
+edges — its `contribution/contributor` and `contribution/diff` among them — are its alone
+and never inherit.]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
@@ -274,7 +291,10 @@ present in the Universe — stored and propagated across the storage layers —
 
 #rule("R-C6MERGE", FREE)[Every branch table MUST hold its predecessor in provenance,
 so the chain from the archive's head reaches the initial table unbroken (foundation
-paper §Ranke-Archive). Its `contribution/branch` edges MUST name, for each branch
+paper §Ranke-Archive). A table restating only what changed carries a `contribution/diff`
+to its predecessor; one restating every entry carries a `contribution/branches` instead,
+making it a base claim, so the overlay that materialises the table stops there while the
+chain beyond it stays reachable. Its `contribution/branch` edges MUST name, for each branch
 they bind, the head claims of the contribution merged there. (RankeDB paper
 §Sequencer, step 6)]
 
@@ -526,8 +546,7 @@ in order.]
 `claims`, the claim in full. Under `shape: path` it applies to every claim in the route.]
 
 #rule("R-QFORM", FREE)[`form` sets which field values a claim carries: `original` as
-stored, or `materialized` with any `contribution/diff` chain resolved recursively over
-the predecessor it references.]
+stored, or `materialized` with its diff chain resolved as `V-DIFF` fixes.]
 
 #rule("R-QCONTENT", FREE)[`content` is a pair: `max` caps the bytes inlined per claim, and
 `overflow` decides a claim whose content exceeds it — `cutoff` inlines the bytes up to the
@@ -627,33 +646,8 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule it belongs to is incomplete, and an implementation is
 free where the specification is silent.
 
-#todo[*Which edge holds the predecessor.* `R-C6MERGE` requires the new branch table
-to hold the previous one in its provenance, and foundation paper §Ranke-Archive
-requires the same. §Branches names only `contribution/diff` as the link, and permits
-a revision that restates the whole table — which carries no diff edge. Fix the edge
-that holds the predecessor when the revision restates the whole table. (Taxonomy and
-well-formedness)]
-
-#todo[*The closed `contribution/*` subtype set.* Fix its exact members and their
-names: whether the deletion marker is `delete`, as foundation paper §Type Vocabulary
-and `R-DREQUEST` have it; whether `expiry` is a member, which `R-C2TYPE` and RankeDB
-paper §Contributor Keys Life Cycle assume; and the request edges a system account uses
-to ask for each — `contribution/expires_after_request` and
-`contribution/delete_request` — which the papers name only for expiry, and without the
-class prefix. The set is closed, so the membership is normative, unlike the
-open subtypes of the other classes. (Taxonomy and well-formedness)]
-
-#todo[*Whether `contribution/branch` is a node type.* foundation paper §Type Vocabulary
-calls the branch entry edge-only — an edge naming a branch in a `name` field and
-referencing its head. Decide whether a `contribution/branch` *node* also exists
-and, if so, what it carries beyond that. (Taxonomy and well-formedness)]
-
-#todo[*The omit half of a diff.* Overlay is defined, and only overlay: a diff claim
-restates what differs. Dropping an inherited edge or field is not expressible by
-restatement, so decide how a diff *removes* one — which fields name the dropped
-set, and how materialisation applies them — or rule the removal out. The chapter
-that owns claim semantics owns this definition; @sec:rql-output states only what a
-query needs of it. (foundation paper §Claims, Taxonomy and well-formedness)]
+#todo[None open. Every decision this document owed is settled; a new one belongs here
+before the rule that depends on it is written.]
 
 = Annex — Serialization Tables <sec:serialization>
 
