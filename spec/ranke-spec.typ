@@ -65,14 +65,6 @@
   #body
 ]
 
-// An open decision: a detail this document must fix before the chapter that
-// owns it can be written. Deliberately loud — an unresolved TODO is a hole in
-// the normative surface, not a note.
-#let todo(body) = block(
-  above: 0.6em, below: 0.6em, inset: 6pt, radius: 2pt,
-  width: 100%, fill: rgb("#fff7ed"), stroke: 0.5pt + rgb("#fdba74"),
-)[#text(size: 0.94em)[*TODO* — #body]]
-
 #align(center)[
   #text(size: 1.55em, weight: "bold")[Ranke — Normative Specification] \
   #v(0.3em)
@@ -639,15 +631,6 @@ admits.]
 head, or an index the backend maintains — the confined set MUST equal the scope's graph
 (`R-QSCOPE`). The anchor and every claim a step reaches MUST lie inside it, a reverse step
 included (`R-QANCHOR`, `R-QHEAD`).]
-
-= Open decisions <sec:open>
-
-Details this document must fix, each a decision no other layer may make for it.
-Until one is settled, the rule it belongs to is incomplete, and an implementation is
-free where the specification is silent.
-
-#todo[None open. Every decision this document owed is settled; a new one belongs here
-before the rule that depends on it is written.]
 
 = Annex — Serialization Tables <sec:serialization>
 
