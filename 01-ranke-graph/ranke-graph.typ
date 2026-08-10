@@ -257,7 +257,7 @@ Edges point from the claim owning the edge to the `reference` claim. For types s
 
 A *claim* is a node together with its content and the edges in its `edges` set. Each node or edge belongs to exactly one claim. A claim is created in a single atomic transaction; nothing can be added afterwards. The node's hash covers every edge created with it, so $op("id")(v)$ is final at creation time. Atomic creation also requires monotonicity: $"created_at"(v) >= max("created_at"(u))$ over $v$'s references $u$, so a claim cannot predate what it references.
 
-A claim may overlay another: carrying a `contribution/diff` edge (@sec:types), it restates only what differs from the predecessor it references, its full contents *materialised* by applying that delta over the predecessor, recursively to a base claim. 
+A claim may overlay another: carrying a `contribution/diff` edge (@sec:types), it restates only what differs from the predecessor it references, its full contents *materialised* by applying that delta over the predecessor, recursively to a base claim. Restatement adds and replaces; dropping an inherited field or edge needs naming it in a field of its own, which the normative specification fixes (@rankespec).
 
 == Relations (Semantic Claims) <sec:semantic-claims>
 
@@ -483,6 +483,7 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`entity/*`*: an identifiable thing in the world.
 - *`relation/*`*: a node representing a relation among entities.
 - *`contribution/*`*: a claim about contributors or their actions on the RG.
+- *`contribution/contributor`*: an actor that adds claims, carrying the `pubkey` its claims are signed under (see @sec:primitives)
 - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
 - *`contribution/branches`*: a branch-table claim indexing the archive's branches (see @sec:branches)
 - *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
@@ -492,10 +493,11 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 
 - *`derivation/*`*: provenance edges that cite the inputs a claim was derived from.
 - *`relation/*`*: relation edges of a relation node (carry `relation_direction`).
-- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines six subtypes:
+- *`contribution/*`*: edges referencing a contribution that shaped the owning claim. The ADT defines seven subtypes:
   - *`contribution/contributor`*: names the contributor of a claim
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
   - *`contribution/branch`*: edge-only; from a branch table, names one active branch in a `name` field and references its current head (see @sec:branches)
+  - *`contribution/branches`*: points at the previous branch table where a revision restates every entry instead of diffing over it (see @sec:branches)
   - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain — a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
   - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid — it expires after that time
