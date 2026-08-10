@@ -2,104 +2,104 @@
   "note": "Reference artifacts for the Ranke-Graph ADT. A claim record is {1: S(node)}; its id is not in the record, so each case pairs bytes with the id they are offered under. Verification hashes the record as received, never a re-encode.",
   "provenance": {
     "generator": "github.com/flocko-motion/ranke-go/cmd/vectors",
-    "version": "v0.8.0",
-    "generated_at": "2026-08-03T08:52:32Z"
+    "version": "v0.17.0",
+    "generated_at": "2026-08-10T09:36:30Z"
   },
   "claims": [
     {
       "file": "claims/root-contributor.cbor",
-      "id": "b5ua5sl4qqukedy67kdh5ahssly2jqchvuirt447kr5tmipuvlwe2nz64omlyb7bqypjyhm4hhexgl2uw5lm2wqx5kbljiecvdm2eqwifau",
+      "id": "b5uasupx2aqs4reg55gwnp7goytm6d4l3zkjxd43l5yim32lkzthjcp3c3trjifbtuamkozxsakecwoihfhhwhqsoz6dp2zgs2yy4uloaaa",
       "verify": true,
       "reason": "ok",
       "why": "initial node (height 0), content is its own multikey pubkey, signed by that key (§5.7)"
     },
     {
       "file": "claims/source-note.cbor",
-      "id": "b5uaunxcgmjwuwnj7zhk5mixkervwhp2snbtkz3k2a5btwzyk2mtwkgz65wlwngzkunqjtpx3ouxbyaby7eewmzxwz6jkjsvjxt6ymxuzaa",
+      "id": "b5uazft3uu5ynmgf4zcxk33ohtk2xzduzapigtqp5jxxpe4quj2hxfhpmtocxzy76n6xykh3pu6vmantuldjju3tklwyreekf74hudfd4b4",
       "verify": true,
       "reason": "ok",
       "why": "inline content, one auto contributor edge, height 1"
     },
     {
       "file": "claims/derived-note.cbor",
-      "id": "b5uazx2ehcgywsboft2k52zg7oqep4dre4h4hkmdnc5d2ztw5vqiizhcclmfjkag5pjvp73sbwdzrq527chphuojvxsk7k4e4sfnze6loaq",
+      "id": "b5ua6t5uxxjsb7b2clsip5m74vbbhdhwoffrx57tnrdfxdoi46pekb5g3e37trvh35kkeiwt6bgdcyw5hqdo7s54hith5wlbvpnbv77vlbm",
       "verify": true,
       "reason": "ok",
       "why": "derivation edge to source-note, height 2 = 1 + max(referenced heights)"
     },
     {
       "file": "claims/external-content.cbor",
-      "id": "b5uay2dnh2oh7l5dmz3tkl3uszthbuervmpcvmx5vkf6hjk6cupurqejrtohvuh6gkshptcvntnyvuani665jjyruzryr7mi6f7niwcn5bu",
+      "id": "b5ua4ie6dcnjdbvuwwdjajamhg52awcysfm32nb2tp4y6mafavvqg5pkane2bo3rxctpoa55zvw7giz7wksnm3heh6u7s5ii2klyctj2gai",
       "verify": true,
       "reason": "ok",
       "why": "content_hash + content_size in the record, bytes alongside (§Content)"
     },
     {
       "file": "claims/with-fields.cbor",
-      "id": "b5uasimodn45tnk4k5vcpvalrgjdfpc6dm7qwq6rr47z3vedinb6wcjgydtudityldctiacn5i3puk5wmzjyco4dfad7bplih5rm4o5zvae",
+      "id": "b5uazmlaxnyxtc2mnaktwkyuetl3bdingkyfe7xcrud3n5httiqe6pxj3owt263syzfjdtay5c4ni3r2f4fgfsh7xoo6d4dhp2g3cagmfaq",
       "verify": true,
       "reason": "ok",
       "why": "node fields under tag 8, key-sorted by the encoder; known keys carry a '.' alias"
     },
     {
       "file": "claims/other-contributor.cbor",
-      "id": "b5uaygyhzvtv6pfixkk2gxgzkrvy537ygw4qhu2b46clccrln2sjlkmkewtu42f3ut4nqrqonfe2sfxsnkaayrcu4vwivcwajpfo7dd63ay",
+      "id": "b5ua67jwoepyq3ojh6xu2qls5fnji4sr46tlg3rksybsjzsqqzyzjsb7am753rhtynukb3o3ti72zt4ifxqkdukx7muxj4wfm6km72l7gaq",
       "verify": true,
       "reason": "ok",
       "why": "a second identity, so a record can be offered under the wrong signer's id"
     },
     {
       "file": "claims/other-note.cbor",
-      "id": "b5uat36ylase25sxdzziedbra2rfqitmgudjsu33hgmgkojutidra2t5ftfegtwgrf53jizzlog6o4om3bjqagjgqrfaafhittxhrsbolaq",
+      "id": "b5ua6ymzuwbjitgcjioxyrl574v6mc3mjjytebimevhudigcamb44ytzq64sto23he7poeeexb6ydkzow26rthkyl5ztrzvymh7ur5yydau",
       "verify": true,
       "reason": "ok",
       "why": "attributed to other-contributor"
     },
     {
       "file": "claims/rejected-wrong-message.cbor",
-      "id": "b5uazx2ehcgywsboft2k52zg7oqep4dre4h4hkmdnc5d2ztw5vqiizhcclmfjkag5pjvp73sbwdzrq527chphuojvxsk7k4e4sfnze6loaq",
+      "id": "b5ua6t5uxxjsb7b2clsip5m74vbbhdhwoffrx57tnrdfxdoi46pekb5g3e37trvh35kkeiwt6bgdcyw5hqdo7s54hith5wlbvpnbv77vlbm",
       "verify": false,
       "reason": "wrong_message",
       "why": "source-note's record under derived-note's id: a real signature over a different record"
     },
     {
       "file": "claims/rejected-wrong-signer.cbor",
-      "id": "b5uaunxcgmjwuwnj7zhk5mixkervwhp2snbtkz3k2a5btwzyk2mtwkgz65wlwngzkunqjtpx3ouxbyaby7eewmzxwz6jkjsvjxt6ymxuzaa",
+      "id": "b5uazft3uu5ynmgf4zcxk33ohtk2xzduzapigtqp5jxxpe4quj2hxfhpmtocxzy76n6xykh3pu6vmantuldjju3tklwyreekf74hudfd4b4",
       "verify": false,
       "reason": "wrong_message",
       "why": "other-note's record under an id signed by the root key, which never signed it"
     },
     {
       "file": "claims/rejected-identity-sign.cbor",
-      "id": "bciqhop62hhur4jl3cibqqdvlrkijboea3zq3p7fpcxczugslnfbjmzy",
+      "id": "bciqj4xhm3n4eslsxw7gy6dqlkpek7wwnjpjktido3p4k6avp3ta4tyq",
       "verify": false,
       "reason": "identity_sign_mismatch",
       "why": "the bare H(S(node)) as id, valid only where the contributor publishes no key"
     },
     {
       "file": "claims/rejected-malformed-id.cbor",
-      "id": "b5uaunxcgmjwuwnj7zhk5mixkervwhp2snbtkz3k2a5btwzyk2mtwkgz65wlwngzkunqjtpx3ouxbyaby7eewmzxwz6jkjsvjxt6y",
+      "id": "b5uazft3uu5ynmgf4zcxk33ohtk2xzduzapigtqp5jxxpe4quj2hxfhpmtocxzy76n6xykh3pu6vmantuldjju3tklwyreekf74hu",
       "verify": false,
       "reason": "malformed_id",
       "why": "the id's payload is truncated, so its multikey framing no longer parses"
     },
     {
       "file": "claims/rejected-tampered-content.cbor",
-      "id": "b5uaunxcgmjwuwnj7zhk5mixkervwhp2snbtkz3k2a5btwzyk2mtwkgz65wlwngzkunqjtpx3ouxbyaby7eewmzxwz6jkjsvjxt6ymxuzaa",
+      "id": "b5uazft3uu5ynmgf4zcxk33ohtk2xzduzapigtqp5jxxpe4quj2hxfhpmtocxzy76n6xykh3pu6vmantuldjju3tklwyreekf74hudfd4b4",
       "verify": false,
       "reason": "id_mismatch",
       "why": "source-note with its content changed, still offered under source-note's id"
     },
     {
       "file": "claims/rejected-wrong-height.cbor",
-      "id": "b5ua43jlm2kecisre5uhia5vjl7ibowad2tjl3jycmg42trosdi7tybsm5xnp6dp5qzas7dnkqe6ci3apkmbsowjjamqweqaxtaiasahzby",
+      "id": "b5ua6yiajbitrb6rhscue35kwnjp7epfhsj6zzfz4uwqvwwjm4hqlhmhi4u62h7ruwwdyvxrk4qbksty3y2wezgyh3viq7iwkxqyyiwspbq",
       "verify": false,
       "reason": "height_wrong",
       "why": "height 7 where the only reference is a height-0 contributor, so 1 is derived"
     },
     {
       "file": "claims/rejected-absent-contributor.cbor",
-      "id": "b5ua67ikrmtbgfp2hmpue655dnubfnpxrzpydn3t6e6vj2n4yfyxgmwlrjcpalnwj22xgr7jpchojqbmiq4jd65uft3vvrq7ryt7n2ysoay",
+      "id": "b5uaypt74kaov64yicf7lnbw2wg4cpk6l4nmxa4gps6djl5q7ksndjvdlto373a25yabwbeqeh3tylkzpgwnmh5a3cimbx3hlpyb2luapaq",
       "verify": false,
       "reason": "unresolvable_contributor",
       "why": "its contributor edge names a claim this set omits, so the pubkey cannot be resolved"
