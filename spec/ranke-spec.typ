@@ -186,7 +186,9 @@ An initial claim references nothing and so carries 0.]
 
 #rule("V-SER", FORCED)[$S$ MUST be CBOR Deterministic Encoding (RFC 8949 §4.2). A node
 and an edge each serialize as a map under the numeric keys of @tbl:keys, a node's `edges`
-key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`).]
+key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`). A key MUST
+only be added, never reassigned: an id is computed over the encoded bytes, so a reassigned
+key changes what a stored claim says.]
 
 #rule("V-HASH", FORCED)[$H$ MUST be a multihash over SHA2-256, self-describing in its
 leading code.]
@@ -516,7 +518,9 @@ combinators over sub-trees, or a *leaf* naming a `field` and a `test`. A
 
 #rule("R-QSHAPE", FREE)[`shape` sets what each result element is: `single`, one reached
 endpoint per element, or `path`, a route running outward from the frontier claim its walk
-began at.]
+began at. An endpoint reached by more than one route yields exactly one: the shortest, and
+where two are equally long the one whose claims sort first on `(created_at, id)`, compared
+in order.]
 
 #rule("R-QDETAIL", FREE)[`detail` sets what each element carries: `id`, the id alone, or
 `claims`, the claim in full. Under `shape: path` it applies to every claim in the route.]
@@ -623,21 +627,6 @@ Details this document must fix, each a decision no other layer may make for it.
 Until one is settled, the rule it belongs to is incomplete, and an implementation is
 free where the specification is silent.
 
-#todo[*Node record key 10.* @tbl:keys assigns 1 to 9 and 11 to 12, leaving 10 unassigned
-(`V-SER`). Decide whether it stays reserved, and for what, or whether the record renumbers
-before the encoding is published.]
-
-#todo[*Whole-route uniqueness for a path shape.* `R-QFRONTIER` resets edge-uniqueness at
-every step boundary, `shape: path` included, and `R-QCFRONTIER` requires a translation to
-match. A route assembled that way may re-cross an edge, which GQL calls a `WALK`; the
-stricter readings are `TRAIL`, `ACYCLIC`, and `SIMPLE` (@sec:rql-select). Decide whether a
-path shape keeps the `WALK` reading, and if not, whether the stricter one is a mode the
-caller asks for or the only reading available.]
-
-#todo[*Which route a path shape returns.* `R-QSHAPE` says a `path` yields routes without
-fixing how many per endpoint. Decide whether an endpoint reached by several routes yields
-one — the shortest, ties broken node-by-node on `(created_at, id)` — or all of them.]
-
 #todo[*Which edge holds the predecessor.* `R-C6MERGE` requires the new branch table
 to hold the previous one in its provenance, and foundation paper §Ranke-Archive
 requires the same. §Branches names only `contribution/diff` as the link, and permits
@@ -673,24 +662,28 @@ the aliases its names and types may take.
 
 #figure(
   table(
-    columns: (auto, 1fr, auto, 1fr),
-    align: (right, left, right, left),
+    columns: (auto, 1fr, 1fr),
+    align: (right, left, left),
     stroke: none,
-    table.header([*key*], [*node*], [*key*], [*edge*]),
+    table.header([*key*], [*node*], [*edge*]),
     table.hline(),
-    [1], [type class],      [1],  [reference],
-    [2], [type subtype],    [2],  [type class],
-    [3], [encoding class],  [3],  [type subtype],
-    [4], [encoding subtype],[4],  [`content_hash`],
-    [5], [`content_hash`],  [5],  [`relation_direction`],
-    [6], [`created_at`],    [6],  [fields],
-    [7], [`edges`],         [7],  [`content_size`],
-    [8], [fields],          [8],  [encoding class],
-    [9], [`content`],       [9],  [encoding subtype],
-    [11], [`content_size`], [10], [`content`],
-    [12], [`height`],       [], [],
+    [1],  [type class],       [type class],
+    [2],  [type subtype],     [type subtype],
+    [3],  [encoding class],   [encoding class],
+    [4],  [encoding subtype], [encoding subtype],
+    [5],  [`content_hash`],   [`content_hash`],
+    [6],  [`content`],        [`content`],
+    [7],  [`content_size`],   [`content_size`],
+    [8],  [fields],           [fields],
+    [9],  [`created_at`],     [—],
+    [10], [`edges`],          [—],
+    [11], [`height`],         [—],
+    [12], [—],                [`reference`],
+    [13], [—],                [`relation_direction`],
   ),
-  caption: [Numeric keys of the node and edge records. Node key 10 is unassigned.],
+  caption: [Numeric keys of the node and edge records. The eight a node and an edge share
+  take the same key in both, so one number means one thing; a node then uses 9 to 11 and an
+  edge 12 to 13. Every key stays under 24, which CBOR encodes in a single byte.],
 ) <tbl:keys>
 
 #figure(

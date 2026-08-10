@@ -416,33 +416,35 @@ Beyond the fields a claim carries, RankeDB offers one it derives: every claim si
     align: top,
     ```json
     {
-      "query": {
-        "select": {"branch": "project_x",
-                   "claim": "b3d1…9f0a",
-                   "path": [{"edges": ["derivation/*"],
-                             "max": 3}]},
-        "where": {"type": {"glob": "source/*"}},
-        "output": {"content": "4kb",
-                   "overflow": "cutoff",
-                   "encoding": "cbor-seq"},
-        "limit": {"results": 200, "time": "5s"}
-      }
+      "select": {"branch": "project_x",
+                 "claim": "b3d1…9f0a",
+                 "path": [{"edges": ["derivation/*"],
+                           "max": 3}]},
+      "where": {"field": "type",
+                "test": {"glob": "source/*"}},
+      "output": {"detail": "claims",
+                 "content": {"max": 4096,
+                             "overflow": "cutoff"},
+                 "encoding": "json"},
+      "limit": {"results": 200, "time": "5s"}
     }
     ```,
     ```cypher
     // project_x → closure of head 9f2c…e7a1
-    MATCH p = (a:Claim {id: 'b3d1…9f0a'})
-              -[:references*1..3]->(c:Claim)
-     WHERE all(e IN relationships(p)
-               WHERE e.type =~ 'derivation/.*')
-       AND c.type =~ 'source/.*'
-     RETURN c
-     ORDER BY c.created_at DESC,
-              c.id DESC
+    MATCH (n0 {id: 'b3d1…9f0a'})
+    WITH DISTINCT n0
+    MATCH (n0)-[r0*1..3]->(n1)
+     WHERE all(x IN r0
+               WHERE type(x) =~ 'derivation/.*')
+       AND any(l IN labels(n1)
+               WHERE l =~ 'source/.*')
+    WITH DISTINCT n1
+     RETURN n1
+     ORDER BY n1.created_at, n1.id
      LIMIT 200
     ```,
   ),
-  caption: [A declarative query (left), anchored at a release claim, and its transformation for a specific backend, e.g. Cypher (right).],
+  caption: [A declarative query (left), anchored at a release claim, and its transformation for a specific backend, e.g. Cypher (right). One `MATCH` per step, the frontier carried forward by `WITH DISTINCT`; a claim's type is a node label and an edge's type the relationship's own, so both are matched rather than read from a property.],
 ) <fig:reads>
 ]
 
