@@ -209,13 +209,12 @@ Content is inherited whole: the claim's own `content` or `content_hash` where it
 either, else the predecessor's. An omit list is an ordinary field, inherited as data, and
 applies only where the claim itself states it. (foundation paper §Claims)]
 
-#rule("V-DIFFEDGE", FORCED)[A diff claim's `contribution/contributor` and
-`contribution/diff` edges stand outside the overlay: they are the claim's alone and never
-inherit. A diff claim is a claim, so it names its own contributor (`V-ROOT`), and inheriting
-a predecessor's would attribute it to someone else. Every other edge it carries MUST have a
-non-empty `name`, unique among them, that name being an edge's identity for inheritance. Its
-materialised edges are the predecessor's named edges, less each name listed in
-`edges_diff_omit`, with its own named edges overlaid by name.]
+#rule("V-DIFFEDGE", FORCED)[An edge's `name` field is its identity for inheritance. A diff
+claim's `contribution/contributor` and `contribution/diff` edges stand outside the overlay:
+they are the claim's alone and never inherit. Every other edge it carries MUST have a
+non-empty `name`, unique among them. Its materialised edges are the predecessor's named
+edges, less each name listed in `edges_diff_omit`, with its own named edges overlaid by
+name.]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
