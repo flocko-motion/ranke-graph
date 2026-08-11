@@ -216,6 +216,13 @@ non-empty `name`, unique among them. Its materialised edges are the predecessor'
 edges, less each name listed in `edges_diff_omit`, with its own named edges overlaid by
 name.]
 
+#rule("V-ARCHIVE", FORCED)[An archive's head MUST be a `contribution/branches` claim.
+(foundation paper §Ranke-Archive)]
+
+#rule("V-TABLEREF", FORCED)[Only a `contribution/branches` claim may reference a
+`contribution/branches` claim, and only through its `contribution/diff` or
+`contribution/branches` edge (`R-C6MERGE`). (foundation paper §Branches)]
+
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
 
@@ -315,6 +322,15 @@ kind, which is what lets verification pass over either (`R-DGAP`).
 #rule("R-DPLANNED", FREE)[A *planned* deletion is a `delete_by` date carried in a claim's
 signed content from creation. Every edge referencing that claim MUST copy the date, so
 the gap stays explained wherever the claim is reached. (RankeDB paper §Deletion)]
+
+#rule("R-DSTRUCT", FREE)[A `contribution/contributor`, `contribution/branches`,
+`contribution/delete`, or `contribution/expiry` claim MUST NOT carry `delete_by`. Any other
+claim MAY. (RankeDB paper §Deletion)]
+
+Each of the four is what another rule reads: a contributor's `pubkey` (`V-SIG`), the chain
+to the initial table (`V-ARCHIVE`), a gap's explanation (`R-DGAP`), and a key's window
+(`R-DEXPIRY`). The subtypes beyond them are open vocabulary (`V-TYPE`), so an application's
+own `contribution/*` claim schedules its deletion like any other.
 
 #rule("R-DREQUEST", FREE)[A *requested* deletion is documented by a `contribution/delete`
 claim: a node of that class carrying a `contribution/delete` edge to its *target*, the
