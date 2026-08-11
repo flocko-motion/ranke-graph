@@ -139,8 +139,8 @@ in the closure, and MUST reference a *claim* — never an edge. (foundation pape
 §Edges, §Relations, §Validity)]
 
 #rule("V-ROOT", FORCED)[Every claim MUST either be an *initial claim* — one with
-no references — or carry a `contribution/contributor` edge. Several initial claims
-are admitted, as a federated merge of independent lines produces. (foundation
+no references — or carry exactly one `contribution/contributor` edge. Several initial
+claims are admitted, as a federated merge of independent lines produces. (foundation
 paper §Ranke-Graph, §Validity, §Provenance)]
 
 #rule("V-CONTENT", FORCED)[If a claim declares content, it MUST carry both
@@ -201,7 +201,8 @@ and one letter may serve both halves — `.c` is the `contribution` class and th
 the aliased bytes, so a remapped letter changes what a stored claim says.]
 
 #rule("V-DIFF", FORCED)[A claim carrying a `contribution/diff` edge *overlays* the claim it
-references, which is materialised first, recursively to a base claim. Its materialised
+references, and MUST carry at most one such edge. The predecessor is materialised first,
+recursively to a base claim. Its materialised
 fields are the predecessor's, less each name listed in `fields_diff_omit`, with its own
 fields overlaid on top — so a name both omitted and restated keeps the restated value.
 Content is inherited whole: the claim's own `content` or `content_hash` where it sets
@@ -209,10 +210,11 @@ either, else the predecessor's. An omit list is an ordinary field, inherited as 
 applies only where the claim itself states it. (foundation paper §Claims)]
 
 #rule("V-DIFFEDGE", FORCED)[An edge's `name` field is its identity for inheritance. A diff
-claim's materialised edges are the predecessor's *named* edges, less each name listed in
-`edges_diff_omit`, with the claim's own named edges overlaid by name. Its own unnamed
-edges — its `contribution/contributor` and `contribution/diff` among them — are its alone
-and never inherit.]
+claim's `contribution/contributor` and `contribution/diff` edges stand outside the overlay:
+they are the claim's alone and never inherit. Every other edge it carries MUST have a
+non-empty `name`, unique among them. Its materialised edges are the predecessor's named
+edges, less each name listed in `edges_diff_omit`, with its own named edges overlaid by
+name.]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
