@@ -324,13 +324,9 @@ signed content from creation. Every edge referencing that claim MUST copy the da
 the gap stays explained wherever the claim is reached. (RankeDB paper §Deletion)]
 
 #rule("R-DSTRUCT", FREE)[A `contribution/contributor`, `contribution/branches`,
-`contribution/delete`, or `contribution/expiry` claim MUST NOT carry `delete_by`. Any other
-claim MAY. (RankeDB paper §Deletion)]
-
-Each of the four is what another rule reads: a contributor's `pubkey` (`V-SIG`), the chain
-to the initial table (`V-ARCHIVE`), a gap's explanation (`R-DGAP`), and a key's window
-(`R-DEXPIRY`). The subtypes beyond them are open vocabulary (`V-TYPE`), so an application's
-own `contribution/*` claim schedules its deletion like any other.
+`contribution/delete`, or `contribution/expiry` claim MUST NOT be deleted: it carries no
+`delete_by`, and no `contribution/delete` claim names it as target. Any other claim MAY be
+deleted either way. (RankeDB paper §Deletion)]
 
 #rule("R-DREQUEST", FREE)[A *requested* deletion is documented by a `contribution/delete`
 claim: a node of that class carrying a `contribution/delete` edge to its *target*, the
