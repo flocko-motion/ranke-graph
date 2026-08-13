@@ -202,6 +202,7 @@ Content being present requires the fields `content_size`, its byte length, and `
       content_size
       content
       edges
+      height
       ...
     }
     ```,
@@ -213,6 +214,7 @@ Content being present requires the fields `content_size`, its byte length, and `
       content_size
       content_hash
       edges
+      height
       ...
     }
     ```,
@@ -221,6 +223,7 @@ Content being present requires the fields `content_size`, its byte length, and `
 - `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
 - `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
 - `content_size`, `content`/`content_hash`, and `encoding` follow the content rules of @sec:content.
+- `height` is the longest path from the claim along its references, $max({"height"(u) + 1 : u in "refs"(v)} union {0})$, so an initial claim carries 0 and every reference sits strictly lower than the claim citing it. A set of claims bounded by height is therefore closed under references.
 - Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
 
 == Edges <sec:edges>

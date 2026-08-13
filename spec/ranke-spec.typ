@@ -226,9 +226,6 @@ name.]
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
 
-#rule("V-PROV", FORCED)[A `derivation/*`, `entity/*`, or `relation/*` node MUST carry at
-least one `derivation/*` edge. (foundation paper §Type Vocabulary)]
-
 #rule("R-FIELDS", FREE)[A field name MUST be at most 128 bytes over `[a-z0-9_]` with no
 leading `_`; a value at most 64 KiB; a record at most 256 fields; inline content at most
 1 MiB. Larger data belongs in external content (`V-CONTENT`).]
