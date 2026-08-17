@@ -71,7 +71,7 @@
    description: [Node class `entity/*`: an identifiable thing in the world. (foundation paper §Taxonomy)]),
 
   (key: "relation", short: "relation", group: "01 · Ranke-Graph",
-   description: [Node class `relation/*`: a reified assertion about how entities relate, carrying `relation_direction` edges. (foundation paper §Relations)]),
+   description: [Node class `relation/*`: an assertion about how entities relate, held as a claim of its own so it carries an author, provenance, and a direction the semantic reading may invert. Its `relation_direction` edges bind the entities. Reification applies to this class; an edge of any other class relates the two claims it runs between and stands as an edge. (foundation paper §Relations)]),
 
   (key: "ranke-graph", short: "Ranke-Graph", group: "01 · Ranke-Graph",
    description: [A Merkle DAG of attributed claims; the provenance-first data structure the series is built on. (foundation paper §Ranke-Graph)]),
