@@ -283,7 +283,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is a content-addressed set containing serialized claims under their id $k$ (retrieved as $cal(U)(k)$) and their *externalised content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). It holds everything a graph resolves against, and more besides: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
+$cal(U)$, the *Universe*, is a content-addressed set containing envelopes under their id $k$ (retrieved as $cal(U)(k)$) and *externalised content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). Both keys are hashes over the bytes they name, so one keyspace serves both and identical bytes are one entry. It holds everything a graph resolves against, and more besides: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
 
