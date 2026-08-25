@@ -342,7 +342,7 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 Every claim's envelope carries a signature over $S(v)$, made under the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, verify the envelope's signature against $S(v)$. Every contributor carries a pubkey, so every claim is signed.
 
-The `contribution/contributor` edge names a claim's author and the signature proves that authorship. Key management and usage policies are application-layer patterns, claims in Ranke-Graph merely document.
+The `contribution/contributor` edge names a claim's author and the signature proves that authorship. Key management and usage policies are application-layer patterns; the graph documents them as ordinary claims.
 
 #dref[D3, this section]
 
@@ -354,7 +354,7 @@ Publishing $k$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closur
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation: since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity). Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
@@ -444,7 +444,7 @@ Merkle trees, content-addressed stores such as IPFS (@ipfs), and Trusty URIs (@k
 
 == Signature and Timestamping Infrastructure
 
-Identity in the Ranke-Graph is a signature over a content hash (@sec:primitives), and its temporal guarantees rest on external anchoring (@sec:anchoring); both draw on established infrastructure rather than new primitives. Signature-based identity systems — PGP's web of trust, and more recently Sigstore (@newman2022sigstore) — bind keys to identities and sign artifacts, but treat the signature as a detached attestation _about_ content; the Ranke-Graph instead makes the signature over the content hash the claim's very address, so identity, integrity, and location are one value. For time, hash-chain timestamping (@haber1991), RFC 3161 time-stamp authorities (@rfc3161), and ledger anchoring (@gipp2015) witness that data existed at a moment; the Ranke-Graph adopts these directly for anchoring rather than reinventing them. Merkle-tree signing and transparency logs such as Certificate Transparency (@rfc6962) share its use of hash-linked structure for tamper-evidence, but over append-only logs of certificates rather than a provenance DAG of derivations. The contribution here is again composition, not a new mechanism: signature _is_ identity, the hash _is_ the address, and a single anchor fixes the whole closure in time.
+Identity in the Ranke-Graph is a hash over a signed record (@sec:primitives), and its temporal guarantees rest on external anchoring (@sec:anchoring); both draw on established infrastructure rather than new primitives. Signature-based identity systems — PGP's web of trust, and more recently Sigstore (@newman2022sigstore) — bind keys to identities and sign artifacts, but treat the signature as a detached attestation _about_ content; the Ranke-Graph instead folds the signature into the record its address names, so a claim's address commits to its author as well as to its content. The envelope is standard practice: a C2PA claim signature (@c2pa) and an IETF SCITT signed statement (@scitt) are each a COSE_Sign1 (@rfc9052). For time, hash-chain timestamping (@haber1991), RFC 3161 time-stamp authorities (@rfc3161), and ledger anchoring (@gipp2015) witness that data existed at a moment; the Ranke-Graph adopts these directly for anchoring rather than reinventing them. Merkle-tree signing and transparency logs such as Certificate Transparency (@rfc6962) share its use of hash-linked structure for tamper-evidence, but over append-only logs of certificates rather than a provenance DAG of derivations. The contribution here is again composition, not a new mechanism: the hash _is_ the address, the signature it covers _is_ the proof, and a single anchor fixes the whole closure in time.
 
 == W3C PROV-DM
 
