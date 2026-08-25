@@ -17,9 +17,8 @@
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
-// Notation. U is a content-addressed k/v store with two non-colliding key
-// spaces: U(k) is the claim at id k = Sign(H(S(v))); U(h) is the external
-// content at hash h = H(c). So `h` always denotes a hash and `k` an id.
+// Notation. U is a content-addressed k/v store. U(k) is the claim envelope at
+// id k = H(S(env(v))); U(h) is the external content at hash h = H(c). 
 //   RG_k := closure(k, U)  — the graph rooted at head id k
 //   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
 // A later archive is a new tuple (U', k'); nothing is mutated in place.
@@ -34,7 +33,7 @@
   abstract: [Whenever a database updates a record, a knowledge base resolves its sources into one accepted version, or a model folds a corpus into its weights, the effect is the same: statements from various times and origins are consolidated into a single current truth. The provenance, the history of each datum as it is added or merged, is discarded or set aside as 'metadata', and the earlier values are often lost to the reader as well.
 Drawing on the archival tradition, the *Ranke-Graph* takes the opposite stance: what consolidation discards, data and provenance alike, was itself knowledge, and it preserves both, the data unaltered and its provenance a first-class part of the record.
 The Ranke-Graph is a Merkle DAG of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
-This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as identity. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
+This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as proof of authorship. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
 The structural form is old, refined over centuries of archival practice; what is new is its realisation in the digital substrate, where systems consolidate by default and provenance is the first thing dropped. Reference implementations in Go and Python accompany the paper, with a binary conformance suite that makes conformance decidable.],
 )
 
@@ -173,14 +172,16 @@ Let $S$ be a canonical serialization mapping any object (node or edge) to bytes.
 
 Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
 
-Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice ($"Sign"(h) = h$) is valid for systems without authenticity needs.
+Let $"Sign"$ be an asymmetric, deterministic and self-describing signature function. 
 
-Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$, each fixed exactly in the normative specification (@rankespec).
+Let $"env"$ be the *envelope*, a claim as it is stored: the serialized claim paired with the signature over it, $"env"(v) = ("Sign"(S(v)), S(v))$. 
+
+Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$, and COSE_Sign1 (@rfc9052) for $"env"$, each fixed exactly in the normative specification (@rankespec).
 
 To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name, a type class, a type subtype, and an encoding class or subtype each abbreviate to the dot and one character — `content_size` → `.s`, `contribution` → `.c`, `contributor` → `.c` — with class and subtype each carried in their own field, so `contribution/contributor` serializes as the pair `.c`, `.c`. The full table is fixed in the normative specification (@rankespec).
 An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
 
-Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = H(S(e))$ for edges. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges, while `S(e)` is the serialization of a single edge. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
+Identity is the hash of the stored record: $op("id")(v) = H(S("env"(v)))$. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
 
 == Content <sec:content>
 
@@ -311,7 +312,7 @@ $ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
 == Merkle DAG <sec:merkle>
 
-Every valid $"RG"_k$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
+Every valid $"RG"_k$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = H(S("env"(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
 *Standing assumption.* The structure rests on *collision-resistance of $H$*: no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
@@ -339,9 +340,9 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 == Identity and Authenticity <sec:authenticity>
 
-Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
+Every claim's envelope carries a signature over $S(v)$, made under the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, verify the envelope's signature against $S(v)$. Every contributor carries a pubkey, so every claim is signed.
 
-When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Key management and usage policies are application-layer patterns over normal claims, which the Ranke-Graph merely documents. 
+The `contribution/contributor` edge names a claim's author and the signature proves that authorship. Key management and usage policies are application-layer patterns, claims in Ranke-Graph merely document.
 
 #dref[D3, this section]
 
