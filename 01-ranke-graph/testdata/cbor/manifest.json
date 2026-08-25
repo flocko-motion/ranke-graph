@@ -2,107 +2,179 @@
   "note": "Reference artifacts for the Ranke-Graph ADT. A claim record is {1: S(node)}; its id is not in the record, so each case pairs bytes with the id they are offered under. Verification hashes the record as received, never a re-encode.",
   "provenance": {
     "generator": "github.com/flocko-motion/ranke-go/cmd/vectors",
-    "version": "v0.19.1",
-    "generated_at": "2026-08-13T12:25:09Z"
+    "version": "v0.22.0",
+    "generated_at": "2026-08-25T13:37:47Z"
   },
   "claims": [
     {
       "file": "claims/root-contributor.cbor",
-      "id": "b5wqqgkr67icclseq3xu2zv74z3cntyprppfjg4ptnpxbbtpjnlgm5ej7mlooffaugoqbrj3g6ibiqkzza4u46y6cj3hyn7le2llddsrnyaaa",
+      "id": "bciqak2ophnewn6acdbymvsr2gkd3cz5chf2akg7tikylamn6dkhm6ti",
       "verify": true,
       "reason": "ok",
       "why": "initial claim (height 0), content is its own multikey pubkey, signed by that key (§5.7)"
     },
     {
       "file": "claims/source-note.cbor",
-      "id": "b5wqqhjnkmdwkjwrjiaz6fcjgte34u6pbzimrphkyuhror25rwsvajniwxppqqfchonvvzufjgr5ptethcxwkkdzru5w47dnjmi64lpme4yaq",
+      "id": "bciqd62gb2rin3rgouxauniykteba77v5vnkngbsmlujoc2fk27cicra",
       "verify": true,
       "reason": "ok",
       "why": "inline content, one auto contributor edge, height 1"
     },
     {
       "file": "claims/derived-note.cbor",
-      "id": "b5wqqgy75yk53sj2c5n2r5ywnstm23oil2wn6a4ogmyxdmtq5unhsdt5webgbzb65chx5q63txiqhl534ocphykpoxoh3gccdjqz22jua24ba",
+      "id": "bciqirzj7ae6ewb3z3jlqb4poe3gdnpey3g6ogjqtlxnjr7kykx2whni",
       "verify": true,
       "reason": "ok",
       "why": "derivation edge to source-note, height 2 = 1 + max(referenced heights)"
     },
     {
       "file": "claims/external-content.cbor",
-      "id": "b5wqqheil4zcromrv323l3ju5y4sldwiasjxc2hccayrimlwlirqg5zfhm6z2qqdifhbhb4mjtv4tkydyso354yhhsnknjf27gkxfspgb4yca",
+      "id": "bciqnmkt6hryelivzqeqki4vftqousc7dkhae3liz7xmpir3kom3h5oa",
       "verify": true,
       "reason": "ok",
       "why": "content_hash + content_size in the record, bytes alongside (§Content)"
     },
     {
       "file": "claims/with-fields.cbor",
-      "id": "b5wqqgcxgyo5grh623stvtv2verwfrxxl4wwf462z5sejamiwcqjetnnvv3etdz3dyuccdevstxbwtk6qbkacau2tcwixmqsiurkq7zrwpadq",
+      "id": "bciqnwdv3q6xhh4cbw6srf42lbmtf4eubskbn7jzuw53pddkrne3vddy",
       "verify": true,
       "reason": "ok",
       "why": "node fields under tag 8, key-sorted by the encoder; known keys carry a '.' alias"
     },
     {
       "file": "claims/other-contributor.cbor",
-      "id": "b5wqqh35gzyr7cdnze726tkboluvvfdskht2nm3ofklagjhgkcdhdfgih4bt7xoe6pbwrihn3ond7lgpraw6biork75ss5hsyvtzjt7jp4yca",
+      "id": "bciqgu7six3qinkj2yroymxds76xsv4hzo7pbvrdyxvefrwm7zcwd3yi",
       "verify": true,
       "reason": "ok",
       "why": "a second identity, so a record can be offered under the wrong signer's id"
     },
     {
       "file": "claims/other-note.cbor",
-      "id": "b5wqqh47nxtpwebofppdndrphlr73g5nxkdt2vlsokh6ci7jbvpm2evsxhgesajqdegz4btrt5oqp3agb67swiqbafplcnjb2umismbqxxeda",
+      "id": "bciqgfr42vcjqornvp4hpdbzf3olt5ifhv4lgdc7njx5jzypavg34oyy",
       "verify": true,
       "reason": "ok",
       "why": "attributed to other-contributor"
     },
     {
       "file": "claims/rejected-wrong-message.cbor",
-      "id": "b5wqqgy75yk53sj2c5n2r5ywnstm23oil2wn6a4ogmyxdmtq5unhsdt5webgbzb65chx5q63txiqhl534ocphykpoxoh3gccdjqz22jua24ba",
+      "id": "bciqirzj7ae6ewb3z3jlqb4poe3gdnpey3g6ogjqtlxnjr7kykx2whni",
       "verify": false,
       "reason": "wrong_message",
-      "why": "source-note's record under derived-note's id: a real signature over a different record"
+      "why": "source-note's record under derived-note's id: a real signature over a different record",
+      "violates": [
+        "V-ID"
+      ]
     },
     {
       "file": "claims/rejected-wrong-signer.cbor",
-      "id": "b5wqqhjnkmdwkjwrjiaz6fcjgte34u6pbzimrphkyuhror25rwsvajniwxppqqfchonvvzufjgr5ptethcxwkkdzru5w47dnjmi64lpme4yaq",
+      "id": "bciqd62gb2rin3rgouxauniykteba77v5vnkngbsmlujoc2fk27cicra",
       "verify": false,
       "reason": "wrong_message",
-      "why": "other-note's record under an id signed by the root key, which never signed it"
+      "why": "other-note's record under an id signed by the root key, which never signed it",
+      "violates": [
+        "V-ID"
+      ]
     },
     {
-      "file": "claims/rejected-identity-sign.cbor",
-      "id": "bciqhhomp7yml2qwzd5jzjju632pyzi2obyntvjie36zmcs2fgaprzeq",
+      "file": "claims/rejected-not-enveloped.cbor",
+      "id": "bciqcae33rkbtotc2hr7tqsmiwcvefarq74ju3l6ld5rdna4ljfinevy",
       "verify": false,
-      "reason": "identity_sign_mismatch",
-      "why": "the bare H(S(node)) as id, valid only where the contributor publishes no key"
+      "reason": "not_enveloped",
+      "why": "the serialized claim stored bare, with no envelope to carry a signature over it",
+      "violates": [
+        "V-ENV"
+      ]
     },
     {
       "file": "claims/rejected-malformed-id.cbor",
-      "id": "b5wqqhjnkmdwkjwrjiaz6fcjgte34u6pbzimrphkyuhror25rwsvajniwxppqqfchonvvzufjgr5ptethcxwkkdzru5w47dnjmi64lp",
+      "id": "bciqd62gb2rin3rgouxauniykteba77v5vnkngbsmlujoc2fk2",
       "verify": false,
       "reason": "malformed_id",
-      "why": "the id's payload is truncated, so its multikey framing no longer parses"
+      "why": "the id's payload is truncated, so its multihash framing no longer parses",
+      "violates": [
+        "V-HASH"
+      ]
     },
     {
       "file": "claims/rejected-tampered-content.cbor",
-      "id": "b5wqqhjnkmdwkjwrjiaz6fcjgte34u6pbzimrphkyuhror25rwsvajniwxppqqfchonvvzufjgr5ptethcxwkkdzru5w47dnjmi64lpme4yaq",
+      "id": "bciqd62gb2rin3rgouxauniykteba77v5vnkngbsmlujoc2fk27cicra",
       "verify": false,
       "reason": "id_mismatch",
-      "why": "source-note with its content changed, still offered under source-note's id"
+      "why": "source-note with its content changed, still offered under source-note's id",
+      "violates": [
+        "V-ID"
+      ]
     },
     {
       "file": "claims/rejected-wrong-height.cbor",
-      "id": "b5wqqhcehcxyghqwzer3ht7uvc2w7ome6frq5pj3zgivssckemoglbrdbyccf7jl7iphoqgm47m7hmnfsaoxnt7owm3sezxwlsnjzemqir4cq",
+      "id": "bciqgrkckn7qd7itmawnn5jcczp3ea7ghkcfuszdcidlbfsnvmgft3ga",
       "verify": false,
       "reason": "height_wrong",
-      "why": "height 7 where the only reference is a height-0 contributor, so 1 is derived"
+      "why": "height 7 where the only reference is a height-0 contributor, so 1 is derived",
+      "violates": [
+        "V-HEIGHT"
+      ]
+    },
+    {
+      "file": "claims/rejected-edge-order.cbor",
+      "id": "bciqht53izsabair4mdjmakl5ez2aqhuteuwqmsv66vr7hxym4js6d2y",
+      "verify": false,
+      "reason": "edge_order",
+      "why": "a claim's edges stored descending by id(e), where the rule fixes ascending",
+      "violates": [
+        "V-EORDER"
+      ]
     },
     {
       "file": "claims/rejected-absent-contributor.cbor",
-      "id": "b5wqqhl5wi3dmgp3knoz5rihlyvhask2b5wvn6akz3eptaiue7mu2dgwxhjawnrw5lochr7y4yuzuiogjh4hvceav3aaazo3sox3o4cnwdeha",
+      "id": "bciqk2msz2ttznxw6tf6egjip7bc5ex5zukhnmdus4g53g5p5fzovpiy",
       "verify": false,
       "reason": "unresolvable_contributor",
-      "why": "its contributor edge names a claim this set omits, so the pubkey cannot be resolved"
+      "why": "its contributor edge names a claim this set omits, so the pubkey cannot be resolved",
+      "violates": [
+        "V-REF",
+        "V-SIG"
+      ]
+    },
+    {
+      "file": "claims/rejected-delete-by-form.cbor",
+      "id": "bciqplh6axlwqbnecsctoocoxqasovrdwczzwj7asasil3zcfliwjqna",
+      "verify": false,
+      "reason": "timestamp_form",
+      "why": "delete_by is not RFC 3339: a deletion due date no reader can place in time",
+      "violates": [
+        "V-TIME"
+      ]
+    },
+    {
+      "file": "claims/rejected-pubkey-window-form.cbor",
+      "id": "bciqnstbjja6h6evjb6xe5o3jc4x65vn5swbdp6ganogz6qsoawdt2ki",
+      "verify": false,
+      "reason": "timestamp_form",
+      "why": "pubkey_expires_after is not RFC 3339, so the key window it states cannot be read",
+      "violates": [
+        "V-TIME"
+      ]
+    },
+    {
+      "file": "claims/rejected-created-at-form.cbor",
+      "id": "bciqlw7ehd3a57pzhkonv4q5srx4pzbyztkksn6uayqgcb66yt2szoqa",
+      "verify": false,
+      "reason": "timestamp_form",
+      "why": "created_at is RFC 3339 without the nanosecond fraction the rule fixes",
+      "violates": [
+        "V-TIME"
+      ]
+    },
+    {
+      "file": "claims/rejected-both-content-slots.cbor",
+      "id": "bciqaymptj3b722yjv2iz2eoyzzd3jinbllwzessyew54lr4ixdpi2ly",
+      "verify": false,
+      "reason": "content_both_slots",
+      "why": "one record carrying content and content_hash, which the rule makes exclusive",
+      "violates": [
+        "V-CONTENT"
+      ]
     }
   ],
   "content": [
@@ -118,7 +190,10 @@
       "hash": "bciqfmd32qv6yfuiua5udfscjs5vx5igixuhincjsbkiy5ntcdciro2i",
       "verify": false,
       "reason": "content_hash_mismatch",
-      "why": "bytes that do not hash to the content_hash external-content declares"
+      "why": "bytes that do not hash to the content_hash external-content declares",
+      "violates": [
+        "V-CONTENT"
+      ]
     }
   ]
 }
