@@ -126,7 +126,7 @@ paper §Sequencer).
 
 These hold for any Ranke-Graph, in any implementation. They are the definition
 of *valid* (foundation paper §Validity, §Verifiability). The foundation paper states
-all but one: `V-HEIGHT` was added in the reference implementation.
+all but two: `V-HEIGHT` and `V-EORDER` were added in the reference implementation.
 
 #rule("V-TYPE", FORCED)[Every node and every edge MUST carry a `type` whose
 `class` is one of the fixed set: `source`, `derivation`, `entity`, `relation`, or
@@ -181,9 +181,17 @@ An initial claim references nothing and so carries 0.]
 
 #rule("V-SER", FORCED)[$S$ MUST be CBOR Deterministic Encoding (RFC 8949 §4.2). A node
 and an edge each serialize as a map under the numeric keys of @tbl:keys, a node's `edges`
-key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`). The claim map is
+key holding each owned edge's $S(e)$ inline, in the order `V-EORDER` fixes. Timestamps are
+text (`V-TIME`). The claim map is
 the envelope's payload, a byte string (`V-ENV`), so verification reads the bytes as stored.
 The key table is append-only: a key MUST keep the meaning it was assigned.]
+
+#rule("V-EORDER", FORCED)[An edge's id is the hash of its serialization,
+$op("id")(e) = H(S(e))$. Within a node's `edges` array the owned edges MUST appear in
+ascending order of $op("id")(e)$, compared as byte strings. The array's order is therefore
+fixed by the edges themselves, so one set of edges
+serializes one way in every implementation, and the claim id that covers it is the same
+wherever it is computed.]
 
 #rule("V-HASH", FORCED)[$H$ MUST be a multihash: the multicodec varint `0x12`
 (`sha2-256`), the digest length, then the digest.]
