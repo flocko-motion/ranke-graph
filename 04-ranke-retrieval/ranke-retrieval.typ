@@ -8,4 +8,4 @@
   abstract: todo[Placeholder. Will follow once P1 and P2 stabilise.],
 )
 
-#todo[Idea dump for this paper currently lives in #raw("04-ranke-retrieval/rankedb-retrieval.md").]
+#todo[Source quotes for this paper live in #raw("04-ranke-retrieval/quotes.md").]

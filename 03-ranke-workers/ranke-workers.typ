@@ -8,4 +8,4 @@
   abstract: todo[Placeholder. Will follow once P1 and P2 stabilise.],
 )
 
-#todo[Idea dump for this paper currently lives in #raw("03-ranke-workers/rankedb-workers.md").]
+#todo[Working notes for this paper live in #raw("03-ranke-workers/notes.md") and #raw("03-ranke-workers/quotes.md").]

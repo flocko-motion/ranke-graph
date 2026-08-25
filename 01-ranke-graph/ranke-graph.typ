@@ -32,7 +32,7 @@
   status:   "draft",
   abstract: [Whenever a database updates a record, a knowledge base resolves its sources into one accepted version, or a model folds a corpus into its weights, the effect is the same: statements from various times and origins are consolidated into a single current truth. The provenance, the history of each datum as it is added or merged, is discarded or set aside as 'metadata', and the earlier values are often lost to the reader as well.
 Drawing on the archival tradition, the *Ranke-Graph* takes the opposite stance: what consolidation discards, data and provenance alike, was itself knowledge, and it preserves both, the data unaltered and its provenance part of the record itself.
-The Ranke-Graph is a Merkle DAG of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
+The Ranke-Graph is a Merkle DAG (directed acyclic graph) of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
 This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as proof of authorship. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
 The structural form is old, refined over centuries of archival practice; what is new is its realisation in the digital substrate, where systems consolidate by default and provenance is the first thing dropped. Reference implementations in Go and TypeScript accompany the paper, with a binary conformance suite that makes conformance decidable.],
 )
@@ -91,7 +91,7 @@ Computer Science treats data and information as primary objects. Bits, structure
 
 Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
 
-The Ranke-Graph operates in the intersection. It uses CS primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
+The Ranke-Graph operates in the intersection. It uses computer-science primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
 
 == The Ranke-Graph
 
@@ -136,7 +136,7 @@ Contributors and entities are deliberately separate. A *contributor* is operatio
 
 == A Vision
 
-The two traditions of @sec:two-traditions meet in the ADT; what is built above it is their application. Because the substrate keeps every claim with its full derivation (the archival discipline realised on the CS primitives of @sec:primitives), systems built on it inherit provenance rather than reconstruct it: AI assistants whose answers trace back to source records, agents that revisit and revise their reasoning chains, archives that stand up to external scrutiny. These are the oldest archival demands (cite the sources, keep the record, tolerate contradiction), carried into settings that had abandoned them. The ADT is deliberately _under-prescribed_: it preserves claims and their derivation and leaves retrieval, reasoning, and synthesis to the layer above.
+The two traditions of @sec:two-traditions meet in the ADT; what is built above it is their application. Because the substrate keeps every claim with its full derivation (the archival discipline realised on the computer-science primitives of @sec:primitives), systems built on it inherit provenance rather than reconstruct it: AI assistants whose answers trace back to source records, agents that revisit and revise their reasoning chains, archives that stand up to external scrutiny. These are the oldest archival demands (cite the sources, keep the record, tolerate contradiction), carried into settings that had abandoned them. The ADT is deliberately _under-prescribed_: it preserves claims and their derivation and leaves retrieval, reasoning, and synthesis to the layer above.
 
 Such systems evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising, or disproving earlier contributions. The graph accumulates; the history stays complete, yet filterable and queryable. Retrieval systems select what they deem most useful.
 
@@ -144,7 +144,7 @@ Such systems evolve on the same data: selecting views that fit, contributing new
 
 From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties (idempotency of writes, the set algebra, and the bijection between structural and semantic readings) follow as consequences (see @sec:emergent).
 
-The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 is a CS-operational concern: distributed use.
+The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 is an operational concern of computer science: distributed use.
 
 *D1. Provenance: every claim references what it's based on and has a path back to its sources.*
 

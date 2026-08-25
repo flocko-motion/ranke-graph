@@ -302,7 +302,7 @@ _Discharges R7._
 
 == Verification and Witnessing <sec:verify>
 
-The ADT reference implementation verifies a graph formally; extensions to it were discussed above in @sec:deletion. On add it acts as a gate: only verified claims enter the archive. But software can carry errors and storage can be mutated, so the same mechanism is run as a full pass at any time to assure the archive's continued integrity: any closure can be formally verified from a head id and a storage Universe alone.
+The ADT reference implementation verifies a graph formally; extensions to it are discussed in @sec:deletion. On add it acts as a gate: only verified claims enter the archive. But software can carry errors and storage can be mutated, so the same mechanism is run as a full pass at any time to assure the archive's continued integrity: any closure can be formally verified from a head id and a storage Universe alone.
 
 The strong collision resistance of cryptographic hashes guarantees that the closure retrieved for a head id is identical, whichever Universe serves it.
 
