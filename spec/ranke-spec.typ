@@ -79,7 +79,7 @@
 This document is the normative reference for the Ranke-Graph and its reference
 database, RankeDB. While the papers _Ranke-Graph: A Provenance-First Data
 Structure_ and _RankeDB: Serving the Ranke-Graph_ lay the foundation and describe
-the mechanisms — cited below as the *foundation paper* and the *RankeDB paper* —
+the mechanisms (cited below as the *foundation paper* and the *RankeDB paper*),
 this specification adds the exhaustive detail and design decisions required for a
 full implementation. Where it is silent, the cited paper section governs.
 
@@ -92,7 +92,7 @@ violates it is non-conformant, and a violating claim is rejected.
 *Rule ids and tiers.* Each rule carries a stable id and a tier:
 
 #rule("V-…", FORCED)[A rule of the *abstract data type* (ADT) the foundation paper
-defines (`V` for validity/verification); *portable* — every conformant Ranke
+defines (`V` for validity/verification); *portable*: every conformant Ranke
 implementation, database or not, enforces it identically. Changing one changes the
 data structure.]
 
@@ -111,13 +111,13 @@ archive (@sec:fixture) with labelled claims e.g. `src₁`, `bt₂`.
 
 *Verification* decides whether a set of claims is a *valid* Ranke-Graph and,
 in RankeDB, whether a contribution may be admitted to an existing archive. The ADT
-rules (@sec:v-adt) decide validity, and every one is FORCED — portable to any Ranke
+rules (@sec:v-adt) decide validity, and every one is FORCED, portable to any Ranke
 implementation. The rest are RankeDB's own: contributions (@sec:v-contribution),
 deletion (@sec:v-deletion), and access (@sec:v-access). (foundation paper
 §Verifiability, RankeDB paper §Verification and Witnessing)
 
-Given a Ranke-Archive, verification walks the closure of its head — every claim
-reached by following edges to their references — and checks each against the rules
+Given a Ranke-Archive, verification walks the closure of its head (every claim
+reached by following edges to their references) and checks each against the rules
 below. An archive carrying a claim that fails any *MUST* rule fails verification.
 A contribution merges only if the archive stays valid with it applied (RankeDB
 paper §Sequencer).
@@ -135,11 +135,11 @@ The subtype is open vocabulary. (foundation paper §Nodes, §Edges, §Type
 Vocabulary)]
 
 #rule("V-REF", FORCED)[Every edge's `reference` MUST resolve to a claim present
-in the closure, and MUST reference a *claim* — never an edge. (foundation paper
+in the closure, and MUST reference a *claim*, never an edge. (foundation paper
 §Edges, §Relations, §Validity)]
 
-#rule("V-ROOT", FORCED)[Every claim MUST either be an *initial claim* — one with
-no references — or carry exactly one `contribution/contributor` edge. Several initial
+#rule("V-ROOT", FORCED)[Every claim MUST either be an *initial claim* (one with
+no references) or carry exactly one `contribution/contributor` edge. Several initial
 claims are admitted, as a federated merge of independent lines produces. (foundation
 paper §Ranke-Graph, §Validity, §Provenance)]
 
@@ -158,7 +158,7 @@ is the record $cal(U)$ holds under $op("id")(v)$. (foundation paper §Primitives
 $op("id")(v) = H(S("env"(v)))$. (foundation paper §Primitives, §Verifiability)]
 
 #rule("V-SIG", FORCED)[The envelope's signature MUST verify against the
-contributor's `pubkey` — reached through $v$'s `contribution/contributor` edge, or,
+contributor's `pubkey`, reached through $v$'s `contribution/contributor` edge, or,
 when $v$ is an initial claim, in $v$'s own content. Every `contribution/contributor`
 claim MUST carry a `pubkey`, so every claim is signed. (foundation paper §Primitives,
 §Identity and Authenticity)]
@@ -168,8 +168,8 @@ added, and MUST NOT predate what it references:
 `created_at`$(v) gt.eq max$ `created_at`$(u)$ over every reference $u$ of $v$.
 (foundation paper §Nodes, §Claims, §Merkle DAG)]
 
-#rule("V-TIME", FORCED)[Every timestamp — `created_at`, `delete_by`,
-`pubkey_valid_from`, `pubkey_expires_after`, and every timestamp a read returns — MUST be
+#rule("V-TIME", FORCED)[Every timestamp (`created_at`, `delete_by`,
+`pubkey_valid_from`, `pubkey_expires_after`, and every timestamp a read returns) MUST be
 text in RFC 3339 form, UTC, with nanosecond precision:
 `2026-01-05T12:00:00.000000000Z`. Text in every encoding, so `json` and `cbor` carry one
 representation (`R-QENCODING`), and a reader parses what any implementation wrote.]
@@ -200,7 +200,7 @@ encoding class or subtype MAY appear in its alias form: the reserved `.` followe
 letter @tbl:aliases and @tbl:encsub give it. An alias is semantically identical to its long
 form, and a name with none passes through unchanged. Each half of a type aliases on its own
 and occupies its own record key (`V-SER`), so the `/` of a written type is not serialized
-and one letter may serve both halves — `.c` is the `contribution` class and the
+and one letter may serve both halves: `.c` is the `contribution` class and the
 `contributor` subtype. The alias tables are append-only: a letter MUST keep the
 mapping it was assigned.]
 
@@ -208,7 +208,7 @@ mapping it was assigned.]
 references, and MUST carry at most one such edge. The predecessor is materialised first,
 recursively to a base claim. Its materialised
 fields are the predecessor's, less each name listed in `fields_diff_omit`, with its own
-fields overlaid on top — so a name both omitted and restated keeps the restated value.
+fields overlaid on top, so a name both omitted and restated keeps the restated value.
 Content is inherited whole: the claim's own `content` or `content_hash` where it sets
 either, else the predecessor's. An omit list is an ordinary field, inherited as data, and
 applies only where the claim itself states it. (foundation paper §Claims)]
@@ -240,13 +240,13 @@ A *contribution* is a set of claims added to the archive in one transaction: all
 them, or none. Its procedure is fixed by the RankeDB paper §Sequencer in six steps,
 whose numbers the rule ids below carry:
 
-1. *Opening* — the base $(k, t)$ is taken.
-2. *Adding* — the contribution's claims are added.
-3. *Completing* — it is closed over its references.
-4. *Verifying* — every claim is checked against the base, and the contribution
+1. *Opening*: the base $(k, t)$ is taken.
+2. *Adding*: the contribution's claims are added.
+3. *Completing*: it is closed over its references.
+4. *Verifying*: every claim is checked against the base, and the contribution
    sealed.
-5. *Persisting* — its whole closure is stored durably.
-6. *Merging* — the Sequencer contributes a new branch table claim referencing the
+5. *Persisting*: its whole closure is stored durably.
+6. *Merging*: the Sequencer contributes a new branch table claim referencing the
    contribution's head claims, and the archive's head advances, $k arrow.r k'$.
 
 Step 1's access check is the `R-A…` family of @sec:v-access.
@@ -262,24 +262,24 @@ future-dated. (RankeDB paper §Sequencer, step 2; §Timestamping)]
 #rule("R-C2TYPE", FREE)[A contribution from a system account MUST NOT contain
 *limiting claims* (`contribution/delete`, `contribution/expiry`) or *branch-table*
 claims (`contribution/branches`): these types are created by the Sequencer alone.
-A system account MAY commit a *request* instead — a
-`contribution/expires_after_request` or `contribution/delete_request` edge — which the
+A system account MAY commit a *request* instead (a
+`contribution/expires_after_request` or `contribution/delete_request` edge), which the
 Sequencer honours at merge (`R-C6REQUEST`). (RankeDB paper §Sequencer, step 2;
 §Contributor Keys Life Cycle)]
 
 #rule("R-C3CLOSE", FREE)[Before verification a contribution MUST be *closed*: each
 claim's references are followed, drawing in every referenced claim outside the
-contribution — from another branch or the wider Universe — recursively, until every
+contribution (from another branch or the wider Universe) recursively, until every
 path reaches a claim already in the base's closure. Drawing in a branch-external
 claim requires read access to its branch (*R-ABRANCH*) and carries its limiting
 claims with it (`R-C3LIMIT`). (RankeDB paper §Sequencer, step 3)]
 
 #rule("R-C3LIMIT", FREE)[A branch that holds a claim MUST also hold every limiting
-claim against it — a `contribution/delete` or `contribution/expiry` naming it as
+claim against it, a `contribution/delete` or `contribution/expiry` naming it as
 target. (RankeDB paper §Cross Branch Propagation)]
 
 #rule("R-C4KEY", FREE)[Each claim MUST be dated within the validity of the key it is
-signed under — the `pubkey` of the contributor it references, valid as `R-DEXPIRY`
+signed under, the `pubkey` of the contributor it references, valid as `R-DEXPIRY`
 defines. (RankeDB paper §Sequencer, step 4)]
 
 #rule("R-C4SEAL", FREE)[Once verified, a contribution is *sealed*: its contents are
@@ -288,7 +288,7 @@ verified against the base stays valid however long it waits before merging.
 (RankeDB paper §Sequencer, step 4)]
 
 #rule("R-C5PERSIST", FREE)[The sealed contribution's whole closure MUST be durably
-present in the Universe — stored and propagated across the storage layers —
+present in the Universe (stored and propagated across the storage layers)
 *before* the Sequencer merges it. (RankeDB paper §Sequencer, step 5)]
 
 #rule("R-C6MERGE", FREE)[Every branch table MUST hold its predecessor in provenance,
@@ -335,7 +335,7 @@ deleted claim. A system account requests a deletion (`R-C2TYPE`); the Sequencer 
 it out (`R-C6REQUEST`). (RankeDB paper §Deletion)]
 
 #rule("R-DGAP", FREE)[Verification MUST pass over a graph holding a physically deleted
-claim when — and only when — an *explained gap* covers it: a `contribution/delete` mark
+claim when (and only when) an *explained gap* covers it: a `contribution/delete` mark
 against it (`R-DREQUEST`), or a copied `delete_by` (`R-DPLANNED`). Without such a gap,
 the missing claim fails `V-REF`. (RankeDB paper §Deletion)]
 
@@ -361,7 +361,7 @@ reserved `$`-prefixed target. Every operation requires its letter on its target,
 below fix what each letter does at each target.]
 
 #rule("R-ABRANCH", FREE)[On a branch: *C* contributes a claim, *R* reads, *U* requests
-an early expiry (`R-DEXPIRY`), and *D* requests a deletion — the `contribution/delete`
+an early expiry (`R-DEXPIRY`), and *D* requests a deletion, the `contribution/delete`
 mark and the physical removal that follows (`R-DREQUEST`). *U* and *D* are each
 required on every branch reaching the claim, since a limiting claim propagates to all
 of them (`R-C3LIMIT`).]
@@ -369,21 +369,21 @@ of them (`R-C3LIMIT`).]
 #rule("R-ATABLE", FREE)[On `$branches`, the branch tables: *C* adds a new branch to the
 table, *R* reads it, and *D* soft-deletes a branch by creating a new table that omits it.]
 
-#rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged* — a head id
+#rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged*: a head id
 bypasses the branch table, so it reaches any graph the Universe holds.]
 
 = RankeQL (RQL) <sec:rql>
 
 A read is a *RankeQL* (RQL) query: a declarative value of the data type `Query` fixed
-below. RQL is RankeDB's own — a query language over the Ranke-Graph, introduced in the
-RankeDB paper §Filtered Reads — and the ADT defines no query language, so this whole
+below. RQL is RankeDB's own (a query language over the Ranke-Graph, introduced in the
+RankeDB paper §Filtered Reads), and the ADT defines no query language, so this whole
 chapter is `[FREE]`.
 
 RQL's capabilities are a subset of Cypher and of the ISO standard it converges on, the
-Graph Query Language (GQL), and a query is designed to transform directly into a Cypher
+Graph Query Language (GQL), and a query is designed to translate directly into a Cypher
 query that executes efficiently on Neo4j. 
 
-RQL is natively expressed in JSON, which is well known and has robost encoders and encoders
+RQL is natively expressed in JSON, which is well known and has reliable encoders and decoders
 in many languages. 
 
 == The query type <sec:rql-type>
@@ -395,8 +395,8 @@ the type below, so a caller may rely on it.
 Field names ending in `?` are optional, and each carries its default; `|` lists the
 allowed values or forms; `[T]` is a list of `T`. An `Id` is a claim id in textual form:
 multibase base32 of the self-describing payload, matching `^b[a-z2-7]+$`. A `duration`
-is a decimal sequence with unit suffixes — `ns`, `us`, `ms`, `s`, `m`, `h`, as in `5s`
-or `1m30s` — where the bare `0` means unbounded. A `Claim` is a claim record as
+is a decimal sequence with unit suffixes (`ns`, `us`, `ms`, `s`, `m`, `h`, as in `5s`
+or `1m30s`), where the bare `0` means unbounded. A `Claim` is a claim record as
 `output` carries it (@sec:rql-output).
 
 #listing[
@@ -468,14 +468,14 @@ Execution = {
 generates the result set, (2) `where` filters it, (3) `order` sorts it, (4)
 `limit.results` truncates it, (5) `output` shapes and encodes the result set. The fields
 `limit.time` and `execution` configure the engine that runs the query, leaving its logic
-untouched. An engine MAY reorder or translate these steps, provided the delivered result set
+untouched. An engine MAY reorder or translate these steps, provided the result set it returns
 is identical to what this order produces; the native reference engine is the oracle for
 conformance testing. (RankeDB paper §Filtered Reads, §Conformance)]
 
 == `select` — the generator <sec:rql-select>
 
 The `select` block is the *generator*. It answers two questions, and its fields divide
-along them: *which graph is read*, and optionally *where a traversal starts* — the
+along them: *which graph is read*, and optionally *where a traversal starts*: the
 *frontier*, the set of claims a walk starts from, either the single claim `claim` defines
 or every claim in the closure when it names none.
 
@@ -524,8 +524,8 @@ yields the starting set alongside what lies beyond it.
 a *set* of claims. The first is the claim `claim` anchors, or every claim in the closure
 when it names none (`R-QANCHOR`); each step's yield is the frontier the next step starts
 from (`R-QSTEPS`). Membership is all a frontier carries, so a result MUST NOT depend on
-the route by which a claim entered one. The no-repeat rule — a walk does not revisit a
-claim — holds within a single step and resets at each boundary, so a later step MAY
+the route by which a claim entered one. The no-repeat rule (a walk does not revisit a
+claim) holds within a single step and resets at each boundary, so a later step MAY
 re-cross a claim or re-traverse an edge an earlier step used.]
 
 The RankeDB paper §Filtered Reads works this case through, and @sec:rql-cypher states how
@@ -556,10 +556,10 @@ in order.]
 stored, or `materialized` with its diff chain resolved as `V-DIFF` fixes.]
 
 #rule("R-QCONTENT", FREE)[`content` is a pair: `max` caps the bytes inlined per claim, and
-`overflow` decides a claim whose content exceeds it — `cutoff` inlines the bytes up to the
+`overflow` decides a claim whose content exceeds it: `cutoff` inlines the bytes up to the
 cap, `omit` inlines whole values only. An absent `overflow` is `omit`. A claim's inlined
-content is the longest prefix of its content sequence — its edges' content in $S(v)$'s
-order, then the node's — that fits within `max`; under `cutoff` that prefix may end inside
+content is the longest prefix of its content sequence (its edges' content in $S(v)$'s
+order, then the node's) that fits within `max`; under `cutoff` that prefix may end inside
 a value, under `omit` at the last whole value that fits. A `max` of `0` inlines every
 claim's content in full. An absent `content` inlines nothing (foundation paper §Content).]
 
@@ -567,15 +567,15 @@ claim's content in full. An absent `content` inlines nothing (foundation paper �
 base64-encoded, or `cbor`, binary. Both carry the same information.]
 
 #rule("R-QCANON", FREE)[The combination `detail: claims` + `form: original` +
-`encoding: cbor`, with `content` inlining every claim in full (`R-QCONTENT`), MUST deliver
+`encoding: cbor`, with `content` inlining every claim in full (`R-QCONTENT`), MUST return
 each claim as the bytes $S(v)$ whose hash its id was computed over (foundation paper
 §Primitives). It is the only output form a client can hash and check against the id.]
 
 == `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
 #rule("R-QSORT", FREE)[`order` is a list of sort keys applied in priority order.
-Each key names a `field`, a `compare` — how its values are ordered, `numeric` or
-`lexical` — and a `dir`, `asc` or `desc`. Claims lacking a key's field sort last.
+Each key names a `field`, a `compare` (how its values are ordered, `numeric` or
+`lexical`), and a `dir`, `asc` or `desc`. Claims lacking a key's field sort last.
 The archive's natural `(created_at, id)` order (RankeDB paper §Timestamping) breaks any
 remaining ties, and applies alone when `order` is absent, so the sort MUST always
 resolve to a total order.]
@@ -593,7 +593,7 @@ execution layer, and an empty name MUST be rejected. Absent, the backend chooses
 capability. The choice reaches execution alone: the result set MUST be identical
 whichever layer serves it (`R-QEVAL`).]
 
-`report` sets a verbosity — `info` (high-level stages), `debug` (routing and
+`report` sets a verbosity: `info` (high-level stages), `debug` (routing and
 translation), or `trace` (highest available detail).
 
 == Results and streaming <sec:rql-results>
@@ -607,7 +607,7 @@ holds, so a reader never inspects a payload to find out.]
 #rule("R-QREPORT", FREE)[When, and only when, `execution.report` is set, the stream's final
 element is a *report*, tagged as such (`R-QSTREAM`). It carries the original query, the
 query it was translated to (the Cypher/GQL text, or `native`), and per-stage timings as
-integers of nanoseconds, each such field naming its unit — `elapsed_ns`, `at_ns`. These
+integers of nanoseconds, each such field naming its unit: `elapsed_ns`, `at_ns`. These
 field names are part of the read contract; further fields are implementation-dependent, so
 a client relies on them at its own risk.]
 
@@ -618,7 +618,7 @@ serve it natively. This section fixes that translation. The rules above define w
 query answers; a translated query answers the same, and the native reference engine
 settles any disagreement (`R-QEVAL`).
 
-#rule("R-QCYPHER", FREE)[A translation MUST deliver the result set `R-QEVAL` defines, in
+#rule("R-QCYPHER", FREE)[A translation MUST produce the result set `R-QEVAL` defines, in
 the order `R-QSORT` fixes. Where a translated query and the native engine disagree, the
 translation is the defect.]
 
@@ -626,7 +626,7 @@ translation is the defect.]
 node is pinned by id where `claim` anchors it and reached from the scope's head otherwise;
 `where` to a `WHERE` over the endpoint; `order` to an `ORDER BY` carrying the
 `(created_at, id)` tie-break (`R-QSORT`); `limit.results` to a `LIMIT`; and
-`output.detail` to the `RETURN` projection — the id alone, or the node with its labels and
+`output.detail` to the `RETURN` projection: the id alone, or the node with its labels and
 outgoing edges. A read with no `path` translates to a scan of the scope. The remaining
 fields stay outside the statement: `output`'s `form` and `content`, `limit.time`, and
 `execution` (`R-QEVAL`).]
@@ -642,8 +642,8 @@ holds within a single pattern, so the step boundary is what resets it, as `R-QFR
 requires. A `path` translated as one continuous pattern drops results `R-QFRONTIER`
 admits.]
 
-#rule("R-QCSCOPE", FREE)[However a translation confines a query — a walk from the scope's
-head, or an index the backend maintains — the confined set MUST equal the scope's graph
+#rule("R-QCSCOPE", FREE)[However a translation confines a query (a walk from the scope's
+head, or an index the backend maintains), the confined set MUST equal the scope's graph
 (`R-QSCOPE`). The anchor and every claim a step reaches MUST lie inside it, a reverse step
 included (`R-QANCHOR`, `R-QHEAD`).]
 
@@ -760,7 +760,7 @@ This annex is also the source for the fixture a conformance suite (RankeDB paper
 serializations and its hashes pinned as the expected values, where here it is
 narrated in labels and pictures. One fixture in two registers is what lets a
 verification or query example read as prose while remaining what the oracle
-asserts, and the direction is one-way — a materialisation follows this annex,
+asserts, and the direction is one-way: a materialisation follows this annex,
 never the reverse.
 
 The archive holds three content branches over a six-revision branch-table chain,
@@ -772,14 +772,14 @@ plus the reserved system branch:
   §Taxonomy: a `derivation` (`der₂`) *extracts* from `src₁`, the entities it
   resolved cite it (`ent₁` person, `ent₂` org $arrow.r$ `der₂`), and a `relation`
   reifies how they relate (`rel₁` employment $arrow.r$ `ent₁`, `ent₂`). Its head
-  `der₄` runs the *other* way — a *distillation* summary that condenses the
+  `der₄` runs the *other* way: a *distillation* summary that condenses the
   cluster (`der₄` $arrow.r$ `rel₁`; foundation paper §Levels of Distillation).
 - *`review`* — Bob's branch: a `derivation/review` (`der₅`) over `master`'s `der₄`
   and over a `source` Bob captured (`src₂`), its head.
 
 The author keys sign under the Sequencer's initial claim `c_seq`. `c_alice`'s first
 key carries a `pubkey_expires_after` date; when it lapses, Alice *rotates* into a
-fresh key — a second `contribution/contributor`, `c_alice2`, with its own
+fresh key, a second `contribution/contributor`, `c_alice2`, with its own
 `pubkey_valid_from` overlapping the old window (RankeDB paper §Keyrotation). `der₃` and
 `der₄`, dated after the first key lapsed, are signed by `c_alice2`; her earlier
 claims by `c_alice`. A claim dated outside a key's window fails verification
@@ -790,25 +790,25 @@ date, a *planned* deletion (`R-DPLANNED`); `der₅`'s edge to it copies that dat
 the schedule travels with the reference, no propagation needed. `del₁` is a
 *requested* deletion (`R-DREQUEST`): a `contribution/delete` claim naming `src₁` as
 its target, created by the Sequencer and held in the reserved system branch
-`$system` — the archive's internal index of limiting claims, read at startup for
+`$system`, the archive's internal index of limiting claims, read at startup for
 fast lookup by target (RankeDB paper §Cross-Branch). Because `src₁` is reached from
 every content branch, the delete propagates to each (`R-C3LIMIT`); verification
 then accepts the explained gap (`R-DGAP`).
 
 A Ranke-Archive is a single graph and its branches are only subgraphs, so a claim
-may reference one in another branch as a matter of course — `der₂` (`master`)
+may reference one in another branch as a matter of course: `der₂` (`master`)
 references `src₁` (`project_x`), and `der₅` (`review`) references `der₄`
 (`master`), both ordinary `derivation` edges.
 
 #figure(
   caption: [The reference archive at head `bt₅`. Nodes are claims, tinted by
-  class. Solid black edges are reference edges — `derivation`, `relation/*`
+  class. Solid black edges are reference edges: `derivation`, `relation/*`
   (labelled `from`/`to`), and `del₁`'s `contribution/delete` edge to the deleted
   `src₁`. Blue edges are the branch-table chain, each table referencing its
   predecessor. Dotted edges
   are `contribution/branch`, naming each branch's current head, including the
   reserved `$system` branch that indexes limiting claims. The faint grey lines are
-  the `contribution/contributor` edges — every claim to its contributor: content
+  the `contribution/contributor` edges, every claim to its contributor: content
   to `c_alice` or `c_bob`, branch tables and `del₁` to `c_seq` (the Sequencer),
   and `c_alice`/`c_bob` to the initial claim `c_seq`.],
   diagram(spacing: (10mm, 9mm), node-stroke: 0.5pt, node-inset: 4pt, {
@@ -924,7 +924,7 @@ records the requested deletion, where the Sequencer creates `del₁` and opens
 
 Every claim signs under the initial claim `c_seq`, the Sequencer, which alone
 signs branch tables and limiting claims (`R-C2TYPE`, `V-SIG`). The content
-authors are Alice — two keys, `c_alice` and its rotation `c_alice2` — and Bob
+authors are Alice (two keys, `c_alice` and its rotation `c_alice2`) and Bob
 (`c_bob`), each a `contribution/contributor` resolving to `c_seq`. For legibility
 the fixture keeps `del₁` only in `$system`; `R-C3LIMIT` places a reference to
 it in every content branch that reaches `src₁`. The papers leave the system
