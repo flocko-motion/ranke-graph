@@ -22,17 +22,14 @@ verifiable.
 
 ## Papers
 
-| # | Paper | Status | PDF |
-| --- | --- | --- | --- |
+
+| # | Paper | State | PDF |
+| --- | --- | --- | ---  |
 | 01 | Ranke-Graph: A Provenance-First Data Structure | draft | [download](https://github.com/flocko-motion/ranke-graph/releases/latest/download/01-ranke-graph.pdf) |
 | 02 | RankeDB: Serving the Ranke-Graph | draft | [download](https://github.com/flocko-motion/ranke-graph/releases/latest/download/02-ranke-db.pdf) |
-| 03 | Ranke Workers: Populating the Provenance Graph | placeholder | — |
-| 04 | Ranke Retrieval: Strategies over a Provenance-First Graph | placeholder | — |
-| 05 | Ranke Coordination: Orchestrating a Multi-Agent Knowledge System | placeholder | — |
-| 06 | Ranke Cryptography: Attestation, Governance, and Audit | placeholder | — |
 
-Paper 01 defines the abstract data type; paper 02 specifies the reference
-database that serves it. Start with 01.
+There is three follow up papers sketched out. Thus directories `03` to `05` hold a title and some working notes each. 
+They mark subjects the series might take up.
 
 ## Companion documents
 

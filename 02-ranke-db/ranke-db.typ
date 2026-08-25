@@ -240,7 +240,7 @@ _Discharges R3 (replicability)._
 
 Beyond storage, a layer may offer a *query engine* the planner can target. The stacking primitive exposes the most capable engine among its layers, and RankeDB translates each read to it (@sec:query), falling back to the native filter when no layer offers more. The current implementation wraps Neo4j (@neo4j), whose `cypher` (@francis2018cypher), converging on the standardised `gql` (@iso39075gql), ranks above the native filter. A layer thus contributes capability as well as durability, and a query's meaning is unchanged by which layer answers it.
 
-Direct access to a layer sits outside this boundary. A client holding a backing store's own credentials (Neo4j, Postgres, a filesystem) can read and write it directly, with that platform's full power and none of RankeDB's scoping or verification. This is a demarcation, not a gap: RankeDB enforces its rules on requests that pass through it, and the substrate remains whatever it is. Where the guarantees must hold, the substrate credentials are withheld and only RankeDB is exposed.
+Direct access to a layer sits outside this boundary. A client holding a backing store's own credentials (Neo4j, Postgres, a filesystem) can read and write it directly, with that platform's full power and none of RankeDB's scoping or verification. The boundary is deliberate: RankeDB enforces its rules on requests that pass through it, and the substrate remains whatever it is. Where the guarantees must hold, the substrate credentials are withheld and only RankeDB is exposed.
 
 _Discharges R4 (composability)._
 
@@ -512,7 +512,7 @@ The RankeDB repository (@rankedbimpl) ships a conformance suite: it runs a serie
 
 = Evaluation <sec:evaluation>
 
-#todo[Placeholder: empirical evaluation to be written once the reference implementation stabilises. Conformance (@sec:conformance) shows the compositions agree; this section should show they *perform*, turning the asserted discharges of R1, R3, R4, R5, and R14 into measured ones.]
+#todo[Placeholder: the reference implementation (@rankedbimpl) runs, and what remains is to measure it. Conformance (@sec:conformance) shows the compositions agree; this section should show they *perform*, turning the asserted discharges of R1, R3, R4, R5, and R14 into measured ones.]
 
 == Setup
 #todo[Backends under test (native blob store on local disk, S3, a Neo4j-backed layer); hardware; dataset(s) and their claim/content size distribution; how a single declarative query or contribution is replayed across configurations.]
