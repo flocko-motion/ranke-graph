@@ -16,7 +16,6 @@ them in order:
 3. `03-ranke-workers/ranke-workers.typ` — workers
 4. `04-ranke-retrieval/ranke-retrieval.typ` — retrieval
 5. `05-retrieval-coordination/ranke-coordination.typ` — retrieval coordination
-6. `06-ranke-cryptography/ranke-cryptography.typ` — cryptography
 
 Shared definitions live in `shared/` — `shared/template.typ` (Typst template)
 and `shared/sources.bib` (bibliography). Read these too, since every paper

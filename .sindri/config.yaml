@@ -1,0 +1,7 @@
+# Hub configuration.
+#
+# The gate the hub runs before anything merges: it compiles every paper, the
+# glossary, and the spec, then validates the RQL schema and its examples. The
+# script installs the pinned typst itself, since the gate runs in a fresh
+# checkout.
+verify: scripts/check.sh

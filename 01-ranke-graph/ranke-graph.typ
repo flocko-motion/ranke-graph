@@ -17,9 +17,8 @@
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
-// Notation. U is a content-addressed k/v store with two non-colliding key
-// spaces: U(k) is the claim at id k = Sign(H(S(v))); U(h) is the external
-// content at hash h = H(c). So `h` always denotes a hash and `k` an id.
+// Notation. U is a content-addressed k/v store. U(k) is the claim envelope at
+// id k = H(S(env(v))); U(h) is the external content at hash h = H(c). 
 //   RG_k := closure(k, U)  — the graph rooted at head id k
 //   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
 // A later archive is a new tuple (U', k'); nothing is mutated in place.
@@ -32,10 +31,10 @@
   date:     "2026-05-03",
   status:   "draft",
   abstract: [Whenever a database updates a record, a knowledge base resolves its sources into one accepted version, or a model folds a corpus into its weights, the effect is the same: statements from various times and origins are consolidated into a single current truth. The provenance, the history of each datum as it is added or merged, is discarded or set aside as 'metadata', and the earlier values are often lost to the reader as well.
-Drawing on the archival tradition, the *Ranke-Graph* takes the opposite stance: what consolidation discards, data and provenance alike, was itself knowledge, and it preserves both, the data unaltered and its provenance a first-class part of the record.
-The Ranke-Graph is a Merkle DAG of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
-This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as identity. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
-The structural form is old, refined over centuries of archival practice; what is new is its realisation in the digital substrate, where systems consolidate by default and provenance is the first thing dropped. Reference implementations in Go and Python accompany the paper, with a binary conformance suite that makes conformance decidable.],
+Drawing on the archival tradition, the *Ranke-Graph* takes the opposite stance: what consolidation discards, data and provenance alike, was itself knowledge, and it preserves both, the data unaltered and its provenance part of the record itself.
+The Ranke-Graph is a Merkle DAG (directed acyclic graph) of *claims*: each a node attributed to a named author at a stated time, with edges citing the earlier claims it draws on as sources or subjects.
+This paper defines the Ranke-Graph as an abstract data type, the minimum contract for preserving a graph of such claims, built on established cryptographic primitives: content-addressed storage, a Merkle DAG of derivations, and signatures as proof of authorship. From that small definition the rest follows: the structure is verifiable, queryable, filterable, and cacheable, and it merges, replicates, and distributes without conflict.
+The structural form is old, refined over centuries of archival practice; what is new is its realisation in the digital substrate, where systems consolidate by default and provenance is the first thing dropped. Reference implementations in Go and TypeScript accompany the paper, with a binary conformance suite that makes conformance decidable.],
 )
 
 = Introduction <sec:introduction>
@@ -62,13 +61,13 @@ The graph does not record whether Alice likes apples, or whether she wrote the e
 It records that a file is present, its metadata is as given, and the record has not been altered since it was written.
 The guarantee is narrower than a conventional database's, and therefore keepable.
 
-A _claim_ in the Ranke-Graph is an attributed record: a piece of content added by a contributor at a specified moment. Source claims are external artifacts ingested into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
+A _claim_ in the Ranke-Graph is an attributed record: a piece of content added by a contributor at a specified moment. Source claims are external artifacts captured into the graph; derived claims are built from existing claims, citing their references. Formal definition: @sec:claims.
 
 This paper defines the Ranke-Graph as an abstract data type (ADT): the minimum contract an implementation must satisfy to preserve a graph of attributed claims.#footnote[A companion glossary collects this series' terminology for reference (@rankeglossary).]
 
 = The Problem and the Position
 
-== Knowledge Systems: Machines Reading and Writing at Scale
+== Knowledge Systems: Machines Reading and Writing
 
 Classical knowledge stores (wikis, knowledge graphs, structured databases, plain-text notes) consolidate sources into _current truth_, updating in place or creating new versions as understanding evolves. Creating and maintaining this highly structured information requires permanent effort. Large language models (LLMs) consolidate sources statistically into model weights, with no record of where claims originated or whether they were ever made, producing fuzziness and hallucinations.
 
@@ -92,7 +91,7 @@ Computer Science treats data and information as primary objects. Bits, structure
 
 Historical science and archival theory treat knowledge itself as primary: what is claimed, who claims it, on what basis, in contradiction to what. Data is the carrier; knowledge is the object of study.
 
-The Ranke-Graph operates in the intersection. It uses CS primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
+The Ranke-Graph operates in the intersection. It uses computer-science primitives (hashes, DAGs, signatures, content-addressing) as substrate for the archival discipline of knowledge.
 
 == The Ranke-Graph
 
@@ -130,14 +129,14 @@ Levels of distillation make the Ranke-Graph tractable for any agent or user oper
 
 === Taxonomy
 
-Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes: classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (reified assertions about how entities relate).
+Five concepts populate the graph. On the provenance side: *sources* (artifacts captured from outside the graph), *contributors* (humans, programs, or LLM agents that add nodes), and *derivations* (interpretations of existing nodes: classifications, summaries, fact extractions, entity resolutions). On the semantic side: *entities* (identifiable things in the world) and *relations* (assertions about how entities relate, each held as a claim of its own; @sec:semantic-claims).
 
 Contributors and entities are deliberately separate. A *contributor* is operational, the actor whose work brought a claim into the graph. An *entity* is semantic, a thing the graph holds claims about. The same real-world person may appear in both roles: as a contributor who adds claims, and as an entity referenced by relations. They *can* be linked by a claim asserting the connection, but they never share a node.
 
 
 == A Vision
 
-The two traditions of @sec:two-traditions meet in the ADT; what is built above it is their application. Because the substrate keeps every claim with its full derivation — the archival discipline realised on the CS primitives of @sec:primitives — systems built on it inherit provenance rather than reconstruct it: AI assistants whose answers trace back to source records, agents that revisit and revise their reasoning chains, archives that stand up to external scrutiny. These are not new demands on the structure but the oldest archival ones — cite the sources, keep the record, tolerate contradiction — carried into settings that had abandoned them. The ADT is deliberately _under-prescribed_: it preserves claims and their derivation and leaves retrieval, reasoning, and synthesis to the layer above.
+The two traditions of @sec:two-traditions meet in the ADT; what is built above it is their application. Because the substrate keeps every claim with its full derivation (the archival discipline realised on the computer-science primitives of @sec:primitives), systems built on it inherit provenance rather than reconstruct it: AI assistants whose answers trace back to source records, agents that revisit and revise their reasoning chains, archives that stand up to external scrutiny. These are the oldest archival demands (cite the sources, keep the record, tolerate contradiction), carried into settings that had abandoned them. The ADT is deliberately _under-prescribed_: it preserves claims and their derivation and leaves retrieval, reasoning, and synthesis to the layer above.
 
 Such systems evolve on the same data: selecting views that fit, contributing new derivations, marking, criticising, or disproving earlier contributions. The graph accumulates; the history stays complete, yet filterable and queryable. Retrieval systems select what they deem most useful.
 
@@ -145,7 +144,7 @@ Such systems evolve on the same data: selecting views that fit, contributing new
 
 From the two traditions of @sec:two-traditions, the Ranke-Graph inherits two kinds of obligations: what archival practice has long required of evidence, and what a modern data structure must support. Together they characterise the contract. Additional emergent properties (idempotency of writes, the set algebra, and the bijection between structural and semantic readings) follow as consequences (see @sec:emergent).
 
-The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 is a CS-operational concern: distributed use.
+The first five concern how knowledge is gathered: the source-criticism methods historians and archivists have refined for centuries. D6 is how knowledge can be captured, D7 how it can be organised. D8 is an operational concern of computer science: distributed use.
 
 *D1. Provenance: every claim references what it's based on and has a path back to its sources.*
 
@@ -173,14 +172,16 @@ Let $S$ be a canonical serialization mapping any object (node or edge) to bytes.
 
 Let $H$ be a cryptographic hash function. It must be collision-resistant and self-describing.
 
-Let $"Sign"$ be a deterministic signature function. It takes a hash and a private key, producing a signature that binds the hash to the corresponding public key. $"Sign"$ must be deterministic (same hash + key → same signature) and self-describing (the signature names the scheme used). The *identity* choice ($"Sign"(h) = h$) is valid for systems without authenticity needs.
+Let $"Sign"$ be an asymmetric, deterministic and self-describing signature function. 
 
-Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, and Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$, each fixed exactly in the normative specification (@rankespec).
+Let $"env"$ be the *envelope*, a claim as it is stored: the serialized claim paired with the signature over it, $"env"(v) = ("Sign"(S(v)), S(v))$. 
 
-To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name, a type class, a type subtype, and an encoding class or subtype each abbreviate to the dot and one character — `content_size` → `.s`, `contribution` → `.c`, `contributor` → `.c` — with class and subtype each carried in their own field, so `contribution/contributor` serializes as the pair `.c`, `.c`. The full table is fixed in the normative specification (@rankespec).
+Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$, and COSE_Sign1 (@rfc9052) for $"env"$, each fixed exactly in the normative specification (@rankespec).
+
+To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name, a type class, a type subtype, and an encoding class or subtype each abbreviate to the dot and one character (`content_size` → `.s`, `contribution` → `.c`, `contributor` → `.c`). Class and subtype are each carried in their own field, so `contribution/contributor` serializes as the pair `.c`, `.c`. The full table is fixed in the normative specification (@rankespec).
 An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
 
-Identity is the composition: $op("id")(v) = "Sign"(H(S(v)))$ for nodes, $op("id")(e) = H(S(e))$ for edges. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges, while `S(e)` is the serialization of a single edge. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
+Identity is the hash of the stored record: $op("id")(v) = H(S("env"(v)))$. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
 
 == Content <sec:content>
 
@@ -266,7 +267,9 @@ A claim may overlay another: carrying a `contribution/diff` edge (@sec:types), i
 
 Provenance requires acyclicity: content addressing has no fixed point in a graph with cycles. But knowledge typically lives in a *semantic graph* where cycles are common: _Alice — knows → Bob_, paired with _Bob — ignores → Alice_.
 
-A relation is itself a claim with a `relation/*` node and `relation/*` edges to `entity/*` claims.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim (never another edge), so relations cannot be encoded as plain edges between entities.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities, e.g., `are_friends`.
+A relation *between entities* is a claim of its own: a `relation/*` node with `relation/*` edges to the `entity/*` claims it binds.#footnote[This is the pattern known as *reification*; see RDF 1.0's `rdf:Statement` (@lassila1999rdf). The schema in @sec:edges constrains an edge's `reference` to a claim, never another edge, so an assertion that later claims cite is held as a claim.] Its edges have a `relation_direction` field with values `from=1` or `to=-1`. All-`from` or all-`to` expresses a symmetric relation between the referenced entities, e.g., `are_friends`.
+
+The claim form gives the assertion an author, a time, and provenance of its own; a direction the semantic reading may invert; any number of participants; and the citability that lets later claims summarise, qualify, or contradict it. 
 
 The *semantic reading* of a graph inverts each `relation/*` edge's direction if `relation_direction = -1`. The *structural reading* is acyclic; the _semantic reading_ admits cycles (formalised in @sec:bijection).
 
@@ -276,7 +279,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is a content-addressed set containing serialized claims under their id $k$ (retrieved as $cal(U)(k)$) and their *externalized content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). It holds everything a graph resolves against, yet is not limited to it: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
+$cal(U)$, the *Universe*, is a content-addressed set containing serialized claims under their id $k$ (retrieved as $cal(U)(k)$) and their *externalised content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). It holds everything a graph resolves against, and more besides: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
 
@@ -288,7 +291,7 @@ A *branch* is a name resolving to a closure, anchored by a `contribution/head` c
 
 == Ranke-Archive <sec:archive>
 
-A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a branch-table claim, with the previous branch tables in its provenance — the tuple $(cal(U), k)$ of the Universe and its head id $k$. From it all branches, their history, and all their graphs derive. Adding to the archive yields a new tuple $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$: the head id $k$ is not mutated but superseded, the earlier $"RA"_k$ remaining recoverable. Multiple archives can share $cal(U)$; each with its own head id.
+A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a branch-table claim, with the previous branch tables in its provenance, the tuple $(cal(U), k)$ of the Universe and its head id $k$. From it all branches, their history, and all their graphs derive. Adding to the archive yields a new tuple $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$: the head id $k$ is not mutated but superseded, the earlier $"RA"_k$ remaining recoverable. Multiple archives can share $cal(U)$; each with its own head id.
 
 A new archive is created by writing the initial claim and an empty `contribution/branches` claim, whose id is the archive's head $k$.
 
@@ -309,7 +312,7 @@ $ op("isConsolidated")("RG") <=> "RG" = "consolidate"("RG"). $
 
 == Merkle DAG <sec:merkle>
 
-Every valid $"RG"_k$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = "Sign"(H(S(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
+Every valid $"RG"_k$ is a *Merkle DAG* (@bftcrdtmerkle, @ipfs): the atomic creation rule (@sec:claims) makes edges run from earlier claims to later ones, and identity $op("id")(v) = H(S("env"(v)))$ makes each claim's id recursive over the ids of every claim in its closure (@sec:primitives).
 
 *Standing assumption.* The structure rests on *collision-resistance of $H$*: no two distinct byte sequences hash to the same value. Standard cryptographic hash functions (SHA-256, SHA-3, BLAKE3) are widely treated as collision-resistant in practice; mitigation is the implementer's choice of $H$.
 
@@ -319,7 +322,7 @@ Under this assumption, standard Merkle-DAG properties hold without further proof
 
 By the Merkle-DAG structure (@sec:merkle), reference traversal from any claim in $"RG"_k$ is acyclic and finite, terminating at an *initial claim* (@sec:ranke-graph) per path. Querying a node's provenance is therefore in $O(n)$.
 
-Traversal terminates at *one or more* initial claims: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial claim of each — the multi-root case @sec:validity admits.
+Traversal terminates at *one or more* initial claims: a graph grown from a single contributor line resolves to one, while a graph that federates two merged archives (@sec:distributability) resolves to the initial claim of each, the multi-root case @sec:validity admits.
 
 #dref[D1, this section]
 
@@ -337,9 +340,9 @@ By the Merkle-DAG structure, identical claims produce identical ids; under colli
 
 == Identity and Authenticity <sec:authenticity>
 
-Every claim's id is a signature over $H(S(v))$ by the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, compute $H(S(v))$, verify the signature against $op("id")(v)$.
+Every claim's envelope carries a signature over $S(v)$, made under the private key corresponding to the pubkey in $v$'s `contribution/contributor` (@sec:primitives). For the initial claim, the pubkey lives in $v$'s own content. Authenticity is structural: extract the pubkey, verify the envelope's signature against $S(v)$. Every contributor carries a pubkey, so every claim is signed.
 
-When the contributor's pubkey is empty, the *identity* Sign choice collapses signing to a no-op; verification trivially succeeds. Key management and usage policies are application-layer patterns over normal claims, which the Ranke-Graph merely documents. 
+The `contribution/contributor` edge names a claim's author and the signature proves that authorship. Key management and usage policies are application-layer patterns; the graph documents them as ordinary claims.
 
 #dref[D3, this section]
 
@@ -351,7 +354,7 @@ Publishing $k$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closur
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record* integrity and *authenticity* in a single recomputation: since $op("id")(v) = "Sign"(H(S(v)))$, recomputing id checks both the hash and the contributor's signature. Each record's `content_hash` witnesses its content bytes. Recomputing both over the closure verifies the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity). Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
@@ -408,9 +411,9 @@ Properties that follow from the structure beyond the desiderata.
 
 *Emerges from @sec:merkle + @sec:verifiability.* A single id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$.
 
-== Composable Universe <sec:composable>
+== Composing the Universe <sec:composable>
 
-*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$ is only a set of content-addressed claims, its physical form is free: claims may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure — no id and no closure changes with the location of the bytes. Stacking, partitioning, replication, and backup are one property seen from different sides.
+*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$ is only a set of content-addressed claims, its physical form is free: claims may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure; no id and no closure changes with the location of the bytes. Stacking, partitioning, replication, and backup are one property seen from different sides.
 
 = Relation to Prior Work <sec:related-work>
 
@@ -426,12 +429,12 @@ The Ranke-Graph can be understood as an extension of Graphiti's philosophy, addi
 == Versioned Knowledge Bases: TerminusDB
 
 TerminusDB (@terminusdb) provides Git-like versioning (branch, merge, time-travel) over an RDF knowledge graph using append-only delta encoding.
-It captures _what_ changed across versions but not _why_: there is no derivation chain, no source archive, and no concept of contributors as provenance-tracked agents.
+It captures _what_ changed across versions but not _why_: no derivation chain, no source archive, no concept of contributors as provenance-tracked agents.
 Its foundational structure is a versioned graph, not a provenance DAG.
 
 == Immutable Databases: Datomic and Fluree
 
-Datomic (@hickey2012datomic) operationalises Pat Helland's 'Immutability Changes Everything' thesis (@helland2015immutability) as an append-only database of immutable datoms.
+Datomic (@hickey2012datomic) implements Pat Helland's 'Immutability Changes Everything' thesis (@helland2015immutability) as an append-only database of immutable datoms.
 Fluree (@fluree) combines an append-only ledger with a semantic graph database.
 Both capture temporal history but not _epistemic_ history: they record _when_ facts changed but not _how knowledge was derived from sources through processing chains_.
 
@@ -441,7 +444,7 @@ Merkle trees, content-addressed stores such as IPFS (@ipfs), and Trusty URIs (@k
 
 == Signature and Timestamping Infrastructure
 
-Identity in the Ranke-Graph is a signature over a content hash (@sec:primitives), and its temporal guarantees rest on external anchoring (@sec:anchoring); both draw on established infrastructure rather than new primitives. Signature-based identity systems — PGP's web of trust, and more recently Sigstore (@newman2022sigstore) — bind keys to identities and sign artifacts, but treat the signature as a detached attestation _about_ content; the Ranke-Graph instead makes the signature over the content hash the claim's very address, so identity, integrity, and location are one value. For time, hash-chain timestamping (@haber1991), RFC 3161 time-stamp authorities (@rfc3161), and ledger anchoring (@gipp2015) witness that data existed at a moment; the Ranke-Graph adopts these directly for anchoring rather than reinventing them. Merkle-tree signing and transparency logs such as Certificate Transparency (@rfc6962) share its use of hash-linked structure for tamper-evidence, but over append-only logs of certificates rather than a provenance DAG of derivations. The contribution here is again composition, not a new mechanism: signature _is_ identity, the hash _is_ the address, and a single anchor fixes the whole closure in time.
+Identity in the Ranke-Graph is a hash over a signed record (@sec:primitives), and its temporal guarantees rest on external anchoring (@sec:anchoring); both draw on established infrastructure rather than new primitives. Signature-based identity systems, PGP's web of trust and more recently Sigstore (@newman2022sigstore), bind keys to identities and sign artifacts, but treat the signature as a detached attestation _about_ content; the Ranke-Graph instead folds the signature into the record its address names, so a claim's address commits to its author as well as to its content. The envelope is standard practice: a C2PA claim signature (@c2pa) and an IETF SCITT signed statement (@scitt) are each a COSE_Sign1 (@rfc9052). For time, hash-chain timestamping (@haber1991), RFC 3161 time-stamp authorities (@rfc3161), and ledger anchoring (@gipp2015) witness that data existed at a moment; the Ranke-Graph adopts these directly for anchoring rather than reinventing them. Merkle-tree signing and transparency logs such as Certificate Transparency (@rfc6962) share its use of hash-linked structure for tamper-evidence, but over append-only logs of certificates rather than a provenance DAG of derivations. The contribution here is again composition, not a new mechanism: the hash _is_ the address, the signature it covers _is_ the proof, and a single anchor fixes the whole closure in time.
 
 == W3C PROV-DM
 
@@ -456,7 +459,7 @@ They share the Ranke-Graph's commitment to immutability and provenance-per-asser
 
 == CRDTs and Distributed Provenance
 
-An append-only, monotonically growing DAG is a Conflict-Free Replicated Data Type (@shapiro2011crdt): its merge is set union, which is associative, commutative, and idempotent, so replicas converge to the same state regardless of the order or grouping in which they exchange claims (@sec:distributability). CRDTs are well studied for registers, counters, and sequences; their realisation as a provenance DAG — where content-addressed ids make union deduplicating by construction — appears little explored. Coordination-free replication then follows: no merge resolver is needed, because identical claims carry identical ids and distinct claims never collide.
+An append-only, monotonically growing DAG is a Conflict-Free Replicated Data Type (@shapiro2011crdt): its merge is set union, which is associative, commutative, and idempotent, so replicas converge to the same state regardless of the order or grouping in which they exchange claims (@sec:distributability). CRDTs are well studied for registers, counters, and sequences; their realisation as a provenance DAG, where content-addressed ids make union deduplicating by construction, appears little explored. Coordination-free replication then follows: no merge resolver is needed, because identical claims carry identical ids and distinct claims never collide.
 
 == The Identified Gap
 
@@ -465,15 +468,15 @@ Each component has mature prior art; the architectural composition is novel.
 
 = Conclusion
 
-We began with three statements and chose the third: to record not that Alice likes apples, but that a file exists claiming she does. That narrowing — observations of existence, not facts about the world — is what makes everything here keepable.
+We began with three statements and chose the third: to record not that Alice likes apples, but that a file exists claiming she does. That narrowing (observations of existence, not facts about the world) is what makes everything here keepable.
 
 The structural form we present is not new. Centuries of archival practice have refined it under conditions of uncertainty, contradiction, and revision. What is new is its full realisation in the digital substrate.
 
 The computer science tools used here are all established: Merkle trees from 1979, hashchain timestamping from Haber and Stornetta 1991, RFC 3161 from 2001, Ed25519 from 2011. The discipline they serve is older still. We invent nothing; we compose.
 
-One line draws the boundary of that composition: _the Ranke-Graph documents; it does not decide._ Signatures document who signed, not who may sign; validity documents structural well-formedness, not what is true. Everything that would _decide_ — policy, governance, consensus, which claims must reach which views — belongs above the ADT, in the systems built upon it.
+One line draws the boundary of that composition: _the Ranke-Graph documents; it does not decide._ Signatures document who signed, not who may sign; validity documents structural well-formedness, not what is true. Everything that would _decide_ (policy, governance, consensus, which claims must reach which views) belongs above the ADT, in the systems built upon it.
 
-Reference implementations of the ADT in Go and Python accompany this paper. A binary conformance suite (example graphs and operations with expected hashes) accompanies them and makes conformance to the ADT decidable for any implementation.
+Reference implementations of the ADT in Go (@rankego) and TypeScript (@rankets) accompany this paper. A binary conformance suite of example graphs and operations with expected hashes is published with this paper, so conformance to the ADT is decidable for any implementation.
 
 = Type Vocabulary <sec:types>
 
@@ -501,9 +504,9 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
   - *`contribution/head`*: consolidates currently-open content claims (see @sec:head)
   - *`contribution/branch`*: edge-only; from a branch table, names one active branch in a `name` field and references its current head (see @sec:branches)
   - *`contribution/branches`*: points at the previous branch table where a revision restates every entry instead of diffing over it (see @sec:branches)
-  - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain — a storage optimisation carrying full provenance
+  - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain, a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
-  - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid — it expires after that time
+  - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid; it expires after that time
 
 #v(1em)
 #text(size: 0.92em)[*Acknowledgements.* This paper was prepared with the assistance of AI tools (Claude Opus 4.6–4.8, Anthropic).]

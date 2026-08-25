@@ -695,3 +695,59 @@
   url = {https://github.com/flocko-motion/ranke-graph/releases/latest/download/ranke-spec.pdf},
   note = {The rules an implementation follows --- verification, the reference archive, and RankeQL (RQL) query semantics; companion to the Ranke-Graph paper series},
 }
+
+@techreport{rfc9052,
+  author = {Schaad, Jim},
+  title = {CBOR Object Signing and Encryption (COSE): Structures and Process},
+  institution = {IETF},
+  type = {RFC},
+  number = {9052},
+  year = {2022},
+  url = {https://www.rfc-editor.org/rfc/rfc9052},
+  note = {STD 96. COSE_Sign1: a CBOR envelope pairing a payload with one signature over it},
+}
+
+@misc{c2pa,
+  author = {{Coalition for Content Provenance and Authenticity}},
+  title = {C2PA Technical Specification (Content Credentials), Version 2.2},
+  year = {2025},
+  url = {https://spec.c2pa.org/specifications/specifications/2.2/specs/C2PA_Specification.html},
+  note = {Claim signatures as COSE_Sign1 over the serialized claim, in detached content mode},
+}
+
+@misc{scitt,
+  author = {Birkholz, Henk and Delignat-Lavaud, Antoine and Fournet, C{\'e}dric and Deshpande, Yogesh and Lasker, Steve},
+  title = {An Architecture for Trustworthy and Transparent Digital Supply Chains},
+  year = {2026},
+  howpublished = {Internet-Draft draft-ietf-scitt-architecture},
+  institution = {IETF},
+  url = {https://datatracker.ietf.org/doc/draft-ietf-scitt-architecture/},
+  note = {Signed Statements and Receipts as COSE_Sign1, registered in a transparency service},
+}
+
+@misc{rankego,
+  author = {Metzger-Noel, Florian},
+  title = {ranke-go --- the Ranke-Graph ADT in Go},
+  year = {2026},
+  howpublished = {Source repository},
+  url = {https://github.com/flocko-motion/ranke-go},
+  note = {Reference implementation of the abstract data type},
+}
+
+@misc{rankets,
+  author = {Metzger-Noel, Florian},
+  title = {ranke-ts --- the Ranke-Graph ADT in TypeScript},
+  year = {2026},
+  howpublished = {Source repository},
+  url = {https://github.com/flocko-motion/ranke-ts},
+  note = {Reference implementation of the abstract data type},
+}
+
+@misc{rankedbimpl,
+  author = {Metzger-Noel, Florian},
+  title = {ranke-db --- the RankeDB server and the Ranke-Explorer frontend},
+  year = {2026},
+  howpublished = {Source repository},
+  url = {https://github.com/flocko-motion/ranke-db},
+  note = {Reference database service serving the Ranke-Graph, with a graph-exploring frontend},
+}

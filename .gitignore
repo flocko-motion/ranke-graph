@@ -3,8 +3,11 @@
 .DS_Store
 .todos/
 
-# sindri hub artifacts (agent worktrees + hub state) — not for the repo
-.sindri/
+# sindri hub artifacts (agent worktrees + hub state) — not for the repo.
+# config.yaml is the exception: the gate runs from a fresh checkout, so the
+# checkout has to carry the config naming the gate script.
+.sindri/*
+!.sindri/config.yaml
 .worktrees/
 
 
