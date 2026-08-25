@@ -154,8 +154,9 @@ A claim MUST NOT carry both `content` and `content_hash`. (foundation paper §Co
 §Verifiability)]
 
 #rule("V-ENV", FORCED)[A claim is stored as an *envelope*: a tagged `COSE_Sign1` (RFC 9052,
-CBOR tag 18) whose payload is $S(v)$, signed as `V-SIGN` fixes. The envelope's serialization
-is the record $cal(U)$ holds under $op("id")(v)$. (foundation paper §Primitives)]
+CBOR tag 18) whose payload is $S(v)$, signed as `V-SIGN` fixes. Its unprotected header MUST be
+empty. The envelope's serialization is the record $cal(U)$ holds under $op("id")(v)$.
+(foundation paper §Primitives)]
 
 #rule("V-ID", FORCED)[Every claim's stored id MUST equal $H$ over the claim's stored bytes:
 $op("id")(v) = H(S("env"(v)))$. (foundation paper §Primitives, §Verifiability)]
