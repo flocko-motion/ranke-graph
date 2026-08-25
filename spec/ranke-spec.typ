@@ -446,7 +446,7 @@ Comparison =                 // exactly one operator
 
 Output = {
   shape?:    "single" | "path"                      // elements | routes; absent -> "single"
-  detail?:   "id" | "claims"                        // absent -> "id"
+  detail?:   "id" | "claims" | "envelope"           // absent -> "id"
   form?:     "original" | "materialized"            // as written | resolved; absent -> "original"
   content?:  {                                      // inline content per claim; absent -> none
     max:      int                                   // cap in bytes; 0 -> unbounded
@@ -557,8 +557,14 @@ began at. An endpoint reached by more than one route yields exactly one: the sho
 where two are equally long the one whose claims sort first on `(created_at, id)`, compared
 in order.]
 
-#rule("R-QDETAIL", FREE)[`detail` sets what each element carries: `id`, the id alone, or
-`claims`, the claim in full. Under `shape: path` it applies to every claim in the route.]
+#rule("R-QDETAIL", FREE)[`detail` sets what each element carries. `id` is the id alone.
+`claims` is the claim as a record, assembled as the query is processed. `claims` shares its
+schema with the envelope's payload (@tbl:keys).
+`envelope` is the original signed record (`R-QCANON`).
+`form` and `content` do not apply to `envelope`.
+`form: materialized` with `envelope` MUST be rejected.
+`encoding: json` with `envelope` MUST likewise be rejected, the original bytes being CBOR.
+Under `shape: path` the setting applies to every claim in the route.]
 
 #rule("R-QFORM", FREE)[`form` sets which field values a claim carries: `original` as
 stored, or `materialized` with its diff chain resolved as `V-DIFF` fixes.]
@@ -572,12 +578,17 @@ a value, under `omit` at the last whole value that fits. A `max` of `0` inlines 
 claim's content in full. An absent `content` inlines nothing (foundation paper §Content).]
 
 #rule("R-QENCODING", FREE)[`encoding` sets the results encoding format: `json`, text with content
-base64-encoded, or `cbor`, binary. Both carry the same information.]
+base64-encoded, or `cbor`, binary. For detail `id` and `claims` both encodings are applied to the
+query result before sending it as response. An assembled result is unsigned, and outside the
+canonical serialization `V-SER` fixes. For `envelope` the original bytes of the signed envelopes
+are returned as results, which is only possible within `encoding: cbor`.]
 
-#rule("R-QCANON", FREE)[The combination `detail: claims` + `form: original` +
-`encoding: cbor`, with `content` inlining every claim in full (`R-QCONTENT`), MUST return
-each claim as the bytes $S(v)$ whose hash its id was computed over (foundation paper
-§Primitives). It is the only output form a client can hash and check against the id.]
+#rule("R-QCANON", FREE)[`detail: envelope` MUST return each claim as the bytes
+$S("env"(v))$ the archive stores, whose hash is its id (`V-ENV`, `V-ID`). The engine copies
+them; it does not re-encode a decoded claim. It is the only output a client can hash and
+check against an id, and the signature those bytes carry is what lets the same client check
+authorship (`V-SIG`). No other output form is comparable to a stored record byte for byte,
+`detail: claims` least of all: the engine assembles it per request.]
 
 == `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
@@ -610,7 +621,9 @@ translation), or `trace` (highest available detail).
 time, in the order `order` fixes (`R-QSORT`), then the report where one was asked for
 (`R-QREPORT`). A result element carries one result under `shape: single`, or a route's
 results under `shape: path` (`R-QSHAPE`). Every element MUST carry a tag naming what it
-holds, so a reader never inspects a payload to find out.]
+holds, so a reader never inspects a payload to find out. An assembled record and a copied
+envelope (`R-QDETAIL`) are tagged apart, since a decoder treats them differently: the first
+it parses, the second it hands on as bytes.]
 
 #rule("R-QREPORT", FREE)[When, and only when, `execution.report` is set, the stream's final
 element is a *report*, tagged as such (`R-QSTREAM`). It carries the original query, the
