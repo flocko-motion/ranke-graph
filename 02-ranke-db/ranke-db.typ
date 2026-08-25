@@ -205,8 +205,7 @@ satisfies R1: such an adapter is trivial to write for any backend that stores by
 
 == The Universe <sec:universe>
 
-The reference library implements the ADT specified *Universe* as a typed interface to an underlying Blob Store. A *Universe* reads and writes claims and content as records, decoding and encoding at the boundary. While the implementation of a Blob Store is enough to construct a Universe, 
-by wrapping a Blob Store instance in the default implementation of *Universe* using the `NewBlobUniverse` constructor. An adapter can opt to implement additional bulk, streaming, and querying operations, making the adapter faster under large queries. Due to the optionality and granularity of such performance improving additions, R1 stays satisfied. 
+The reference library implements the *Universe* the ADT specifies as a typed interface to an underlying Blob Store. A *Universe* reads and writes envelopes and content, decoding and encoding at the boundary. A Blob Store is enough to construct one: wrap a Blob Store instance in the default implementation using the `NewBlobUniverse` constructor. An adapter can opt to implement additional bulk, streaming, and querying operations, making the adapter faster under large queries. Due to the optionality and granularity of such performance improving additions, R1 stays satisfied. 
 
 
 ```
