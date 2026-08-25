@@ -14,6 +14,10 @@
 //     standard libraries, RFCs, and CS academic literature use -ize.
 //
 // First-level quotation marks: single ('…'); double for nested ("…").
+//
+// Terminology: shared/glossary.typ is the single source of truth for the
+// series' vocabulary. A term this paper introduces, renames, or redefines
+// is updated there in the same change.
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────

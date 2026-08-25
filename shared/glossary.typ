@@ -49,6 +49,12 @@
   (key: "claim", short: "claim", group: "01 · Ranke-Graph",
    description: [A node together with its content and its `edges`; the atom of the Ranke-Graph, created in one atomic transaction and addressed by its `id`. (foundation paper §Claims)]),
 
+  (key: "serialized-claim", short: "serialized claim", group: "01 · Ranke-Graph",
+   description: [$S(v)$, a #gls("claim") as canonical bytes: the node's fields with every owned edge inline. It is the payload an #gls("envelope") carries, and the form a read returns where verification is not the point. (foundation paper §Primitives)]),
+
+  (key: "envelope", short: "envelope", group: "01 · Ranke-Graph",
+   description: [$"env"(v)$, a #gls("claim") as it is stored: the #gls("serialized-claim") paired with the signature over it. The archive holds it under its #gls("id"), which is the hash of these bytes, so the signature it carries cannot be detached from the claim it attests. (foundation paper §Primitives)]),
+
   (key: "node", short: "node", group: "01 · Ranke-Graph",
    description: [The record carrying a claim's fields — `type`, `encoding`, `created_at`, `height`, content, `edges`. (foundation paper §Nodes)]),
 
@@ -77,7 +83,7 @@
    description: [A Merkle DAG of attributed claims; the provenance-first data structure the series is built on. (foundation paper §Ranke-Graph)]),
 
   (key: "universe", short: "Universe", group: "01 · Ranke-Graph",
-   description: [$cal(U)$, a content-addressed set containing serialized claims (each under its id $k$, $cal(U)(k)$) and their externalized content (each under its hash $h$, $cal(U)(h)$); ids and hashes never collide. Any Ranke-Graph is a subset; other archives may share $cal(U)$ unseen. Monotone: entries accumulate, never change. (foundation paper §Universe)]),
+   description: [$cal(U)$, a content-addressed set containing #glspl("envelope") (each under its id $k$, $cal(U)(k)$) and externalised content (each under its hash $h$, $cal(U)(h)$). Both keys are hashes over the bytes they name, so one keyspace serves both and identical bytes are one entry. Any Ranke-Graph is a subset; other archives may share $cal(U)$ unseen. Monotone: entries accumulate, never change. (foundation paper §Universe)]),
 
   (key: "rg-instance", short: "Ranke-Graph instance", group: "01 · Ranke-Graph",
    description: [$"RG"_k := "closure"(k, cal(U))$, the subset of the Universe reachable from a head id $k$. (foundation paper §Universe, §Closures)]),
@@ -89,7 +95,7 @@
    description: [A claim with no references; a root at which provenance traversal terminates. (foundation paper §Ranke-Graph)]),
 
   (key: "id", short: "id", group: "01 · Ranke-Graph",
-   description: [$op("id")(v) = "Sign"(H(S(v)))$: a claim's content address — a signature over the hash of its canonical serialization; written $k$ where a bare id is needed. (foundation paper §Primitives)]),
+   description: [$op("id")(v) = H(S("env"(v)))$: a claim's content address, the hash of the #gls("envelope") the archive stores; written $k$ where a bare id is needed. Recomputing it takes the stored bytes and $H$, while the signature those bytes carry establishes authorship. (foundation paper §Primitives)]),
 
   (key: "height", short: "height", group: "01 · Ranke-Graph",
    description: [A mandatory node field: $"height"(v) = max({"height"(u) + 1 : u in "refs"(v)} union {0})$, the longest path from the claim following references, an #gls("initial-claim") carrying 0. Determined by the claim's #gls("id"), strictly rising along every reference, so a set bounded by height is closed under references. (foundation paper §Nodes)]),
