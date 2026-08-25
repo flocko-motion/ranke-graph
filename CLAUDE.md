@@ -17,8 +17,12 @@ them in order:
 4. `04-ranke-retrieval/ranke-retrieval.typ` — retrieval
 5. `05-retrieval-coordination/ranke-coordination.typ` — retrieval coordination
 
-Shared definitions live in `shared/` — `shared/template.typ` (Typst template)
-and `shared/sources.bib` (bibliography). Read these too, since every paper
-depends on them.
+Shared definitions live in `shared/` — `shared/template.typ` (Typst template),
+`shared/sources.bib` (bibliography), and `shared/glossary.typ` (the series'
+vocabulary). Read these too, since every paper depends on them.
+
+`shared/glossary.typ` is the single source of truth for terminology. Changing
+or adding a term in a paper or in the specification means updating the matching
+entry there in the same change.
 
 Only after reading the papers should you start on the task the user gives you.

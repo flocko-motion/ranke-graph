@@ -15,6 +15,9 @@
 //     the two is a defect — decide which and fix it, rather than letting both
 //     stand. So never cite a file built from this one: name the role, not the
 //     artifact.
+//   * shared/glossary.typ carries the series' vocabulary. A term this document
+//     introduces, renames, or redefines is updated there in the same change,
+//     the papers governing meaning where they differ.
 //
 // Every normative statement carries a stable id (V-ID, R-CEIL, …). Ids never
 // change meaning: retire an id rather than repurpose it, so a conformance case
@@ -404,7 +407,7 @@ Field names ending in `?` are optional, and each carries its default; `|` lists 
 allowed values or forms; `[T]` is a list of `T`. An `Id` is a claim id in textual form:
 multibase base32 of the self-describing payload, matching `^b[a-z2-7]+$`. A `duration`
 is a decimal sequence with unit suffixes (`ns`, `us`, `ms`, `s`, `m`, `h`, as in `5s`
-or `1m30s`), where the bare `0` means unbounded. A `Claim` is a claim record as
+or `1m30s`), where the bare `0` means unbounded. A `Claim` is a serialized claim as
 `output` carries it (@sec:rql-output).
 
 #listing[
@@ -558,8 +561,8 @@ where two are equally long the one whose claims sort first on `(created_at, id)`
 in order.]
 
 #rule("R-QDETAIL", FREE)[`detail` sets what each element carries. `id` is the id alone.
-`claims` is the claim as a record, assembled as the query is processed. `claims` shares its
-schema with the envelope's payload (@tbl:keys).
+`claims` is the serialized claim, the envelope's payload as `form` and `content` shape it
+(@tbl:keys).
 `envelope` is the original signed record (`R-QCANON`).
 `form` and `content` do not apply to `envelope`.
 `form: materialized` with `envelope` MUST be rejected.
@@ -579,16 +582,16 @@ claim's content in full. An absent `content` inlines nothing (foundation paper �
 
 #rule("R-QENCODING", FREE)[`encoding` sets the results encoding format: `json`, text with content
 base64-encoded, or `cbor`, binary. For detail `id` and `claims` both encodings are applied to the
-query result before sending it as response. An assembled result is unsigned, and outside the
-canonical serialization `V-SER` fixes. For `envelope` the original bytes of the signed envelopes
+query result before sending it as response. Such a result carries no signature, and no bytes a
+client can check against an id. For `envelope` the original bytes of the signed envelopes
 are returned as results, which is only possible within `encoding: cbor`.]
 
 #rule("R-QCANON", FREE)[`detail: envelope` MUST return each claim as the bytes
 $S("env"(v))$ the archive stores, whose hash is its id (`V-ENV`, `V-ID`). The engine copies
 them; it does not re-encode a decoded claim. It is the only output a client can hash and
 check against an id, and the signature those bytes carry is what lets the same client check
-authorship (`V-SIG`). No other output form is comparable to a stored record byte for byte,
-`detail: claims` least of all: the engine assembles it per request.]
+authorship (`V-SIG`). `detail: claims` carries no such guarantee: the id covers the envelope,
+not the payload inside it.]
 
 == `order`, `limit`, `execution` — sort, bounds, and engine <sec:rql-bounds>
 
@@ -621,7 +624,7 @@ translation), or `trace` (highest available detail).
 time, in the order `order` fixes (`R-QSORT`), then the report where one was asked for
 (`R-QREPORT`). A result element carries one result under `shape: single`, or a route's
 results under `shape: path` (`R-QSHAPE`). Every element MUST carry a tag naming what it
-holds, so a reader never inspects a payload to find out. An assembled record and a copied
+holds, so a reader never inspects a payload to find out. A serialized claim and a copied
 envelope (`R-QDETAIL`) are tagged apart, since a decoder treats them differently: the first
 it parses, the second it hands on as bytes.]
 

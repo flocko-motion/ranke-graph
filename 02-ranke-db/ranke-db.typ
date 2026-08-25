@@ -33,6 +33,9 @@
 // information — write 'Cypher/GQL-capable layer' (e.g. neo4j) when a
 // layer's query capability is what is meant. The ADT reference library
 // (Go and TypeScript) belongs to the foundation paper; this paper builds on it.
+// shared/glossary.typ is the single source of truth for the series'
+// vocabulary; a term this paper introduces, renames, or redefines is
+// updated there in the same change.
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
