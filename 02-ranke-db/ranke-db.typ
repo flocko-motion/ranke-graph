@@ -20,8 +20,7 @@
 // RankeDB's scope is the engine. Vocabulary follows the foundation paper:
 // claims, contributors (the actors that add claims), the node classes
 // source/derivation/entity/relation/contribution, and the identity
-// id(v) = Sign(H(S(v))). The old L0/L1/L2 "levels" framing from the
-// working notes is retired in favour of the foundation paper's class taxonomy.
+// id(v) = H(S(env(v))). 
 //
 // Convention: passages are tagged [FORCED] where the ADT dictates the
 // behaviour and [FREE] where RankeDB makes an implementation choice that a
@@ -38,7 +37,7 @@
 
 // ─────────────────────────────────────────────────────────────────────
 // Notation (follows the foundation paper). U is a content-addressed k/v store:
-// U(k) is the claim at id k = Sign(H(S(v))); U(h) is content at hash h = H(c).
+// U(k) is the claim envelope at id k = H(S(env(v))); U(h) is content at h = H(c).
 // RG_k := closure(k, U) is the graph rooted at head id k; RA_k is the
 // Ranke-Archive rooted at k, tuple (U, k). A later archive is a new tuple
 // (U', k') — the Sequencer *advances* the head id, nothing is mutated.
@@ -167,7 +166,7 @@ This chapter builds the Ranke-Graph from the atom up. Its core concepts are clai
 
 == The Claim as Atom <sec:claim>
 
-A *claim* is the atom of the Ranke-Graph: a node with a small set of mandatory fields predefined by the ADT, e.g. `type`, `encoding`, `created_at` and `content_hash`, together with the edges to the claims that it references. Custom fields can be set as needed for the use case, which we do to fulfil the requirements for key lifecycle and deletion. Claims are addressed by their identity $op("id")(v) = "Sign"(H(S(v)))$, a signature over the hash of its canonical serialization (foundation paper §Primitives). 
+A *claim* is the atom of the Ranke-Graph: a node carrying the fields the ADT predefines — `type`, `created_at` and `height` always, the content fields where it has content (foundation paper §Content) — together with the edges to the claims that it references. Custom fields can be set as needed for the use case, which we do to fulfil the requirements for key lifecycle and deletion. Claims are addressed by their identity $op("id")(v) = H(S("env"(v)))$, the hash of the envelope pairing the serialized claim with the signature over it (foundation paper §Primitives).
 
 The datatype for a claim is thus:
 
@@ -178,7 +177,7 @@ Claim — a node with its edges; immutable, content-addressed
   node()                   → Node                  type, encoding, created-at, content hash + size, pubkey, extensions
   edges(filters: Filter[]) → Edge[]                references to the claims it derives from — its provenance
   contributor()            → Contributor:Claim     the claim that attributes and signs it
-  encode()                 → SerializedClaim:bytes canonical serialization — the bytes the store persists by id
+  encode()                 → SerializedClaim:bytes the signed envelope 
   ...                                              closure materialization, verification
 ```
 

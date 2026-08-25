@@ -150,14 +150,17 @@ and the referenced bytes in $cal(U)$ MUST hash to it: $H(c) = $ `content_hash`.
 A claim MUST NOT carry both `content` and `content_hash`. (foundation paper §Content,
 §Verifiability)]
 
-#rule("V-ID", FORCED)[Every claim's stored id MUST verify against the claim's stored bytes:
-the id is the signature over their hash, checked with the key `V-SIG` names. (foundation
-paper §Primitives, §Verifiability)]
+#rule("V-ENV", FORCED)[A claim is stored as an *envelope*: a tagged `COSE_Sign1` (RFC 9052,
+CBOR tag 18) whose payload is $S(v)$, signed as `V-SIGN` fixes. The envelope's serialization
+is the record $cal(U)$ holds under $op("id")(v)$. (foundation paper §Primitives)]
 
-#rule("V-SIG", FORCED)[The signature in $op("id")(v)$ MUST verify against the
+#rule("V-ID", FORCED)[Every claim's stored id MUST equal $H$ over the claim's stored bytes:
+$op("id")(v) = H(S("env"(v)))$. (foundation paper §Primitives, §Verifiability)]
+
+#rule("V-SIG", FORCED)[The envelope's signature MUST verify against the
 contributor's `pubkey` — reached through $v$'s `contribution/contributor` edge, or,
-when $v$ is an initial claim, in $v$'s own content. Where no `pubkey` is set, the
-signature scheme is *identity*, $"Sign"(h) = h$. (foundation paper §Primitives,
+when $v$ is an initial claim, in $v$'s own content. Every `contribution/contributor`
+claim MUST carry a `pubkey`, so every claim is signed. (foundation paper §Primitives,
 §Identity and Authenticity)]
 
 #rule("V-MONO", FORCED)[Every claim MUST carry `created_at`, the UTC time it was
@@ -178,18 +181,19 @@ An initial claim references nothing and so carries 0.]
 
 #rule("V-SER", FORCED)[$S$ MUST be CBOR Deterministic Encoding (RFC 8949 §4.2). A node
 and an edge each serialize as a map under the numeric keys of @tbl:keys, a node's `edges`
-key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`). A key MUST
-only be added, never reassigned: an id is computed over the encoded bytes, so a reassigned
-key changes what a stored claim says.]
+key holding each owned edge's $S(e)$ inline. Timestamps are text (`V-TIME`). The claim map is
+the envelope's payload, a byte string (`V-ENV`), so verification reads the bytes as stored.
+The key table is append-only: a key MUST keep the meaning it was assigned.]
 
 #rule("V-HASH", FORCED)[$H$ MUST be a multihash: the multicodec varint `0x12`
 (`sha2-256`), the digest length, then the digest.]
 
-#rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032). A `pubkey` is framed as the
-multicodec varint `0xed` (`ed25519-pub`) followed by the raw key; a signature as `0xd0ed`
-(`eddsa`) followed by the raw signature. The leading code names what a payload holds, so a
-signed id reads `eddsa` and an identity-signed one the `sha2-256` of its multihash
-(`V-HASH`).]
+#rule("V-SIGN", FORCED)[$"Sign"$ MUST be Ed25519 (RFC 8032), named in the envelope's
+protected header as the COSE algorithm `EdDSA` (`-8`). It signs the `Sig_structure` of
+RFC 9052 §4.4 over the payload, and the envelope's signature field holds the raw signature.
+A `pubkey` is framed as the multicodec varint `0xed` (`ed25519-pub`) followed by the raw
+key; the algorithm the header names is what identifies the scheme a signature was made
+under.]
 
 #rule("V-ALIAS", FORCED)[A well-known field name, a type class, a type subtype, and an
 encoding class or subtype MAY appear in its alias form: the reserved `.` followed by the
@@ -197,8 +201,8 @@ letter @tbl:aliases and @tbl:encsub give it. An alias is semantically identical 
 form, and a name with none passes through unchanged. Each half of a type aliases on its own
 and occupies its own record key (`V-SER`), so the `/` of a written type is not serialized
 and one letter may serve both halves — `.c` is the `contribution` class and the
-`contributor` subtype. A mapping MUST only be added, never changed: an id is computed over
-the aliased bytes, so a remapped letter changes what a stored claim says.]
+`contributor` subtype. The alias tables are append-only: a letter MUST keep the
+mapping it was assigned.]
 
 #rule("V-DIFF", FORCED)[A claim carrying a `contribution/diff` edge *overlays* the claim it
 references, and MUST carry at most one such edge. The predecessor is materialised first,
