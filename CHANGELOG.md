@@ -5,7 +5,7 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
-## Unreleased
+## v0.20.1 — 2026-08-27
 
 **Conformance vectors.** Regenerated from ranke-go v0.25.0-rc.1: a
 `rejected-dated-form` case, so `V-DATED` has a case rather than sitting
