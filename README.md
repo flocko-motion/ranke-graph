@@ -1,4 +1,4 @@
-# Ranke-Graph
+<img src="assets/logo.png" alt="Ranke-Graph" width="560">
 
 **Everything is Knowledge — Knowledge is Everything.**
 
