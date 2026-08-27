@@ -5,6 +5,15 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
+## Unreleased
+
+**Conformance vectors.** Regenerated from ranke-go v0.25.0-rc.1: a
+`rejected-dated-form` case, so `V-DATED` has a case rather than sitting
+uncovered.
+
+**Website.** An early draft under `website/`: index, papers, build and use
+pages.
+
 ## v0.20.0 — 2026-08-27
 
 **Papers.** 01: archival practice dates an artifact twice, the day it entered
