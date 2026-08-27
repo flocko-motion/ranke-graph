@@ -1,4 +1,4 @@
-# Ranke-Graph
+<img src="assets/logo.png" alt="Ranke-Graph" width="560">
 
 **Everything is Knowledge — Knowledge is Everything.**
 
@@ -48,6 +48,9 @@ They mark subjects the series might take up.
   `ranke-go` materialises them from it. Also published as a
   [downloadable bundle](https://github.com/flocko-motion/ranke-graph/releases/latest/download/ranke-testdata.tar.gz)
   for implementations that would rather not clone this repository.
+- **[Changelog](CHANGELOG.md)** — what each release changed in the rules, the
+  papers, the vocabulary, and the vectors. A release cannot be cut without an
+  entry naming it.
 
 ## Building
 

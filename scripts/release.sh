@@ -28,15 +28,56 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 git fetch --tags --force origin >/dev/null 2>&1 || true
+
+# 2. The version this run will cut, computed before anything is merged so the
+#    changelog can be checked against it. Bump from the latest RELEASE tag,
+#    ignoring non-semver and prerelease tags.
+# `|| true`: on the first release there are no tags, so grep matches nothing and
+# exits 1; under `set -o pipefail` that aborts the assignment before the
+# `:-v0.0.0` fallback can apply. Swallow it so the fallback works.
+latest="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
+latest="${latest:-v0.0.0}"
+IFS=. read -r maj min pat <<<"${latest#v}"
+case "$bump" in
+	major) maj=$((maj + 1)); min=0; pat=0 ;;
+	minor) min=$((min + 1)); pat=0 ;;
+	patch) pat=$((pat + 1)) ;;
+esac
+next="v${maj}.${min}.${pat}"
+
 default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
 default="${default:-main}"
 start="$(git rev-parse --abbrev-ref HEAD)"
+
+# 3. The changelog names the release being cut, so the tagged tree carries it.
+#    An "## Unreleased" heading is stamped and committed here, on the branch
+#    being released, so the merge carries it to the tag.
+head="$(grep -m1 '^## ' CHANGELOG.md 2>/dev/null || true)"
+case "$head" in
+	"## $next"*) ;;
+	"## Unreleased"*)
+		if [ "$start" = "$default" ]; then
+			echo "changelog says '## Unreleased', and a release from '$default' cannot commit the stamp" >&2
+			echo "  head the entry '## $next — $(date +%F)', push, then re-run" >&2
+			exit 1
+		fi
+		echo "stamping the changelog: ## Unreleased -> ## $next"
+		sed -i "0,/^## Unreleased.*$/s//## $next — $(date +%F)/" CHANGELOG.md
+		git add CHANGELOG.md
+		git commit --quiet -m "doc: changelog for $next"
+		;;
+	*)
+		echo "changelog's first entry is '${head:-<none>}', so nothing is recorded for this release" >&2
+		echo "  add an '## Unreleased' section, commit, then re-run" >&2
+		exit 1
+		;;
+esac
 
 # Always end back on the branch we started on — never park on the default branch.
 trap 'git checkout --quiet "$start" 2>/dev/null || true' EXIT
 
 if [ "$start" != "$default" ]; then
-	# 2. Feature branch: push it, open a PR if there isn't one, and merge it into
+	# 4. Feature branch: push it, open a PR if there isn't one, and merge it into
 	#    the default branch — without switching this checkout — so the tag comes
 	#    off the merged tip.
 	if ! command -v gh >/dev/null; then
@@ -80,26 +121,12 @@ else
 	target="HEAD"
 fi
 
-# 3. Bump from the latest RELEASE tag (ignore non-semver / prerelease tags), tag
-#    the merged tip, push the tag.
-# `|| true`: on the first release there are no tags, so grep matches nothing and
-# exits 1; under `set -o pipefail` that aborts the assignment before the
-# `:-v0.0.0` fallback can apply. Swallow it so the fallback works.
-latest="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
-latest="${latest:-v0.0.0}"
-IFS=. read -r maj min pat <<<"${latest#v}"
-case "$bump" in
-	major) maj=$((maj + 1)); min=0; pat=0 ;;
-	minor) min=$((min + 1)); pat=0 ;;
-	patch) pat=$((pat + 1)) ;;
-esac
-next="v${maj}.${min}.${pat}"
-
+# 5. Tag the merged tip and push the tag.
 echo "tagging ${latest} -> ${next} on ${default}"
 git tag -a "$next" "$target" -m "release $next"
 git push origin "$next"
 
-# 4. Wait for the tag-triggered release workflow, so a failed build or publish
+# 6. Wait for the tag-triggered release workflow, so a failed build or publish
 #    surfaces here instead of silently. Match the run by the tagged commit's SHA
 #    (reliable for tag pushes, where headBranch is unset).
 if command -v gh >/dev/null; then
