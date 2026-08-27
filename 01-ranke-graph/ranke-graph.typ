@@ -79,7 +79,7 @@ Merging the two approaches is an active research area, with many designs propose
 
 == Provenance: The Archival Tradition
 
-The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase (history _'wie es eigentlich gewesen'_, 'as it actually was') has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence: an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one.
+The historian Leopold von Ranke (1795–1886) insisted that every historical claim must trace back to a primary source. His phrase (history _'wie es eigentlich gewesen'_, 'as it actually was') has been criticised for assuming unmediated access to past reality, but the underlying discipline survives: every claim has its derivation, every derivation has its sources. The archival principle _respect des fonds_ (1841) reached the same conclusion independently: records must be kept in the order and context of their origin. Suzanne Briet's 1951 _Qu'est-ce que la documentation?_ added a third angle: attribution is what transforms raw existence into evidence: an antelope in the wild is not a document; an antelope captured, classified, and recorded becomes one. Archival practice dates an artifact twice: the day it entered the archive and the time it is held to stem from. The Library of Congress developed the Extended Date/Time Format (EDTF) to record such assumed dates together with their uncertainty. 
 
 Across these traditions, three conclusions converge: contradictions in the evidence base are themselves evidence; provenance is the knowledge itself; consensus (what to ultimately believe) is downstream from attribution, left to readers and time.
 
@@ -204,6 +204,7 @@ Content being present requires the fields `content_size`, its byte length, and `
       type
       encoding
       created_at
+      dated?
       content_size
       content
       edges
@@ -216,6 +217,7 @@ Content being present requires the fields `content_size`, its byte length, and `
       type
       encoding
       created_at
+      dated?
       content_size
       content_hash
       edges
@@ -226,10 +228,13 @@ Content being present requires the fields `content_size`, its byte length, and `
 )
 
 - `type` follows the convention in @sec:types: `class` is from a fixed set, `subtype` open vocabulary.
-- `created_at` is the UTC timestamp the claim was added, *not* the time of its origin.
+- `created_at` is the UTC timestamp the claim was added, the moment the archive witnessed.
+- `dated` is the time the claim's subject is assumed to stem from, in EDTF (@edtf).
 - `content_size`, `content`/`content_hash`, and `encoding` follow the content rules of @sec:content.
 - `height` is the longest path from the claim along its references, $max({"height"(u) + 1 : u in "refs"(v)} union {0})$, so an initial claim carries 0 and every reference sits strictly lower than the claim citing it. A set of claims bounded by height is therefore closed under references.
 - Extension fields participate in $S$ like any other field, so proofs (@sec:verifiability and onward) apply uniformly.
+
+Every node carries `type`, `created_at`, and `height`. `dated` is optional, and the content fields follow @sec:content.
 
 == Edges <sec:edges>
 
@@ -353,6 +358,8 @@ The `contribution/contributor` edge names a claim's author and the signature pro
 == Anchoring <sec:anchoring>
 
 Publishing $k$ to an RFC 3161 time-stamp authority (@rfc3161) witnesses $"closure"(k, cal(U))$ at the moment of publication. Combined with monotone $"created_at"$ (@sec:claims), two anchors at heads $k_1, k_2$ with publication times $t_1 < t_2$ bound every claim between them to the interval $[t_1, t_2]$ regardless of its self-reported timestamp.
+
+Anchoring bounds `created_at`, the time the archive witnessed. 
 
 #dref[D4, this section]
 
