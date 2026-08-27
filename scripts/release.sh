@@ -45,20 +45,33 @@ case "$bump" in
 esac
 next="v${maj}.${min}.${pat}"
 
-# 3. The changelog names the release being cut, so the tagged tree carries it.
-head="$(grep -m1 '^## ' CHANGELOG.md 2>/dev/null || true)"
-case "$head" in
-	"## $next"*) ;;
-	*)
-		echo "changelog's first entry is '${head:-<none>}'" >&2
-		echo "  expected '## $next — $(date +%F)' — update CHANGELOG.md, commit, then re-run" >&2
-		exit 1
-		;;
-esac
-
 default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@')"
 default="${default:-main}"
 start="$(git rev-parse --abbrev-ref HEAD)"
+
+# 3. The changelog names the release being cut, so the tagged tree carries it.
+#    An "## Unreleased" heading is stamped and committed here, on the branch
+#    being released, so the merge carries it to the tag.
+head="$(grep -m1 '^## ' CHANGELOG.md 2>/dev/null || true)"
+case "$head" in
+	"## $next"*) ;;
+	"## Unreleased"*)
+		if [ "$start" = "$default" ]; then
+			echo "changelog says '## Unreleased', and a release from '$default' cannot commit the stamp" >&2
+			echo "  head the entry '## $next — $(date +%F)', push, then re-run" >&2
+			exit 1
+		fi
+		echo "stamping the changelog: ## Unreleased -> ## $next"
+		sed -i "0,/^## Unreleased.*$/s//## $next — $(date +%F)/" CHANGELOG.md
+		git add CHANGELOG.md
+		git commit --quiet -m "doc: changelog for $next"
+		;;
+	*)
+		echo "changelog's first entry is '${head:-<none>}', so nothing is recorded for this release" >&2
+		echo "  add an '## Unreleased' section, commit, then re-run" >&2
+		exit 1
+		;;
+esac
 
 # Always end back on the branch we started on — never park on the default branch.
 trap 'git checkout --quiet "$start" 2>/dev/null || true' EXIT
