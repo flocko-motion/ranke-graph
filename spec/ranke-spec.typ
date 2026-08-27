@@ -180,10 +180,10 @@ text in RFC 3339 form, UTC, with nanosecond precision:
 representation (`R-QENCODING`), and a reader parses what any implementation wrote.]
 
 #rule("V-DATED", FORCED)[A node MAY carry `dated`, the time its subject stems from. Where
-present it MUST be a valid Extended Date/Time Format value (EDTF, ISO 8601-2), which admits
-intervals, uncertainty, and unspecified digits. It denotes an interval rather than an instant,
-so `V-TIME` does not reach it and `V-MONO` does not constrain it: a claim dated 2014 may
-reference one dated 2023.
+present it MUST be a valid Extended Date/Time Format value (EDTF, ISO 8601-2) at Level 1, which
+admits intervals, uncertainty, unspecified digits, and open or unknown bounds. It denotes an
+interval rather than an instant, so `V-TIME` does not reach it and `V-MONO` does not constrain
+it: a claim dated 2014 may reference one dated 2023.
 (foundation paper §Nodes)]
 
 #rule("V-HEIGHT", FORCED)[Every node MUST carry `height`, the longest path from its
@@ -612,17 +612,15 @@ remaining ties, and applies alone when `order` is absent, so the sort MUST alway
 resolve to a total order.]
 
 #rule("R-QTEMPORAL", FREE)[`compare: temporal` orders values by the span of time each denotes,
-taking that span's midpoint as nanoseconds so a timestamp and a date sort on one axis. If the
+taking that span's midpoint as milliseconds so a timestamp and a date sort on one axis. If the
 value is a timestamp (`V-TIME`), its span has no width, so the midpoint is the instant itself.
 If the value is EDTF (`V-DATED`), its span is the one its precision implies, `2014` covering the
-year and `201X` the decade; a set spans from its earliest member to its latest, and a bound left
-open or unknown extends one year beyond the bound it faces, so `..2005` spans 2004 and 2005 and
-`2020..` spans 2020 and 2021. A value that is neither sorts with the claims that lack the field.
-A midpoint falling between nanoseconds rounds down. The midpoint is the time a value makes
-likeliest, so `2010` precedes `201X`, whose decade centres five years later, and `2014` precedes
-`2014/2016`. Where two midpoints fall together, the narrower span comes first; where the spans
-match too, a value whose time is in doubt precedes a plain one, whether qualified as uncertain or
-approximate: `2014?` precedes `2014`.]
+year and `201X` the decade; a bound left open or unknown adds a year to the span, so `..2005`
+reaches back to the start of 2004 and `2020..` on to the end of 2021. A value that is neither
+sorts with the claims that lack the field. A midpoint falling between milliseconds rounds down.
+The midpoint is the time a value makes likeliest, so `2010` precedes `201X`, whose decade centres
+five years later, and `2014` precedes `2014/2016`. Equal midpoints tie, and `R-QSORT` breaks the
+tie. The comparison is one value per claim, so a layer may store it and sort on it natively.]
 
 Because the order is total, paging is stable: carry the last row's key into a
 `where` on the next request.

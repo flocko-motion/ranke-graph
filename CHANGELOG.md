@@ -12,9 +12,13 @@ the archive and the time it is held to stem from (§Provenance). A node may
 carry `dated`, and §Nodes now states which fields every node carries.
 
 **Specification.** `V-DATED` added: an optional `dated` holding a valid EDTF
-value, outside `V-TIME` and unconstrained by `V-MONO`. `R-QTEMPORAL` added:
-`compare: temporal` orders by a span's midpoint in nanoseconds. `R-QSORT`
-gains `temporal`; @tbl:keys gains key 14.
+value at Level 1, outside `V-TIME` and unconstrained by `V-MONO`. Level 1
+covers intervals, uncertainty, unspecified digits, and open bounds; Level 2's
+sets and exponential years are not part of the language, so every
+implementation accepts the same one. `R-QTEMPORAL` added: `compare: temporal`
+orders by a span's midpoint in milliseconds, one value per claim that a layer
+can store and sort on natively, with equal midpoints falling to `R-QSORT`'s
+tie-break. `R-QSORT` gains `temporal`; @tbl:keys gains key 14.
 
 **Schema.** `compare` accepts `temporal`.
 
