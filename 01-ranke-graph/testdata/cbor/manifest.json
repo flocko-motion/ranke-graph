@@ -2,8 +2,8 @@
   "note": "Reference artifacts for the Ranke-Graph ADT. A claim record is {1: S(node)}; its id is not in the record, so each case pairs bytes with the id they are offered under. Verification hashes the record as received, never a re-encode.",
   "provenance": {
     "generator": "github.com/flocko-motion/ranke-go/cmd/vectors",
-    "version": "v0.22.0",
-    "generated_at": "2026-08-25T13:37:47Z"
+    "version": "v0.25.0-rc.1",
+    "generated_at": "2026-08-27T09:32:23Z"
   },
   "claims": [
     {
@@ -164,6 +164,16 @@
       "why": "created_at is RFC 3339 without the nanosecond fraction the rule fixes",
       "violates": [
         "V-TIME"
+      ]
+    },
+    {
+      "file": "claims/rejected-dated-form.cbor",
+      "id": "bciqlsvs5p5mcvtrepoznmnd6mjlugdjrppm2pa424ivwkkaivhfrchq",
+      "verify": false,
+      "reason": "dated_form",
+      "why": "dated is neither an RFC 3339 timestamp nor a valid EDTF Level 1 value",
+      "violates": [
+        "V-DATED"
       ]
     },
     {
