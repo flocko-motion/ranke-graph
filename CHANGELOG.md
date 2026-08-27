@@ -5,7 +5,7 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
-## Unreleased
+## v0.20.0 — 2026-08-27
 
 **Papers.** 01: archival practice dates an artifact twice, the day it entered
 the archive and the time it is held to stem from (§Provenance). A node may
