@@ -5,7 +5,7 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
-## Unreleased 
+## v0.20.3 — 2026-08-28
 
 Generated new testdata using latest ranke-go v0.26.0
 
