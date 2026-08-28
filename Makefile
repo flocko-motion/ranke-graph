@@ -137,7 +137,7 @@ verify: all schema ## the pre-release gate: every document compiles, the schema 
 #
 # Implementations fetch the latest of these files, so a regeneration reaches all
 # of them at once. Hence the confirmation.
-RANKE_GO         ?= github.com/flocko-motion/ranke-go
+RANKE_GO         ?= github.com/rankegraph/ranke-go
 RANKE_GO_VERSION ?=
 TESTDATA_DIR     := 01-ranke-graph/testdata/cbor
 

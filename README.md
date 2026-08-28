@@ -16,7 +16,7 @@ verifiable.
 
 | Repository | What it holds |
 | --- | --- |
-| [ranke-go](https://github.com/flocko-motion/ranke-go) | the ADT in Go, and the tool that materialises this repository's conformance vectors |
+| [ranke-go](https://github.com/rankegraph/ranke-go) | the ADT in Go, and the tool that materialises this repository's conformance vectors |
 | [ranke-ts](https://github.com/flocko-motion/ranke-ts) | the ADT in TypeScript |
 | [ranke-db](https://github.com/flocko-motion/ranke-db) | the RankeDB server and the Ranke-Explorer frontend |
 

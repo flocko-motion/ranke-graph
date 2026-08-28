@@ -26,7 +26,7 @@ testdata/
 ## Format
 
 The on-disk format follows the reference implementation
-(see [`github.com/flocko-motion/ranke-go`](https://github.com/flocko-motion/ranke-go)
+(see [`github.com/rankegraph/ranke-go`](https://github.com/rankegraph/ranke-go)
 and [`github.com/flocko-motion/ranke-py`](https://github.com/flocko-motion/ranke-py)).
 The paper itself does not commit to a specific encoding;
 it specifies the *qualities* the encoding must have (§4.4),
