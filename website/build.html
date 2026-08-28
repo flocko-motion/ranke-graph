@@ -4,21 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Build on it — Ranke-Graph</title>
-<meta name="description" content="TO WRITE — one sentence for search engines and link previews.">
+<meta name="description" content="Write a tool, an adapter, or another implementation: the specification, the libraries, the query schema, and the conformance vectors.">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32">
+<link rel="icon" href="assets/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="canonical" href="https://rankegraph.org/build.html">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="page">
 
 <header class="slim">
-	<a href="index.html"><img class="wordmark" src="../assets/logo.png" alt="Ranke-Graph"></a>
+	<a href="index.html"><img class="wordmark" src="assets/logo.png" alt="Ranke-Graph"></a>
 </header>
 
 <main>
 
 <section>
 	<h1>Build on it</h1>
-	<p class="lead"><span class="todo">who this page is for: someone writing a tool, an adapter, or another implementation of the data type</span></p>
+	<p class="lead">For writing a tool against a running server, an adapter that brings a new kind of data in, or another implementation of the data type itself.</p>
 </section>
 
 <section>
@@ -26,18 +30,25 @@
 	<div class="rows">
 		<div>
 			<a href="https://github.com/flocko-motion/ranke-go">ranke-go</a>
-			<span class="what">The abstract data type in Go.</span>
+			<span class="what">The reference implementation, in Go.</span>
 		</div>
 		<div>
 			<a href="https://github.com/flocko-motion/ranke-ts">ranke-ts</a>
-			<span class="what">The abstract data type in TypeScript.</span>
-		</div>
-		<div>
-			<a href="https://github.com/flocko-motion/ranke-db">ranke-db</a>
-			<span class="what">The RankeDB server and the Ranke-Explorer frontend.</span>
+			<span class="what">The TypeScript translation of it, for the browser and for Node.</span>
 		</div>
 	</div>
-	<p><span class="todo">optional: which to reach for, and what each is good at</span></p>
+
+	<h2>The server and its clients</h2>
+	<div class="rows">
+		<div>
+			<a href="https://github.com/flocko-motion/ranke-db">ranke-db</a>
+			<span class="what">The server that serves a Ranke-Graph, with the Ranke-Explorer frontend. Not an app in itself: a platform to build apps on.</span>
+		</div>
+		<div>
+			<a href="https://github.com/flocko-motion/ranke-tools">ranke-tools</a>
+			<span class="what">Clients that operate on a graph by talking to the server, and the first use cases built that way. Worth reading before writing your own.</span>
+		</div>
+	</div>
 </section>
 
 <section>
@@ -63,14 +74,21 @@
 </section>
 
 <section>
-	<h2><span class="todo">a section on writing an adapter, or getting started, if that belongs here</span></h2>
+	<h2>Writing an adapter</h2>
+	<p>An adapter is an ordinary client: it talks to RankeDB over REST or MCP, and its work is deciding how a source becomes claims — what is a node, what is an edge, and what each claim cites. <code>ranke-git</code> is the worked example, and it is small enough to read in a sitting.</p>
+	<div class="rows">
+		<div>
+			<a href="https://github.com/flocko-motion/ranke-tools">ranke-tools</a>
+			<span class="what">The adapters that exist, and the shape yours can take.</span>
+		</div>
+	</div>
 </section>
 
 </main>
 
 <footer>
 	<p><a href="index.html">Back to the front page</a></p>
-	<p><a href="https://github.com/flocko-motion/ranke-graph">github.com/flocko-motion/ranke-graph</a></p>
+	<p><a href="downloads.html">Downloads</a> &middot; <a href="https://github.com/flocko-motion/ranke-graph">github.com/flocko-motion/ranke-graph</a></p>
 </footer>
 
 </div>

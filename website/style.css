@@ -50,7 +50,12 @@ body {
 /* ── header ─────────────────────────────────────────────────────────── */
 
 header { padding: var(--gap) 0 0; }
-header img { width: min(22rem, 70%); height: auto; display: block; }
+.wordmark { width: min(20rem, 62%); height: auto; display: block; }
+
+/* Subpages carry a smaller mark that doubles as the way home. */
+header.slim { padding-bottom: 0; }
+header.slim .wordmark { width: min(13rem, 45%); }
+header.slim::after { display: none; }
 
 /* One warm line on a cool page: the whole archival note, stated once. */
 header::after {
@@ -92,6 +97,52 @@ a:hover { text-decoration-thickness: 2px; }
 
 section { padding: var(--gap) 0; border-top: 1px solid var(--rule); }
 section:first-of-type { border-top: 0; }
+
+/* ── hero ───────────────────────────────────────────────────────────── */
+
+.hero { display: grid; gap: var(--gap); align-items: center; }
+
+@media (min-width: 52rem) {
+	.hero { grid-template-columns: 1fr auto; }
+}
+
+/* An illustration, not a wallpaper: it sits beside the words, never over them. */
+.illustration {
+	width: clamp(9rem, 22vw, 15rem);
+	height: auto;
+	justify-self: center;
+}
+
+/* ── the signpost ───────────────────────────────────────────────────── */
+
+.paths { display: grid; gap: 1rem; }
+@media (min-width: 52rem) { .paths { grid-template-columns: repeat(3, 1fr); } }
+
+.path {
+	display: grid;
+	gap: 0.35rem;
+	align-content: start;
+	padding: 1.3rem 1.4rem;
+	border: 1px solid var(--rule);
+	border-radius: 10px;
+	background: var(--surface);
+	text-decoration: none;
+	color: inherit;
+}
+.path:hover { border-color: var(--accent); }
+.path b { font-size: 1.1rem; color: var(--accent); }
+.path span { color: var(--text); font-size: 0.95rem; }
+.path em { color: var(--muted); font-size: 0.85rem; font-style: normal; }
+
+/* ── subsection heading inside a section ────────────────────────────── */
+
+h3.sub {
+	font-size: 0.95rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--muted);
+	margin: 2rem 0 1rem;
+}
 
 /* ── the property list ──────────────────────────────────────────────── */
 

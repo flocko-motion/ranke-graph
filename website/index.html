@@ -4,41 +4,65 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ranke-Graph</title>
-<meta name="description" content="TO WRITE — one sentence, used by search engines and link previews.">
+<meta name="description" content="A universal archive held as one knowledge graph: every claim traceable to its source, verifiable by anyone, and open to AI agents.">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32">
+<link rel="icon" href="assets/favicon-16.png" sizes="16x16">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="canonical" href="https://rankegraph.org/">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="page">
 
 <header>
-	<img class="wordmark" src="../assets/logo.png" alt="Ranke-Graph">
+	<img class="wordmark" src="assets/logo.png" alt="Ranke-Graph">
 </header>
 
 <main>
 
 <section class="hero">
 	<div>
-		<h1><span class="todo">the headline — what this is, in one line, for someone who has never heard of it</span></h1>
-		<p class="lead"><span class="todo">two or three lines under it: the problem it addresses and who it is for</span></p>
+		<h1>A universal archive, held as one knowledge graph.</h1>
+		<p class="lead">One place for everything you keep: files, messages, photographs, code. Nothing is overwritten, everything records where it came from, and both you and your AI agents can search it.</p>
 	</div>
-	<img class="illustration" src="../assets/hero.webp" width="900" height="1026" alt="">
+	<img class="illustration" src="assets/hero.webp" width="900" height="1026" alt="">
 </section>
 
 <section>
 	<h2>What this is</h2>
-	<p><span class="todo">the problem, in a paragraph a stranger understands without knowing the field</span></p>
-	<p><span class="todo">what a Ranke-Graph does about it: claims, kept whole, each citing what it came from</span></p>
-	<p><span class="todo">what that buys the reader, concretely</span></p>
+	<p>Your data lives in a dozen places and a dozen formats: mailboxes, repositories, photo libraries, chat histories, documents, logs. Applications are discontinued and formats fall out of use, and a backup keeps the bytes without keeping what they meant or where they came from.</p>
+	<p>A Ranke-Graph takes all of it into one graph. Everything enters as a claim — a file, a commit, a message, a photograph — recorded whole, attributed to whoever added it, at a stated time, with edges to whatever it came from. Nothing is overwritten and nothing is deleted, so the archive only ever grows.</p>
+	<p>Those edges are what separate it from other knowledge graphs. A language model trained on documents cannot tell you which document a statement came from, or whether anyone ever wrote it. Other graphs can record that history, a claim's provenance, but treat it as an optional note that may be thinned out or left off. Here it is the structure itself: a claim cannot exist without citing what it was built from, and following those citations always ends at an original source. Whatever an agent answers, you can walk back to the record it rests on.</p>
+	<p>It is a content type rather than a database engine. The graph <em>is</em> the data, and any store can hold it: a filesystem, Postgres, Neo4j, Redis, S3, or several at once. RankeDB, the server this project ships, serves it and decides who may read and write what — but nothing about the graph depends on RankeDB being there.</p>
+</section>
+
+<section>
+	<h2>What you can do with it</h2>
+	<div class="cards">
+		<article class="card">
+			<div class="meta">Available now</div>
+			<h3>Snapshot a git repository</h3>
+			<p>Import a repository, the full history or a single commit. Each file becomes a claim of its own, linked to the commit, and the commit to the repository. The snapshot restores byte-identical to the original.</p>
+			<a href="https://github.com/flocko-motion/ranke-tools/releases/latest">ranke-git</a>
+		</article>
+		<article class="card">
+			<div class="meta">Next</div>
+			<h3>Email, GPS traces, browser history, CI build logs</h3>
+			<p>Each of these needs an adapter: a small program that reads a source and turns it into claims. Every adapter widens what the archive can hold, and none of them changes what is already in it.</p>
+		</article>
+	</div>
+	<p>The archive is universal by construction, since a claim holds whatever bytes you give it. What grows is the set of adapters, and they are deliberately cheap to write, because the interface they talk to is small. Git was the first brick.</p>
 </section>
 
 <section>
 	<h2>What it gives you</h2>
 	<ul class="props">
-		<li><b>Unified</b> <span class="todo">one line</span></li>
-		<li><b>Verifiable</b> <span class="todo">one line</span></li>
-		<li><b>Traceable</b> <span class="todo">one line</span></li>
-		<li><b>Agent-traversable</b> <span class="todo">one line</span></li>
-		<li><b>Storage-agnostic</b> <span class="todo">one line</span></li>
+		<li><b>Unified</b> <span>Files, commits, messages and photographs in one graph, linked rather than filed apart.</span></li>
+		<li><b>Verifiable</b> <span>Every record can be checked against the bytes it names, by anyone holding it.</span></li>
+		<li><b>Traceable</b> <span>Elsewhere provenance is an annotation you may add. Here a claim cannot exist without citing what it came from, and every path ends at a source.</span></li>
+		<li><b>Simple</b> <span>A storage backend needs three functions, and an adapter is a small client that maps a source into claims. The design is kept small so that both stay easy to write.</span></li>
+		<li><b>Agent-friendly</b> <span>Built to be traversed by AI agents as readily as by people.</span></li>
+		<li><b>Storage-agnostic</b> <span>The graph is content, not a database. A filesystem, Postgres, Neo4j, Redis or S3 can each hold it, and a stack of them can hold it at once.</span></li>
 	</ul>
 </section>
 
@@ -52,7 +76,7 @@
 		</a>
 		<a class="path" href="build.html">
 			<b>Build on it</b>
-			<span>Write a tool, an adapter, or another implementation.</span>
+			<span>RankeDB is not an app, it is a platform to build apps on.</span>
 			<em>Specification, libraries, query schema, conformance vectors</em>
 		</a>
 		<a class="path" href="papers.html">
@@ -66,8 +90,8 @@
 </main>
 
 <footer>
-	<p><span class="todo">licence line, and whatever else belongs at the foot</span></p>
-	<p><a href="https://github.com/flocko-motion/ranke-graph">github.com/flocko-motion/ranke-graph</a></p>
+	<p>The papers, the specification and this site are published under <a href="https://creativecommons.org/licenses/by/4.0/">CC&nbsp;BY&nbsp;4.0</a>. Florian Metzger-Noel.</p>
+	<p><a href="downloads.html">Downloads</a> &middot; <a href="https://github.com/flocko-motion/ranke-graph">github.com/flocko-motion/ranke-graph</a></p>
 </footer>
 
 </div>
