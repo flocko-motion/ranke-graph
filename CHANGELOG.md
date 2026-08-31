@@ -5,6 +5,70 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
+## v0.22.0 — 2026-08-31
+
+**`docs-format/` is now `docs-spec/`**, and the document it holds is
+`ranke-docs-spec.typ`, released as `ranke-docs-spec.pdf`. The old name said what
+the directory was about; the new one says what it *is*, in the same way `spec/`
+does — the rules, with `shared/vocabulary.typ` and ranke-website's backend as
+implementations of them, not the other way round. The document now states that
+precedence itself, which it had left unsaid: where a backend and the
+specification disagree, the backend is the defect.
+
+*This changes a release asset URL.* `releases/latest/download/ranke-docs-format.pdf`
+becomes `.../ranke-docs-spec.pdf`. Only v0.21.0 published the old name, and the
+README is the only thing that linked it.
+
+**Construct groups.** `shared/constructs.typ` declares three groups where it
+declared one flat list: `common`, `paper`, and `manual`. The series has two
+kinds of document — a paper argues and proves, a manual says how something is
+used — and the split says which constructs belong to which. The chapter
+contract a backend must bind is `common + manual`; the print backend binds all
+three, since it serves both kinds. `unbound()` takes the set to check against.
+
+This changes the shape of `constructs.typ` released in v0.21.0. A backend
+written against that version binds a superset of what it now owes, so it keeps
+passing; a backend that bound only the old list gains four names.
+
+**Paper constructs leave the chapter contract.** `theorem`, `corollary`,
+`proof`, and `definition` join `imageonside` in the paper group. A web backend
+is no longer asked to render a proof. `G-CONSTRUCTS` states it: a manual that
+proves a theorem has mistaken its kind, and should state the guarantee and cite
+where it is proved.
+
+**New constructs.** `note` and `warning`, the two admonition levels — and
+deliberately only two, since a third sits between them in no way an author can
+decide quickly. `item(signature, body)` for a named thing with a signature: a
+flag, a configuration key, an API field. `example(body, title: none)` for a
+worked case. `listing(body, size:)` and `rule(id, tier, body)` move into the
+vocabulary from the two documents that had each written them separately.
+
+**The specification and the authoring guide adopt them**, dropping their local
+copies. The specification renders identically to v0.21.0: `listing` keeps its
+size as a parameter, because its type listings are long and set at 0.82em.
+
+**Both examples named for what they exemplify.** The contract has two parties,
+and `docs-spec/examples/` now holds one example of each: `docs-tree/`, what a
+chapter author writes, and `html-backend/`, what a renderer implements. Neither
+directory said it was an example before, and neither said of what.
+
+**Reference tree moved and rewritten.** `docs/` becomes
+`docs-spec/examples/docs-tree/`, joining the rules it exemplifies, the second
+backend and the contract check — so `docs-spec/` reads as one document directory, the
+shape `spec/` and `01-ranke-graph/` already have, and the confusable pair of
+`docs/` beside `docs-spec/` is gone.
+
+Its prose is now Typst's `lorem`. It read as an excerpt of the papers, restating
+the node fields, identity and the integrity checks in its own words: the drift
+`G-CITE` forbids, shipped as the thing every part repository copies. Placeholder
+text cannot fall out of step. What the example demonstrates is the calls — the
+labels, the ids, the signatures, the shape of the tree.
+
+**`ranke-handbook.pdf` is no longer released.** It was the example tree
+published as though it were documentation. The example is compiled by the gate,
+both ways, and never attached. `make handbook` and `make handbook-html` are now
+`make example` and `make example-html`.
+
 ## v0.21.0 — 2026-08-31
 
 **Documentation format.** A new companion document,

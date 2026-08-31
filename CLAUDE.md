@@ -31,15 +31,25 @@ entry there in the same change.
 ## Companion documents
 
 `spec/ranke-spec.typ` is the normative specification: the rules an implementation
-follows, each with a stable id (`V-…`, `R-…`). `docs-format/ranke-docs-format.typ`
+follows, each with a stable id (`V-…`, `R-…`). `docs-spec/ranke-docs-spec.typ`
 is the documentation format: the rules a repository's `docs/` tree follows, each
 with a stable id (`G-…`), so one chapter file renders to both PDF and HTML. Read
 the format before touching `docs/`, `shared/vocabulary.typ`,
-`shared/constructs.typ`, or `docs-format/html-backend/`.
+`shared/constructs.typ`, or `docs-spec/examples/html-backend/`.
 
-`docs/` is this repository's own documentation tree, written in that format. Two
-files it imports, `docs/vocabulary.typ` and `docs/handbook.typ`, are placed by
-`make docs-place` and gitignored; `make handbook` and `make handbook-html` build
-the same chapters through the two backends.
+`docs-spec/` holds that document and the things that prove it. It stands to
+`shared/vocabulary.typ` as `spec/` stands to ranke-go: this specifies, the
+backends implement, and where they disagree the backend is the defect.
+
+- `examples/docs-tree/` — an example of what a chapter author writes, with
+  placeholder prose, which a part repository copies to start its own `docs/`.
+- `examples/html-backend/` — an example of what a renderer implements, and the
+  second backend the gate builds the tree through.
+- `check-backends.typ` — fails on a construct either backend leaves unbound.
+
+The two files the example tree imports, `vocabulary.typ` and `handbook.typ`, are
+placed by `make docs-place` and gitignored. `make example` and `make
+example-html` build the same chapters through the two backends; `make verify`
+runs both. Neither example is released.
 
 Only after reading the papers should you start on the task the user gives you.

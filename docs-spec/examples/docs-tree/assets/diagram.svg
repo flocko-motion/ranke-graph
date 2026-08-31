@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 150" width="460" height="150"
+     font-family="Linux Libertine, Libertinus Serif, serif" font-size="14">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7"
+            orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+  </defs>
+  <rect x="160" y="12" width="140" height="42" rx="4" fill="#fff" stroke="#333" stroke-width="1.2"/>
+  <text x="230" y="38" text-anchor="middle">placeholder A</text>
+  <rect x="14" y="96" width="140" height="42" rx="4" fill="#fff" stroke="#333" stroke-width="1.2"/>
+  <text x="84" y="122" text-anchor="middle">placeholder B</text>
+  <rect x="306" y="96" width="140" height="42" rx="4" fill="#fff" stroke="#333" stroke-width="1.2"/>
+  <text x="376" y="122" text-anchor="middle">placeholder C</text>
+  <path d="M 190 54 L 110 94" stroke="#333" stroke-width="1.2" fill="none" marker-end="url(#a)"/>
+  <path d="M 270 54 L 350 94" stroke="#333" stroke-width="1.2" fill="none" marker-end="url(#a)"/>
+</svg>

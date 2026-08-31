@@ -1,4 +1,4 @@
-// docs-format/html-backend/handbook.typ — the HTML docs root.
+// docs-spec/examples/html-backend/handbook.typ — the HTML docs root.
 //
 // The counterpart of shared/handbook.typ, and a short one. A web page gets its
 // navigation and its glossary from the site around it, so this root writes the

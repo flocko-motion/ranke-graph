@@ -8,14 +8,17 @@
 // puts this file's exports there, ranke-website puts an HTML rendering there.
 // The chapter is the same file either way.
 //
-// shared/constructs.typ lists the names both backends owe; this file binds
-// every one of them, plus `imageonside`, which the papers use and the contract
-// leaves out. Nothing here sets up a page: sheet geometry, front matter, and
-// the glossary appendix belong to a document root (shared/handbook.typ for
-// print, shared/template.typ for a paper), so the same construct renders into
+// shared/constructs.typ sorts the names into three groups — common, paper,
+// manual. This file binds all three, because print serves both kinds of
+// document: the papers reach it through shared/template.typ, a manual through
+// shared/handbook.typ. A web backend binds common + manual and is never asked
+// for a proof.
+//
+// Nothing here sets up a page: sheet geometry, front matter, and the glossary
+// appendix belong to a document root, so the same construct renders into
 // whatever root includes it.
 
-#import "constructs.typ": constructs
+#import "constructs.typ": common, paper, manual, all
 #import "glossary.typ": gls, glspl
 
 // Visual-only Part divider — does not affect section numbering.
@@ -112,6 +115,68 @@
 
 // Scaffold placeholder text — easy to spot visually and easy to grep for.
 #let todo(body) = text(fill: rgb("#888"), style: "italic", body)
+
+// ── Common: also used by the papers and the normative documents ──────────
+
+// A code listing. The space beneath keeps a following #rule from reading as the
+// listing's caption — the reason the spec and the authoring guide each grew a
+// copy of this before it lived here.
+//
+// The spacing is what was duplicated and what is shared. `size` stays a
+// parameter because it is a real difference between documents rather than an
+// accident: the specification's type listings are long and set smaller, at
+// 0.82em, and holding it here keeps that document rendering as it did.
+#let listing(body, size: 0.85em) = block(below: 1.4em)[
+  #show raw: set text(size: size)
+  #body
+]
+
+// A normative statement: a stable citation handle, the party it binds, and the
+// statement itself, as a hanging label so a page of them scans.
+//
+// `tier` is free text, because what a rule binds differs by document — the
+// specification says FORCED or FREE, the authoring guide says CHAPTER, BACKEND
+// or BUILD. Each document names its own tiers; the rendering is shared.
+#let rule(id, tier, body) = block(above: 0.6em, below: 0.6em, inset: (left: 0.2em))[
+  #grid(columns: (8.5em, 1fr), column-gutter: 0.6em,
+    [#text(weight: "bold")[#id] \ #text(size: 0.78em, fill: rgb("#666"))[#tier]],
+    [#body])
+]
+
+// ── Manual: what a chapter telling a reader how something is used needs ──
+
+// Two levels, and deliberately only two. A third ('caution', 'important',
+// 'tip') sits between these in no way an author can decide quickly, so the
+// choice becomes a coin toss and the levels stop meaning anything.
+//   note     worth knowing, and the reader loses nothing by reading on
+//   warning  the reader can lose data, money, or time
+#let _admonition(label, weight-, body) = block(
+  stroke: (left: weight- + black),
+  inset: (left: 0.8em, y: 0.5em),
+  spacing: 0.9em,
+  width: 100%,
+  { text(weight: "bold")[#label]; h(0.4em); body },
+)
+
+#let note(body) = _admonition("Note.", 0.5pt, body)
+#let warning(body) = _admonition("Warning.", 1.5pt, body)
+
+// A named thing with a signature: a command-line flag, a configuration key, an
+// API field, a construct. The workhorse of reference documentation.
+#let item(signature, body) = block(above: 0.7em, below: 0.7em)[
+  #raw(signature, lang: "typc") \
+  #block(inset: (left: 1.2em), body)
+]
+
+// A worked case. The title is optional, since an example following the prose it
+// illustrates often needs no name of its own.
+#let example(body, title: none) = block(spacing: 0.9em, {
+  text(weight: "bold")[Example#if title != none [: #title].]
+  h(0.4em)
+  body
+})
+
+// ── Paper: the formal apparatus, outside the chapter contract ────────────
 
 // Text beside a figure/table/diagram, with an optional full-width
 // continuation below it — a native stand-in for float-style text wrap.

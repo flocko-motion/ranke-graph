@@ -41,13 +41,11 @@ They mark subjects the series might take up.
   (`glossary/`) — the series' terminology in one place.
 - **[RQL schema](https://github.com/rankegraph/ranke-graph/releases/latest/download/rql.schema.json)**
   — the machine-readable form of the specification's query language.
-- **[Documentation format](https://github.com/rankegraph/ranke-graph/releases/latest/download/ranke-docs-format.pdf)**
-  (`docs-format/`) — the rules a repository's `docs/` tree follows, each with a
-  stable id, so one chapter file renders to both PDF and HTML.
-- **[Foundation handbook](https://github.com/rankegraph/ranke-graph/releases/latest/download/ranke-handbook.pdf)**
-  (`docs/`) — documentation for the foundation part, and the reference tree a
-  part repository copies to start its own. Every construct the format offers is
-  used in it at least once.
+- **[Documentation format](https://github.com/rankegraph/ranke-graph/releases/latest/download/ranke-docs-spec.pdf)**
+  (`docs-spec/`) — the rules a repository's `docs/` tree follows, each with a
+  stable id, so one chapter file renders to both PDF and HTML. The directory
+  also holds an example tree written in the format, which a repository copies
+  to start its own, and a stub HTML backend the gate builds it through.
 - **Conformance vectors** (`01-ranke-graph/testdata/cbor/`) — claim
   serializations paired with the ids they are offered under, so an
   implementation can decide its own conformance. They belong to the
@@ -66,8 +64,8 @@ Sources are [Typst](https://typst.app). `make` builds every document into
 
 ```
 make                # build every document
-make handbook       # the docs/ tree, to PDF
-make handbook-html  # the same chapters, to HTML through the stub backend
+make example        # the documentation-format example tree, to PDF
+make example-html   # the same chapters, to HTML through the stub backend
 make verify         # the gate: every document compiles, both docs backends render
 ```
 

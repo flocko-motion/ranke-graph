@@ -1,4 +1,4 @@
-// docs-format/ranke-docs-format.typ — the Ranke Documentation Format.
+// docs-spec/ranke-docs-spec.typ — the Ranke Documentation Format.
 //
 // A companion document to the Ranke-Graph paper series, and the artifact a
 // repository FOLLOWS when it writes documentation. The papers argue the ideas
@@ -6,12 +6,17 @@
 // fixes the rules a documentation tree obeys, so one chapter file renders
 // through more than one backend.
 //
+// It stands to the rendering backends as spec/ranke-spec.typ stands to ranke-go:
+// this document specifies, shared/vocabulary.typ and ranke-website's own file
+// implement, and docs-spec/{example,html-backend,check-backends.typ} are the
+// evidence. A backend that disagrees with this document is the defect.
+//
 //   * shared/constructs.typ is the machine-readable half of §The constructs.
 //     A construct added there is added here in the same change, and
-//     docs-format/check-backends.typ fails until both backends bind it.
-//   * docs/ in this repository is the reference tree §Annex points at. It is
-//     built by `make handbook` and `make handbook-html`, so the example a part
-//     repo copies is one that compiles.
+//     docs-spec/check-backends.typ fails until both backends bind it.
+//   * docs-spec/examples/docs-tree/ is the reference tree §Annex points at. It is built
+//     by `make example` and `make example-html`, so the tree a part repository
+//     copies is one that compiles, both ways.
 //   * shared/glossary.typ carries the series' vocabulary. A term this document
 //     introduces, renames, or redefines is updated there in the same change.
 //
@@ -19,35 +24,24 @@
 // change meaning: retire an id rather than repurpose it, so a build comment
 // citing "G-NOLAYOUT" means the same thing forever.
 //
-// Compile:  typst compile --root .. ranke-docs-format.typ
+// Compile:  typst compile --root .. ranke-docs-spec.typ
 
 #import "/shared/typography.typ": page-setup, typography
+// Selective, so fletcher's `diagram` would not be shadowed if this document
+// ever grows a figure — and so the constructs this document is *about* are the
+// ones it is written with. `rule`, `listing` and `item` were each written twice,
+// here and in the specification, before they moved into the vocabulary.
+#import "/shared/vocabulary.typ": rule, listing, item
+#import "/shared/constructs.typ": common, paper, manual
 
 #show: page-setup
 #show: typography
 
-// A normative rule, rendered as the specification renders one: a hanging label
-// carrying the citation handle and the party it binds.
-#let rule(id, tier, body) = block(above: 0.6em, below: 0.6em, inset: (left: 0.2em))[
-  #grid(columns: (8.5em, 1fr), column-gutter: 0.6em,
-    [#text(weight: "bold")[#id] \ #text(size: 0.78em, fill: rgb("#666"))[#tier]],
-    [#body])
-]
+// The tiers this document uses. A tier is free text, so each document names the
+// parties its own rules bind.
 #let CHAPTER = "CHAPTER"
 #let BACKEND = "BACKEND"
 #let BUILD   = "BUILD"
-
-// A code listing. The space beneath keeps a following #rule from reading as the
-// listing's caption.
-#let listing(body) = block(below: 1.4em)[
-  #show raw: set text(size: 0.85em)
-  #body
-]
-
-#let construct(signature, body) = block(above: 0.7em, below: 0.7em)[
-  #raw(signature, lang: "typc") \
-  #block(inset: (left: 1.2em), body)
-]
 
 #align(center)[
   #text(size: 1.55em, weight: "bold")[Ranke — The Documentation Format] \
@@ -72,9 +66,13 @@ decides what that name resolves to. A part repository's `make docs` puts the
 print rendering there; the website puts an HTML rendering there. The chapter is
 the same file, and the format is the set of rules that keeps it so.
 
-Where this document is silent, the reference tree in @sec:annex governs by
-example, and where the two disagree the tree is a defect: fix it rather than
-letting both stand.
+*This document is the specification; the backends are its implementations.*
+`shared/vocabulary.typ` renders these constructs for print and ranke-website
+renders them for the web, and neither is a reading source: this is. Where a
+backend disagrees with this document, the backend is the defect — decide it that
+way and fix it, rather than letting both stand. The same holds for the reference
+tree of @sec:annex, which governs by example where this document is silent and
+is a defect where it conflicts.
 
 = How to Read This <sec:conventions>
 
@@ -98,7 +96,7 @@ chapter at once.]
 target, or the website's page pipeline.]
 
 *Examples.* Every example is stated against the reference tree of @sec:annex,
-whose chapters are `docs/01-claims.typ` and `docs/02-archives.typ`.
+`docs-spec/examples/docs-tree/`, whose chapters are `01-first.typ` and `02-second.typ`.
 
 = The docs Tree <sec:layout>
 
@@ -175,63 +173,128 @@ root and against nothing else.]
 
 = The Constructs <sec:constructs>
 
-#rule("G-CONSTRUCTS", BACKEND)[The construct contract is the list in
-`shared/constructs.typ`. A backend MUST bind every name in it. Adding a
-construct means adding it to that list, to this section, and to both backends,
-in one change; `docs-format/check-backends.typ` fails until the backends
-follow.]
+The series has two kinds of document. A *paper* argues a position and proves
+what it claims; a *manual* tells a reader how something is used. They share a
+look, a glossary, and most of their constructs, and part company at the few each
+kind needs alone. `shared/constructs.typ` therefore declares three groups rather
+than one list:
 
-What each construct means, and what it is for:
+// Printed from shared/constructs.typ rather than typed out, so this document
+// cannot come to disagree with the contract it describes.
+#block(below: 1.4em, table(
+  columns: (4.5em, 1fr),
+  stroke: none,
+  inset: (x: 0pt, y: 0.35em),
+  [*common*], [both kinds use these --- #common.map(raw).join(", ")],
+  [*paper*],  [`shared/template.typ` adds these, for the papers --- #paper.map(raw).join(", ")],
+  [*manual*], [a docs chapter adds these --- #manual.map(raw).join(", ")],
+))
 
-#construct("concept(term, body)")[
+#rule("G-CONSTRUCTS", CHAPTER)[A chapter may use the *common* and *manual*
+groups. The *paper* group — #paper.map(raw).join(", ") — belongs to the
+papers. A manual that proves a theorem has mistaken its kind; state the
+guarantee and cite where it is proved.]
+
+#rule("G-BACKEND", BACKEND)[A backend MUST bind every name in common + manual,
+and MUST NOT bind a construct no group names. The print backend binds the paper
+group as well, since it serves both kinds; a web backend is never asked for a
+proof. Adding a construct means adding it to `shared/constructs.typ`, to this
+section, and to the backends its group reaches, in one change;
+`docs-spec/check-backends.typ` fails until they follow.]
+
+What each construct a chapter may use means, and what it is for.
+
+== Common <sec:common>
+
+#item("concept(term, body)")[
   A prose-level definition of a central idea, set apart from the text around it.
   Use it where a reader meeting the term for the first time needs the whole idea
   in one place. At most a handful per chapter; a chapter of concept boxes has
   none.
 ]
 
-#construct("definition(body)")[
+#item("definition(body)")[
   A formal definition, numbered. Use it for a statement the rest of the chapter
   refers back to by number.
 ]
 
-#construct("theorem(body)")[
+#item("theorem(body)")[
   A claim that is proved, numbered.
 ]
 
-#construct("corollary(body)")[
+#item("corollary(body)")[
   A claim that follows from one already made, numbered.
 ]
 
-#construct("proof(body)")[
+#item("proof(body)")[
   The argument for the preceding theorem or corollary.
 ]
 
-#construct("part(label)")[
+#item("part(label)")[
   A divider between groups of chapters, carrying the group's name. It belongs in
   the root, between includes, and it leaves section numbering alone.
 ]
 
-#construct("diagram(path, caption, width: 100%)")[
+#item("diagram(path, caption, width: 100%)")[
   A captioned picture. `path` is project-absolute and names a file under
   `docs/assets/`; see `G-ASSETS`.
 ]
 
-#construct("dref(label)")[
+#item("dref(label)")[
   A pointer to where a subject is treated at length — a paper section, another
   chapter. It renders as a short italic aside, so a reader skipping it loses
   nothing.
 ]
 
-#construct("todo(body)")[
+#item("todo(body)")[
   Placeholder prose, rendered so it is visible on the page and greppable in the
   source. A release MAY carry one; what a release MUST NOT carry is a
   placeholder that reads as finished text.
 ]
 
-#construct("gls(key), glspl(key)")[
+#item("gls(key), glspl(key)")[
   A term from the series glossary, singular and plural. See `G-GLS`.
 ]
+
+#item("listing(body)")[
+  A code block with room around it, so a rule or a paragraph following it reads
+  as its own thing rather than as its caption.
+]
+
+#item("rule(id, tier, body)")[
+  A normative statement: a stable citation handle, the party it binds, and the
+  statement. `tier` is free text, because what a rule binds differs by document —
+  this one says CHAPTER, BACKEND or BUILD, the specification says FORCED or FREE.
+  A manual uses it for guarantees it fixes itself, never to restate a rule the
+  specification already owns; see `G-CITE`.
+]
+
+== Manual <sec:manual-constructs>
+
+#item("note(body)")[
+  An aside worth knowing, which the reader loses nothing by reading past.
+]
+
+#item("warning(body)")[
+  Something the reader can lose or break — data, money, time.
+]
+
+#item("item(signature, body)")[
+  A named thing with a signature: a command-line flag, a configuration key, an
+  API field. The workhorse of reference documentation, and what this section is
+  built from.
+]
+
+#item("example(body, title: none)")[
+  A worked case. The title is optional, since an example following the prose it
+  illustrates often needs no name.
+]
+
+There are two admonition levels and deliberately only two. A third — `caution`,
+`important`, `tip` — sits between `note` and `warning` in no way an author can
+decide quickly, so the choice becomes a coin toss and the levels stop carrying
+information. A document that needs a third has usually found a section heading
+instead.
 
 #rule("G-ASSETS", CHAPTER)[A `diagram` path MUST be project-absolute, beginning
 with `/`, and MUST name a file under the tree's `assets/` directory:
@@ -290,10 +353,9 @@ Ordinary Typst markup stays available: headings, lists, tables, `raw` blocks,
 `emph`, `strong`, footnotes, and mathematics all export to both media. So does
 `figure`, though a picture goes through `diagram`.
 
-`imageonside` is deliberately outside the contract. Its second argument is
-arbitrary content, so a chapter using it would have to build an image itself,
-which `G-NOLAYOUT` forbids. It remains available to the papers, which are print
-documents and say so.
+`imageonside` sits in the paper group for the same reason. Its second argument
+is arbitrary content, so a chapter using it would have to build an image itself,
+which `G-NOLAYOUT` forbids. A chapter wanting a picture uses `diagram`.
 
 = The Two Backends <sec:backends>
 
@@ -311,14 +373,12 @@ has nowhere to print one, so an HTML `gls` reads `entries` from
 `shared/glossary.typ` — 39 terms, importable on its own — and links to a
 glossary page.
 
-#rule("G-BACKEND", BACKEND)[A backend MUST bind every name in
-`shared/constructs.typ` and MUST NOT bind a construct the list omits. A chapter
-written against a construct one backend invented fails everywhere else.]
-
-`docs-format/html-backend/` holds a stub HTML backend: plain elements, classes,
-no styling. It exists so the reference tree compiles both ways in this
-repository's own gate, and it doubles as the worked example of what implementing
-the contract asks.
+`docs-spec/examples/html-backend/` is an example of the second party: what a
+renderer implements, in plain elements and classes with no styling. It exists so
+the reference tree compiles both ways in this repository's own gate, and it is
+the worked example of what implementing the contract asks. Its counterpart,
+`docs-spec/examples/docs-tree/`, is the example of the first party — what a
+chapter author writes.
 
 = Building <sec:building>
 
@@ -330,10 +390,10 @@ The targets in this repository, which a part repository mirrors:
 
 #listing[
 ```
-make docs-place     put the print backend into docs/
-make handbook       build docs/ to PDF
-make handbook-html  build docs/ to HTML through the stub backend
-make docs-format    build this document
+make docs-place     put the print backend where the example imports it
+make example        build the example tree to PDF
+make example-html   build it to HTML through the stub backend
+make docs-spec      build this document
 ```
 ]
 
@@ -346,14 +406,25 @@ release. This document is attached to the ranke-graph release beside
 
 = Annex — The Reference Tree <sec:annex>
 
-`docs/` in this repository is a documentation tree in this format, covering the
-foundation part. It is the tree a part repository copies: two chapters, a root,
-one asset, and every construct in @sec:constructs used at least once. Copy it,
-delete the prose, and what remains is a compiling tree.
+`docs-spec/examples/docs-tree/` is a documentation tree written in this format: a root,
+two chapters, one asset, and every construct of @sec:constructs called at least
+once. Copy the directory into your repository as `docs/` and you have a
+compiling tree to start from.
 
-It is also the fixture the gate runs. `make handbook` builds it through
-`shared/handbook.typ`, `make handbook-html` builds the same files through
-`docs-format/html-backend/`, and `docs-format/check-backends.typ` compiles both
+*The prose is placeholder text, and deliberately so.* An example filled with
+real documentation is documentation that must be kept true, and this one would
+have to be kept true against the papers and the specification — the very drift
+`G-CITE` exists to prevent. So the prose is Typst's `lorem`, which cannot go out
+of date, and what the example demonstrates is the calls: the labels, the ids,
+the signatures, and the shape of the tree. Read the source rather than the page.
+
+Two things to change on copying. Replace the prose, and update the `diagram`
+paths, which are project-absolute (`G-ASSETS`) and point into
+`docs-spec/examples/docs-tree/` as they stand.
+
+It is also the fixture the gate runs. `make example` builds it through
+`shared/handbook.typ`, `make example-html` builds the same files through
+`docs-spec/examples/html-backend/`, and `docs-spec/check-backends.typ` compiles both
 vocabularies and fails on an unbound name. A rule stated here without a tree
 that exercises it is a rule nothing holds to.
 
