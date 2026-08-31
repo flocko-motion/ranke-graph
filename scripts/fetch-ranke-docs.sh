@@ -23,6 +23,21 @@
 #   --place      write the vocabulary shims and touch nothing else. No network.
 #                ranke-graph itself runs this against its own working tree; a
 #                consumer needs it only to re-place after deleting a shim.
+#   --bundle F   pack the documents of the tree you are standing in into the
+#                tarball F. No network. ranke-graph's own `make docs-bundle`
+#                runs this; a consumer has no use for it.
+#
+# THE DOCUMENT SET IS DEFINED ONCE, in collect_documents() below, and both the
+# clone copy and --bundle go through it. A tarball and a clone therefore give
+# the same tree, so a gate cannot pass on one delivery path and fail on the
+# other.
+#
+# NO GIT: the same documents are published as a release asset,
+# releases/latest/download/ranke-docs.tar.gz, for a build that cannot clone. It
+# unpacks to the tree this script would have written, stamp included. What it
+# lacks is the cheap freshness question: --if-moved costs one 40-byte
+# git ls-remote, while a tarball's currency is a matter of which release you
+# took.
 #
 # FAILING RATHER THAN GUESSING: --if-moved with no reachable remote cannot establish
 # freshness, so it fails instead of passing blind on whatever is on disk — the same
@@ -80,11 +95,14 @@ shared="${SHARED_DIR:-$dir/shared}"
 stamp="$dir/.ranke-graph-sha"
 
 mode="fetch"
+bundle_out=""
 case "${1:-}" in
 	--if-moved) mode="if-moved" ;;
 	--place)    mode="place" ;;
+	--bundle)   mode="bundle"; bundle_out="${2:-}"
+	            [ -n "$bundle_out" ] || { echo "fetch-ranke-docs: --bundle needs a tarball path" >&2; exit 2; } ;;
 	"")         ;;
-	*) echo "fetch-ranke-docs: unknown argument '$1' — the modes are --if-moved and --place" >&2; exit 2 ;;
+	*) echo "fetch-ranke-docs: unknown argument '$1' — the modes are --if-moved, --place and --bundle" >&2; exit 2 ;;
 esac
 
 # The files a gate opens. A stamp matching the remote says nothing about a copy
@@ -96,6 +114,37 @@ have_gated() {
 	for f in "${gated[@]}"; do
 		[ -f "$f" ] || return 1
 	done
+}
+
+# THE DOCUMENT SET. The numbered paper directories, shared/, spec/, glossary/
+# and the licence — with figure sources, working notes and built PDFs left out.
+# No gate reads any of those, and 02-ranke-db/drawio alone was 968 KB of the
+# 976 KB a full copy carried; without it the whole set is 117 KB.
+#
+# ranke-graph's own docs/ tree is absent on purpose: its chapters import a
+# `vocabulary.typ` that would not resolve where they landed, so a copy here is a
+# tree that cannot be built. The authoring guide names where it lives.
+#
+# Hidden entries are dropped too. A clone carries none inside the document set,
+# but --bundle reads a working tree, which carries whatever a local tool left
+# there — and a release must ship the documents, not somebody's editor state.
+doc_excludes=(
+	--exclude=drawio
+	--exclude=notes.md
+	--exclude=quotes.md
+	--exclude='*.pdf'
+	--exclude='.*'
+)
+
+collect_documents() {
+	local src="$1" dst="$2"
+	local members=() d
+	for d in "$src"/[0-9]*-*/; do [ -d "$d" ] && members+=("$(basename "$d")"); done
+	for d in shared spec glossary; do [ -d "$src/$d" ] && members+=("$d"); done
+	[ -f "$src/LICENSE" ] && members+=(LICENSE)
+	[ ${#members[@]} -gt 0 ] || { echo "fetch-ranke-docs: $src holds no documents" >&2; return 1; }
+	mkdir -p "$dst"
+	tar -C "$src" -cf - "${doc_excludes[@]}" "${members[@]}" | tar -C "$dst" -xf -
 }
 
 # The two files a chapter imports. Each is one line: the chapter names
@@ -123,6 +172,20 @@ place_shims() {
 
 if [ "$mode" = "place" ]; then
 	place_shims
+	exit 0
+fi
+
+if [ "$mode" = "bundle" ]; then
+	work=$(mktemp -d)
+	trap 'rm -rf "$work"' EXIT
+	collect_documents . "$work/ranke-docs"
+	# Stamped inside, as the clone path stamps what it writes, so a tree taken
+	# from the tarball answers "which commit is this?" the same way.
+	git rev-parse HEAD > "$work/ranke-docs/.ranke-graph-sha" 2>/dev/null \
+		|| echo "fetch-ranke-docs: no commit to stamp the bundle with" >&2
+	mkdir -p "$(dirname "$bundle_out")"
+	tar -C "$work" -czf "$bundle_out" ranke-docs
+	echo ">> wrote $bundle_out — $(find "$work/ranke-docs" -type f | wc -l | tr -d ' ') file(s), $(du -h "$bundle_out" | cut -f1)"
 	exit 0
 fi
 
@@ -159,15 +222,7 @@ git clone --depth 1 --branch "$ref" "$repo" "$tmp" >/dev/null 2>&1
 # Replaced whole rather than merged: a paper withdrawn upstream must disappear here
 # too, or a gate keeps citing what no longer exists.
 rm -rf "$dir"
-mkdir -p "$dir"
-cp -r "$tmp"/[0-9]*-* "$dir"/
-# shared/, spec/, and glossary/ — not ranke-graph's own docs/ tree. Its chapters
-# import a `vocabulary.typ` that would not resolve where they landed, so a copy
-# here is a tree that cannot be built. The authoring guide names where it lives.
-for d in shared spec glossary; do
-	[ -d "$tmp/$d" ] && cp -r "$tmp/$d" "$dir"/
-done
-cp "$tmp/LICENSE" "$dir/LICENSE" 2>/dev/null || true
+collect_documents "$tmp" "$dir"
 
 # Last, so an interrupted copy leaves no stamp claiming it is complete.
 if ! have_gated; then

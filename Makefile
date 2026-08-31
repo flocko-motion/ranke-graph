@@ -57,7 +57,7 @@ PDFS := \
   $(PDF_DIR)/ranke-docs-format.pdf \
   $(PDF_DIR)/ranke-handbook.pdf
 
-.PHONY: help all clean 01 02 03 04 05 glossary spec docs-format handbook handbook-html docs-place docs-clean constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-handbook verify update-testdata testdata-bundle release major minor patch breaking feature fix
+.PHONY: help all clean 01 02 03 04 05 glossary spec docs-format handbook handbook-html docs-place docs-clean docs-bundle constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-handbook verify update-testdata testdata-bundle release major minor patch breaking feature fix
 
 ##@ Documents
 
@@ -126,6 +126,20 @@ handbook-html: $(DOCS_CHAPTERS) $(DOCS_ASSETS) ## build the example docs tree to
 	$(TYPST) compile --root . --features html --format html \
 		--input version=$(DOCS_VERSION) $(HTML_DIR)/index.typ $(HTML_DIR)/index.html
 	@echo "wrote $(HTML_DIR)/index.html"
+
+# The documents packed for download, so a build that cannot clone still gets
+# them: 120 KB against the 976 KB a full copy used to carry, since figure
+# sources, working notes and built PDFs are left out. The asset name carries no
+# version, so the release attaches it at a stable URL:
+# releases/latest/download/ranke-docs.tar.gz. Which commit it came from is
+# stamped inside, where it cannot drift from the files.
+#
+# The fetcher packs it, rather than a recipe of its own, so the tarball and the
+# clone are the same selection — verified by unpacking one over the other.
+DOCS_BUNDLE := dist/ranke-docs.tar.gz
+
+docs-bundle: ## pack the documents as dist/ranke-docs.tar.gz for release
+	@./scripts/fetch-ranke-docs.sh --bundle $(DOCS_BUNDLE)
 
 docs-clean: ## remove the generated docs backend shims and the HTML build tree
 	rm -f $(DOCS_SHIMS)

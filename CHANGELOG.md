@@ -41,6 +41,16 @@ creates a term's label where the glossary is printed.
 the foundation part, released as `ranke-handbook.pdf`. Every construct appears
 in it at least once, and `make verify` builds it through both backends.
 
+**Documents bundle.** `ranke-docs.tar.gz`, a new release asset at a stable URL:
+the papers, the spec, the glossary and `shared/`, stamped with the commit they
+came from, for a build that cannot clone. The fetcher packs it and the fetcher
+clones, from one definition of what a document is, so the tarball and the clone
+give the same tree.
+
+**Smaller fetched copy.** Figure sources, working notes and built PDFs are no
+longer copied into a consumer: no gate read them, and `02-ranke-db/drawio`
+alone was 968 KB of the 976 KB a full copy carried. The set is now 120 KB.
+
 **Shared fetcher.** `scripts/fetch-ranke-docs.sh` — the fetcher ranke-go carried
 as `scripts/fetch-papers.sh`, moved here so four consumers run one script. It
 keeps the stamp and `--if-moved`, gains a `--place` mode and a `DOCS_DIR` that

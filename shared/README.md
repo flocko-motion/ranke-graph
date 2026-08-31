@@ -60,8 +60,9 @@ files here, ranke-website resolves to an HTML rendering of its own:
 
 `scripts/fetch-ranke-docs.sh` writes that file. In this repository,
 `make docs-place` runs it in its no-network mode; in a part repository,
-`make docs` fetches this directory and points the file at the copy. The
-authoring guide states the rest.
+`make docs` fetches this directory and points the file at the copy. A build
+that cannot clone takes `ranke-docs.tar.gz` from the release instead, which
+carries this directory among the rest. The authoring guide states the rest.
 
 ## Rules of thumb
 

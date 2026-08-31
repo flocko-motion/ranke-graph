@@ -41,6 +41,10 @@ jobs:
       - name: Bundle conformance artifacts
         run: make testdata-bundle
 
+      # The same documents the fetcher clones, for a build that cannot clone.
+      - name: Bundle the documents
+        run: make docs-bundle
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -56,3 +60,4 @@ jobs:
             pdf/ranke-handbook.pdf
             spec/rql.schema.json
             dist/ranke-testdata.tar.gz
+            dist/ranke-docs.tar.gz

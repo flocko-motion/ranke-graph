@@ -80,6 +80,14 @@ has moved. Download it rather than vendoring it, so every consumer runs the same
 one; its header documents `RANKE_GRAPH_REF`, `PAPERS_DIR`, `DOCS_DIR`,
 `SHARED_DIR`, and `RANKE_DOCS_OFFLINE`, and carries the Makefile recipe.
 
+For a build that cannot clone, the same documents are published as
+[`ranke-docs.tar.gz`](https://github.com/rankegraph/ranke-graph/releases/latest/download/ranke-docs.tar.gz)
+— 120 KB, the papers, the spec, the glossary and `shared/`, stamped with the
+commit they came from. It unpacks to the tree the fetcher would have written;
+the fetcher packs it, so the two cannot drift. What the tarball lacks is the
+cheap freshness question: `--if-moved` costs one 40-byte `git ls-remote`, while
+a tarball's currency is a matter of which release you took.
+
 ## Licence
 
 See [LICENSE](LICENSE).

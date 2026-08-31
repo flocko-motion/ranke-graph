@@ -149,7 +149,9 @@ docs/handbook.typ
 `scripts/fetch-ranke-docs.sh` from ranke-graph, run with `DOCS_DIR=docs`. The
 script is downloaded rather than vendored, so four consumers cannot drift apart;
 its own header documents `RANKE_GRAPH_REF`, `PAPERS_DIR`, `DOCS_DIR`,
-`SHARED_DIR`, and `RANKE_DOCS_OFFLINE`.]
+`SHARED_DIR`, and `RANKE_DOCS_OFFLINE`. A build that cannot clone MAY take
+`ranke-docs.tar.gz` from the release, which the same script packs and which
+unpacks to the same tree.]
 
 = The Import-Path Contract <sec:imports>
 
