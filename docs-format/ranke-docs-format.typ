@@ -259,8 +259,11 @@ a term the glossary lacks adds it there in the same change.]
 appendix. The `glossarium` package creates a term's label where the glossary is
 printed, so an appendix is what makes `#gls("claim")` resolve rather than fail;
 `shared/handbook.typ` prints one after the body and offers no way to suppress
-it. An HTML backend has no such constraint: it reads the 39 entries directly and
-links to a glossary page.]
+it. The appendix MUST print every entry rather than only the referenced ones: an
+entry's description names further terms, so a filtered appendix adds references
+each layout run and a document naming few terms never settles. An HTML backend
+has no such constraint: it reads the 39 entries directly and links to a glossary
+page.]
 
 #rule("G-CITE", CHAPTER)[Where a rule of the normative specification governs, a
 chapter cites its id — `V-ID`, `R-CEIL` — rather than restating the rule.

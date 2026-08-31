@@ -21,7 +21,7 @@
 // would fail every chapter that names a term.
 
 #import "typography.typ": page-setup, typography
-#import "glossary.typ": use-glossary, glossary-appendix
+#import "glossary.typ": use-glossary, glossary-handbook
 #import "vocabulary.typ": *
 
 // "dev" unless the build says otherwise. Read once, at module evaluation.
@@ -57,9 +57,9 @@
   pagebreak(weak: true)
   body
 
-  // Every term a chapter named, with the page it was named on. Printing this is
-  // what makes those references resolve; see the note above.
+  // The series vocabulary, with the pages each term was named on. Printing this
+  // is what makes a chapter's references resolve; see the note above.
   pagebreak(weak: true)
   [= Glossary <sec:glossary>]
-  glossary-appendix("99")
+  glossary-handbook()
 }
