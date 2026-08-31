@@ -1,4 +1,8 @@
-// shared/template.typ — common layout for the Ranke papers.
+// shared/template.typ — the paper root.
+//
+// A paper's page setup and title block. The constructs a paper writes with live
+// in shared/vocabulary.typ and are re-exported here, so a paper still reaches
+// everything through one import.
 //
 // Usage from a paper file (e.g. 01-ranke-graph/ranke-graph.typ):
 //
@@ -10,6 +14,12 @@
 //     status:   "scaffold",
 //     abstract: [ ... ],
 //   )
+//
+// The handbooks have a root of their own, shared/handbook.typ; both draw their
+// look from shared/typography.typ.
+
+#import "typography.typ": page-setup, typography
+#import "vocabulary.typ": *
 
 #let paper(
   title: "",
@@ -20,28 +30,8 @@
   body,
 ) = {
   set document(title: title, author: author)
-  set page(
-    paper: "a4",
-    margin: (x: 2.5cm, top: 2.5cm, bottom: 3cm),
-    numbering: "1",
-  )
-  set text(size: 10.5pt, lang: "en")
-  set par(justify: true, leading: 0.55em)
-  set block(spacing: 0.7em)
-
-  set heading(numbering: "1.1")
-  show heading.where(level: 1): it => {
-    set text(size: 1.25em, weight: "bold")
-    block(above: 1.4em, below: 0.7em, it)
-  }
-  show heading.where(level: 2): it => {
-    set text(size: 1.1em, weight: "bold")
-    block(above: 1.1em, below: 0.5em, it)
-  }
-  show heading.where(level: 3): it => {
-    set text(weight: "bold")
-    block(above: 0.9em, below: 0.4em, it)
-  }
+  show: page-setup
+  show: typography
 
   // Title block
   align(center)[
@@ -62,88 +52,4 @@
   }
 
   body
-}
-
-// Visual-only Part divider — does not affect section numbering.
-#let part(label) = {
-  v(1.4em)
-  align(center, text(size: 1.05em, weight: "bold", style: "italic", label))
-  v(0.4em)
-  line(length: 100%, stroke: 0.5pt + gray)
-  v(0.4em)
-}
-
-// Theorem-like environments (sequential global numbering).
-// Section-relative numbering can be added later by binding to heading counter.
-
-#let _defn-c = counter("definition")
-#let _thm-c  = counter("theorem")
-#let _cor-c  = counter("corollary")
-
-#let definition(body) = {
-  _defn-c.step()
-  block(spacing: 0.9em, {
-    context [*Definition #_defn-c.display().*]
-    h(0.4em)
-    body
-  })
-}
-
-#let theorem(body) = {
-  _thm-c.step()
-  block(spacing: 0.9em, {
-    context [*Theorem #_thm-c.display().*]
-    h(0.4em)
-    emph(body)
-  })
-}
-
-#let corollary(body) = {
-  _cor-c.step()
-  block(spacing: 0.9em, {
-    context [*Corollary #_cor-c.display().*]
-    h(0.4em)
-    emph(body)
-  })
-}
-
-#let proof(body) = {
-  block(spacing: 0.9em, {
-    [*Proof.*]
-    h(0.4em)
-    body
-    h(1fr)
-    [$square.stroked$]
-  })
-}
-
-// Concept callout — for central prose-level definitions (Part I).
-// Visually distinct from formal #definition[] used in math sections.
-#let concept(term, body) = block(
-  stroke: 0.5pt + black,
-  inset: 1em,
-  spacing: 1em,
-  width: 100%,
-  [
-    #text(weight: "bold")[Definition:] #h(0.3em) #emph[#term] \
-    #v(0.3em)
-    #body
-  ]
-)
-
-// Small italic forward/backward pointer, e.g. #dref[D1, §4]
-#let dref(label) = text(style: "italic")[→ #label]
-
-// Scaffold placeholder text — easy to spot visually and easy to grep for.
-#let todo(body) = text(fill: rgb("#888"), style: "italic", body)
-
-// Text beside a figure/table/diagram, with an optional full-width
-// continuation below it — a native stand-in for float-style text wrap.
-// Split the prose manually: `lefttext` sits beside `rightimage`,
-// `bottomtext` continues underneath at full width.
-#let imageonside(lefttext, rightimage, bottomtext: none, marginleft: 0em, margintop: 0.5em) = {
-  set par(justify: true)
-  grid(columns: 2, column-gutter: 1em, lefttext, rightimage)
-  set par(justify: false)
-  block(inset: (left: marginleft, top: -margintop), bottomtext)
 }

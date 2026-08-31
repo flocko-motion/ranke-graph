@@ -21,7 +21,16 @@ jobs:
           typst-version: '0.15.0'
 
       - name: Build papers and companions
-        run: make 01 02 glossary spec
+        # DOCS_VERSION reaches the handbook's front matter (G-VERSION); the
+        # checkout is shallow and carries no tags, so `git describe` cannot
+        # supply it here.
+        run: make 01 02 glossary spec docs-format handbook DOCS_VERSION=${{ github.ref_name }}
+
+      # The documentation format claims a chapter renders through either backend.
+      # The claim is checked where it is made, so a release cannot carry a
+      # reference tree that only builds one way.
+      - name: Check both docs backends
+        run: make constructs handbook-html DOCS_VERSION=${{ github.ref_name }}
 
       # The schema ships as its own asset, so the release must not publish one
       # that fails its metaschema or rejects its own examples.
@@ -31,6 +40,10 @@ jobs:
       # The artifacts are committed, so this only packs them.
       - name: Bundle conformance artifacts
         run: make testdata-bundle
+
+      # The same documents the fetcher clones, for a build that cannot clone.
+      - name: Bundle the documents
+        run: make docs-bundle
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -43,5 +56,8 @@ jobs:
             pdf/02-ranke-db.pdf
             pdf/ranke-glossary.pdf
             pdf/ranke-spec.pdf
+            pdf/ranke-docs-format.pdf
+            pdf/ranke-handbook.pdf
             spec/rql.schema.json
             dist/ranke-testdata.tar.gz
+            dist/ranke-docs.tar.gz

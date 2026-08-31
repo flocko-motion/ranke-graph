@@ -194,3 +194,15 @@
 #let glossary-full() = glossarium.print-glossary(
   entries, show-all: true, disable-back-references: true,
 )
+
+// The appendix a handbook prints (shared/handbook.typ), with the pages each term
+// was named on.
+//
+// show-all: true, and that is the point rather than a preference. An entry's
+// description names further terms with #gls, so printing only the referenced
+// ones adds references, which print more entries, which add more references. A
+// document naming three terms does not settle within Typst's five layout
+// attempts, and the count it stops on is whatever run five reached. Printing all
+// 39 fixes the set before the first run, so it converges — and every #gls in a
+// chapter finds its label, whichever terms the chapter happens to use.
+#let glossary-handbook() = glossarium.print-glossary(entries, show-all: true)
