@@ -50,23 +50,21 @@
 // The branch-table chain: each table holds its predecessor in provenance.
 #let diff-stroke = 1pt + rgb("#2563eb")
 
-// A normative rule: a tagged, numbered statement. `id` is the stable citation
-// handle; `tier` is FORCED (ADT-mandated, portable across implementations) or
-// FREE (a RankeDB choice). Rendered as a hanging label so the rules scan.
-#let rule(id, tier, body) = block(above: 0.6em, below: 0.6em, inset: (left: 0.2em))[
-  #grid(columns: (8.5em, 1fr), column-gutter: 0.6em,
-    [#text(weight: "bold")[#id] \ #text(size: 0.78em, fill: rgb("#666"))[#tier]],
-    [#body])
-]
+// `rule` and `listing` come from the shared vocabulary. They were written here
+// first, then written again in the authoring guide, which is what moved them
+// into shared/vocabulary.typ. Imported selectively so fletcher's `diagram`,
+// imported below, is not shadowed.
+//
+// A rule is a tagged statement: `id` is the stable citation handle; `tier` is
+// FORCED (ADT-mandated, portable across implementations) or FREE (a RankeDB
+// choice).
+#import "/shared/vocabulary.typ": rule
+#import "/shared/vocabulary.typ" as vocab
+// 0.82em: this document's type listings are long, and that is the size they
+// have always been set at.
+#let listing(body) = vocab.listing(body, size: 0.82em)
 #let FORCED = "FORCED"
 #let FREE = "FREE"
-
-// A long type listing. The space beneath keeps a following #rule from reading
-// as the listing's caption.
-#let listing(body) = block(below: 1.4em)[
-  #show raw: set text(size: 0.82em)
-  #body
-]
 
 #align(center)[
   #text(size: 1.55em, weight: "bold")[Ranke — Normative Specification] \

@@ -1,13 +1,13 @@
-// docs-format/html-backend/vocabulary.typ — a stub HTML rendering of the docs
+// docs-spec/examples/html-backend/vocabulary.typ — a stub HTML rendering of the docs
 // constructs, and the second half of the evidence that the format has two
 // backends rather than one.
 //
 // It renders every name in shared/constructs.typ into HTML elements, and it is
 // deliberately plain: classes and structure, no styling, no navigation. A real
 // web backend (ranke-website) replaces it wholesale. What this file is for is
-// the check in `make handbook-html`: the committed chapters under docs/ compile
-// through it, so a construct that only print can render fails here rather than
-// in a downstream repository.
+// the check in `make example-html`: the committed chapters of the example tree
+// compile through it, so a construct only print can render fails here rather
+// than in a downstream repository.
 //
 // Read it as the worked example the authoring guide points at: this is the
 // whole of what implementing the contract asks of a backend.
@@ -95,3 +95,26 @@
 #let dref(label) = html.elem("em", attrs: (class: "dref"), [→ #label])
 
 #let todo(body) = html.elem("span", attrs: (class: "todo"), body)
+
+#let listing(body) = html.elem("div", attrs: (class: "listing"), body)
+
+#let rule(id, tier, body) = html.elem("div", attrs: (class: "rule", id: lower(id)), {
+  html.elem("span", attrs: (class: "rule-id"), id)
+  html.elem("span", attrs: (class: "rule-tier"), tier)
+  html.elem("div", attrs: (class: "rule-body"), body)
+})
+
+// An <aside> per level, told apart by class rather than by shape, since a web
+// page styles them and a printed page cannot.
+#let note(body) = html.elem("aside", attrs: (class: "note"), body)
+#let warning(body) = html.elem("aside", attrs: (class: "warning"), body)
+
+#let item(signature, body) = html.elem("div", attrs: (class: "item"), {
+  html.elem("code", attrs: (class: "signature"), signature)
+  html.elem("div", attrs: (class: "item-body"), body)
+})
+
+#let example(body, title: none) = html.elem("div", attrs: (class: "example"), {
+  html.elem("span", attrs: (class: "label"), if title != none [Example: #title] else [Example])
+  body
+})

@@ -24,13 +24,13 @@ jobs:
         # DOCS_VERSION reaches the handbook's front matter (G-VERSION); the
         # checkout is shallow and carries no tags, so `git describe` cannot
         # supply it here.
-        run: make 01 02 glossary spec docs-format handbook DOCS_VERSION=${{ github.ref_name }}
+        run: make 01 02 glossary spec docs-spec DOCS_VERSION=${{ github.ref_name }}
 
       # The documentation format claims a chapter renders through either backend.
       # The claim is checked where it is made, so a release cannot carry a
       # reference tree that only builds one way.
       - name: Check both docs backends
-        run: make constructs handbook-html DOCS_VERSION=${{ github.ref_name }}
+        run: make constructs example example-html DOCS_VERSION=${{ github.ref_name }}
 
       # The schema ships as its own asset, so the release must not publish one
       # that fails its metaschema or rejects its own examples.
@@ -56,8 +56,7 @@ jobs:
             pdf/02-ranke-db.pdf
             pdf/ranke-glossary.pdf
             pdf/ranke-spec.pdf
-            pdf/ranke-docs-format.pdf
-            pdf/ranke-handbook.pdf
+            pdf/ranke-docs-spec.pdf
             spec/rql.schema.json
             dist/ranke-testdata.tar.gz
             dist/ranke-docs.tar.gz

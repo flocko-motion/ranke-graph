@@ -4,7 +4,7 @@ The files every Ranke document draws on: the typography, the constructs a
 document writes with, the series' vocabulary, and the two document roots. This
 is internal machinery. What a reader downloads is described in the top-level
 [README](../README.md); the rules a documentation tree follows are stated in
-`docs-format/ranke-docs-format.typ`, and this file describes the pieces rather
+`docs-spec/ranke-docs-spec.typ`, and this file describes the pieces rather
 than restating those rules.
 
 ## The files
@@ -59,7 +59,8 @@ files here, ranke-website resolves to an HTML rendering of its own:
 ```
 
 `scripts/fetch-ranke-docs.sh` writes that file. In this repository,
-`make docs-place` runs it in its no-network mode; in a part repository,
+`make docs-place` runs it in its no-network mode against `docs-spec/examples/docs-tree/`;
+in a part repository,
 `make docs` fetches this directory and points the file at the copy. A build
 that cannot clone takes `ranke-docs.tar.gz` from the release instead, which
 carries this directory among the rest. The authoring guide states the rest.
@@ -73,7 +74,7 @@ removes.
 
 **A construct is a contract, not a convenience.** Adding one means adding it to
 `constructs.typ`, to `vocabulary.typ`, to the HTML backend under
-`docs-format/html-backend/`, and to the guide's construct section, in one
+`docs-spec/examples/html-backend/`, and to the guide's construct section, in one
 change. `make constructs` fails until the backends agree, and `make verify`
 runs it.
 
