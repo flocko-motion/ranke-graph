@@ -61,8 +61,8 @@
 
 = Purpose and Status <sec:purpose>
 
-The Ranke ecosystem spans several repositories, and each of them documents the
-part it holds. Those documents are wanted in two places at once: as a PDF
+The Ranke ecosystem is spread across repositories, and each of them documents
+the part it holds. Those documents are wanted in two places at once: as a PDF
 handbook attached to a release, and as pages on the project website. This
 document fixes a format in which a chapter is written once and rendered by
 either.

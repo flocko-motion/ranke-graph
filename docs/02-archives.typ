@@ -38,9 +38,9 @@ head, check each claim against the rules of @sec:integrity below, and the result
 is either the archive as it was written or a named claim that failed.
 
 Nothing else is needed: no catalogue, no manifest, no schema registry. A
-universe assembled from several stores serves recovery as well as a single one
-does, because a claim is found by its hash and a hash says nothing about where
-the bytes sit.
+universe spread across more than one store serves recovery as well as a single
+store does, because a claim is found by its hash and a hash says nothing about
+where the bytes sit.
 
 == Integrity <sec:integrity>
 
