@@ -6,6 +6,7 @@
 #   make 01          # build paper 01 only
 #   make watch-01    # rebuild paper 01 on every save
 #   make clean       # remove built PDFs
+#   make handbook    # build the example docs tree (docs/) to PDF
 #
 # `make help` reads this file: a target followed by `## text` is listed under
 # the nearest `##@ heading` above it. A target with no `##` stays unlisted, so
@@ -15,10 +16,35 @@
 # Sources live per paper under NN-*/.  Shared assets (template, bibliography)
 # live under shared/.  All built PDFs land in pdf/, named after the paper
 # directory (pdf/01-ranke-graph.pdf, pdf/02-ranke-db.pdf, ...).
+#
+# docs/ is this repository's own documentation tree, written in the format
+# docs-format/ranke-docs-format.typ states. It is the reference a part repo
+# copies, and the fixture proving the format has two backends: the same chapters
+# build to PDF through shared/handbook.typ and to HTML through the stub backend
+# under docs-format/html-backend/.
 
 TYPST   := typst
-SHARED  := shared/template.typ shared/sources.bib
+SHARED  := shared/template.typ shared/vocabulary.typ shared/typography.typ \
+           shared/constructs.typ shared/sources.bib
 PDF_DIR := pdf
+
+# The print backend a docs tree compiles through, and the two one-line shims the
+# chapters actually import. `--place` writes the shims and touches nothing else.
+DOCS_BACKEND := shared/vocabulary.typ shared/handbook.typ shared/typography.typ \
+                shared/constructs.typ shared/glossary.typ
+DOCS_SHIMS   := docs/vocabulary.typ docs/handbook.typ
+DOCS_CHAPTERS := $(filter-out $(DOCS_SHIMS),$(wildcard docs/*.typ))
+DOCS_ASSETS  := $(wildcard docs/assets/*)
+
+# What a handbook prints as its version. A working copy says what git says; the
+# release workflow passes the tag.
+DOCS_VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
+
+# Where `handbook-html` assembles its tree: the committed chapters with the stub
+# HTML backend dropped in at the two names they import. This is what
+# ranke-website does to a vendored copy, done here so the gate catches a chapter
+# that only print can render.
+HTML_DIR := build/html
 
 PDFS := \
   $(PDF_DIR)/01-ranke-graph.pdf \
@@ -27,13 +53,15 @@ PDFS := \
   $(PDF_DIR)/04-ranke-retrieval.pdf \
   $(PDF_DIR)/05-retrieval-coordination.pdf \
   $(PDF_DIR)/ranke-glossary.pdf \
-  $(PDF_DIR)/ranke-spec.pdf
+  $(PDF_DIR)/ranke-spec.pdf \
+  $(PDF_DIR)/ranke-docs-format.pdf \
+  $(PDF_DIR)/ranke-handbook.pdf
 
-.PHONY: help all clean 01 02 03 04 05 glossary spec schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec verify update-testdata testdata-bundle release major minor patch breaking feature fix
+.PHONY: help all clean 01 02 03 04 05 glossary spec docs-format handbook handbook-html docs-place docs-clean constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-handbook verify update-testdata testdata-bundle release major minor patch breaking feature fix
 
 ##@ Documents
 
-all: $(PDFS) ## build every paper, the glossary, and the spec
+all: $(PDFS) ## build every paper, the glossary, the spec, the docs format, and the handbook
 
 $(PDF_DIR):
 	mkdir -p $(PDF_DIR)
@@ -61,6 +89,22 @@ $(PDF_DIR)/ranke-glossary.pdf: glossary/ranke-glossary.typ shared/glossary.typ |
 $(PDF_DIR)/ranke-spec.pdf: spec/ranke-spec.typ | $(PDF_DIR)
 	$(TYPST) compile --root . $< $@
 
+# The documentation format — the rules a part repo's docs/ tree follows, each
+# with a stable id, released beside the specification.
+$(PDF_DIR)/ranke-docs-format.pdf: docs-format/ranke-docs-format.typ shared/typography.typ | $(PDF_DIR)
+	$(TYPST) compile --root . $< $@
+
+# This repository's own docs tree, built through the print backend. The shims
+# are a prerequisite: without them a chapter's `#import "vocabulary.typ"` has
+# nothing to resolve to.
+$(PDF_DIR)/ranke-handbook.pdf: $(DOCS_CHAPTERS) $(DOCS_ASSETS) $(DOCS_SHIMS) $(DOCS_BACKEND) | $(PDF_DIR)
+	$(TYPST) compile --root . --input version=$(DOCS_VERSION) docs/index.typ $@
+
+# Generated, gitignored, and rewritten whenever the fetcher changes — the same
+# script four consumer repositories run, in its no-network mode.
+$(DOCS_SHIMS) &: scripts/fetch-ranke-docs.sh
+	@SHARED_DIR=shared DOCS_DIR=docs ./scripts/fetch-ranke-docs.sh --place
+
 01: $(PDF_DIR)/01-ranke-graph.pdf ## build one paper by its number — likewise 02 … 05
 02: $(PDF_DIR)/02-ranke-db.pdf
 03: $(PDF_DIR)/03-ranke-workers.pdf
@@ -68,6 +112,24 @@ $(PDF_DIR)/ranke-spec.pdf: spec/ranke-spec.typ | $(PDF_DIR)
 05: $(PDF_DIR)/05-retrieval-coordination.pdf
 glossary: $(PDF_DIR)/ranke-glossary.pdf ## build the series-wide glossary
 spec: $(PDF_DIR)/ranke-spec.pdf ## build the normative specification
+docs-format: $(PDF_DIR)/ranke-docs-format.pdf ## build the documentation format
+handbook: $(PDF_DIR)/ranke-handbook.pdf ## build the example docs tree to PDF
+docs-place: $(DOCS_SHIMS) ## put the print backend where docs/ chapters import it
+
+# The same chapters, the other backend. A construct print can render and HTML
+# cannot fails here, in this repository, rather than in ranke-website.
+handbook-html: $(DOCS_CHAPTERS) $(DOCS_ASSETS) ## build the example docs tree to HTML through the stub backend
+	@rm -rf $(HTML_DIR) && mkdir -p $(HTML_DIR)
+	@cp $(DOCS_CHAPTERS) $(HTML_DIR)/
+	@cp -r docs/assets $(HTML_DIR)/
+	@cp docs-format/html-backend/vocabulary.typ docs-format/html-backend/handbook.typ $(HTML_DIR)/
+	$(TYPST) compile --root . --features html --format html \
+		--input version=$(DOCS_VERSION) $(HTML_DIR)/index.typ $(HTML_DIR)/index.html
+	@echo "wrote $(HTML_DIR)/index.html"
+
+docs-clean: ## remove the generated docs backend shims and the HTML build tree
+	rm -f $(DOCS_SHIMS)
+	rm -rf build
 
 watch-01: ## rebuild paper 01 on every save — likewise watch-02 … watch-05, watch-glossary, watch-spec
 	$(TYPST) watch --root . 01-ranke-graph/ranke-graph.typ $(PDF_DIR)/01-ranke-graph.pdf
@@ -83,11 +145,14 @@ watch-glossary:
 	$(TYPST) watch --root . glossary/ranke-glossary.typ $(PDF_DIR)/ranke-glossary.pdf
 watch-spec:
 	$(TYPST) watch --root . spec/ranke-spec.typ $(PDF_DIR)/ranke-spec.pdf
+watch-handbook: $(DOCS_SHIMS)
+	$(TYPST) watch --root . docs/index.typ $(PDF_DIR)/ranke-handbook.pdf
 
 # Remove the built PDFs but keep the directory itself, so an open viewer or
 # file watch holding its inode survives a clean.
 clean: ## remove the built PDFs, keeping pdf/ itself
 	rm -f $(PDF_DIR)/*.pdf
+	rm -rf build
 
 ##@ Checks
 
@@ -96,6 +161,15 @@ clean: ## remove the built PDFs, keeping pdf/ itself
 # document. Two checks: the schema itself against the 2020-12 metaschema, and
 # each of its `examples` against the schema, so a released schema never carries
 # an example it would reject.
+# shared/constructs.typ names what a rendering backend owes. This compiles both
+# backends and fails on a name either leaves unbound, so the two cannot drift
+# apart silently — a construct added to the list stops the build until both
+# implement it.
+constructs: ## check both rendering backends against the construct contract
+	@mkdir -p build
+	@$(TYPST) compile --root . docs-format/check-backends.typ build/check-backends.pdf
+	@echo "constructs: both backends bind the contract."
+
 RQL_SCHEMA := spec/rql.schema.json
 
 schema: ## validate the RQL schema against the metaschema, and its examples against itself
@@ -117,8 +191,8 @@ schema: ## validate the RQL schema against the metaschema, and its examples agai
 # Pre-release gate: every paper must compile and the schema must hold. Extend
 # with more checks later (linting, link-checking, …); release depends on this
 # passing.
-verify: all schema ## the pre-release gate: every document compiles, the schema holds
-	@echo "verify: all papers compiled, schema valid."
+verify: all schema constructs handbook-html ## the pre-release gate: every document compiles, the schema holds, both docs backends render
+	@echo "verify: all documents compiled, schema valid, both docs backends render."
 
 ##@ Conformance artifacts
 

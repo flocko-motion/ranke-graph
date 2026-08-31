@@ -1,5 +1,6 @@
 /pdf
 /dist
+/build
 .DS_Store
 .todos/
 
@@ -13,3 +14,10 @@
 
 glossary/*.pdf
 spec/*.pdf
+
+# The docs backend is placed by scripts/fetch-ranke-docs.sh, never committed —
+# a tree that vendored one would be pinned to a single rendering, which is the
+# coupling the documentation format removes (G-SUPPLIED).
+docs/vocabulary.typ
+docs/handbook.typ
+docs/papers/

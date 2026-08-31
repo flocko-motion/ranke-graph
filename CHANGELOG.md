@@ -5,6 +5,49 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
+## Unreleased
+
+**Documentation format.** A new companion document,
+`docs-format/ranke-docs-format.typ`, released as `ranke-docs-format.pdf`
+alongside the specification. It fixes the rules a repository's `docs/` tree
+follows so one chapter file renders to both PDF and HTML: the tree layout
+(`G-DIR`, `G-ROOT`, `G-CHAPTER`), the import-path contract (`G-IMPORT`,
+`G-CLOSURE`, `G-COMPILE`), what each construct means (`G-CONSTRUCTS`), the
+rule that a chapter may not reach past the vocabulary into raw layout
+(`G-NOLAYOUT`), assets and cross-references (`G-ASSETS`, `G-XREF`,
+`G-XREF-B`), terminology (`G-GLS`, `G-GLOSSARY`, `G-CITE`), what a backend
+owes (`G-BACKEND`), and the build (`G-SUPPLIED`, `G-FETCH`, `G-VERSION`,
+`G-RELEASE`).
+
+**Vocabulary split.** The constructs a document writes with move from
+`shared/template.typ` into `shared/vocabulary.typ`, which carries no
+page-level layout, so a second renderer can bind the same names.
+`shared/typography.typ` holds the look both roots draw on, and
+`shared/template.typ` re-exports everything, leaving the papers unchanged —
+they render identically. `shared/constructs.typ` names the contract in one
+place, and `docs-format/check-backends.typ` fails the build on a name either
+backend leaves unbound.
+
+**New constructs.** `diagram(path, caption)`, a captioned picture named by a
+project-absolute path; it is the branch point an HTML backend needs, since
+`image()` under HTML export inlines a base64 data URI.
+
+**Handbook root.** `shared/handbook.typ`, the docs root: paper typography, its
+own front matter, a version from `--input version=`, and a glossary appendix
+after the body. The appendix is what makes `#gls()` resolve, since glossarium
+creates a term's label where the glossary is printed.
+
+**Reference tree.** `docs/` holds a documentation tree in the format, covering
+the foundation part, released as `ranke-handbook.pdf`. Every construct appears
+in it at least once, and `make verify` builds it through both backends.
+
+**Shared fetcher.** `scripts/fetch-ranke-docs.sh` — the fetcher ranke-go carried
+as `scripts/fetch-papers.sh`, moved here so four consumers run one script. It
+keeps the stamp and `--if-moved`, gains a `--place` mode and a `DOCS_DIR` that
+puts the vocabulary where a chapter's import resolves, and documents its
+interface: `RANKE_GRAPH_REPO`, `RANKE_GRAPH_REF`, `PAPERS_DIR`, `DOCS_DIR`,
+`SHARED_DIR`, `RANKE_DOCS_OFFLINE`.
+
 ## v0.20.3 — 2026-08-28
 
 Generated new testdata using latest ranke-go v0.26.0
