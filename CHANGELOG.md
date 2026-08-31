@@ -5,7 +5,7 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
-## Unreleased
+## v0.21.0 — 2026-08-31
 
 **Documentation format.** A new companion document,
 `docs-format/ranke-docs-format.typ`, released as `ranke-docs-format.pdf`
