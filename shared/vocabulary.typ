@@ -101,7 +101,8 @@
 #let diagram(path, caption, width: 100%) = {
   assert(
     path.starts-with("/"),
-    message: "diagram: path must be project-absolute, e.g. \"/docs/assets/" + path + "\"",
+    message: "diagram: path must begin with / and name a file from the project root, "
+      + "as in \"/docs/assets/x.svg\"; got \"" + path + "\"",
   )
   figure(image(path, width: width), caption: caption)
 }
