@@ -161,7 +161,10 @@ git clone --depth 1 --branch "$ref" "$repo" "$tmp" >/dev/null 2>&1
 rm -rf "$dir"
 mkdir -p "$dir"
 cp -r "$tmp"/[0-9]*-* "$dir"/
-for d in shared spec glossary docs; do
+# shared/, spec/, and glossary/ — not ranke-graph's own docs/ tree. Its chapters
+# import a `vocabulary.typ` that would not resolve where they landed, so a copy
+# here is a tree that cannot be built. The authoring guide names where it lives.
+for d in shared spec glossary; do
 	[ -d "$tmp/$d" ] && cp -r "$tmp/$d" "$dir"/
 done
 cp "$tmp/LICENSE" "$dir/LICENSE" 2>/dev/null || true
