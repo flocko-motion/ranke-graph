@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.8 — 2026-09-01
+
 **`V-HISTCHAIN` admits a Head History with gaps.** The walk-back from the
 head named at index $i$ to the one named at index $0$ now only needs to
 reach it, at whatever distance the intervening advances left — previously it
