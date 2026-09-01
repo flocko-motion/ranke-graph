@@ -51,7 +51,13 @@ start="$(git rev-parse --abbrev-ref HEAD)"
 
 # 3. The changelog names the release being cut, so the tagged tree carries it.
 #    An "## Unreleased" heading is stamped and committed here, on the branch
-#    being released, so the merge carries it to the tag.
+#    being released, so the merge carries it to the tag. A fresh empty one is
+#    left in its place, so the next change always has a section to write into
+#    rather than having to remember to create the heading.
+#
+#    THE EMPTINESS CHECK IS WHAT MAKES THAT SAFE. Leaving a heading behind
+#    without it would mean the next release stamps an empty section and ships
+#    recording nothing, which is the one thing this step exists to prevent.
 head="$(grep -m1 '^## ' CHANGELOG.md 2>/dev/null || true)"
 case "$head" in
 	"## $next"*) ;;
@@ -61,8 +67,21 @@ case "$head" in
 			echo "  head the entry '## $next — $(date +%F)', push, then re-run" >&2
 			exit 1
 		fi
+		body="$(awk '/^## Unreleased/{f=1;next} /^## /{f=0} f' CHANGELOG.md | tr -d '[:space:]')"
+		if [ -z "$body" ]; then
+			echo "changelog's '## Unreleased' section is empty, so nothing is recorded for this release" >&2
+			echo "  write what changed under it, commit, then re-run" >&2
+			exit 1
+		fi
 		echo "stamping the changelog: ## Unreleased -> ## $next"
 		sed -i "0,/^## Unreleased.*$/s//## $next — $(date +%F)/" CHANGELOG.md
+		# A fresh section for whatever comes next. Inserted before the first
+		# heading, so no version string has to be matched as a regex.
+		tmp="$(mktemp)"
+		awk 'BEGIN { done = 0 }
+		     /^## / && !done { print "## Unreleased"; print ""; done = 1 }
+		     { print }' CHANGELOG.md > "$tmp"
+		mv "$tmp" CHANGELOG.md
 		git add CHANGELOG.md
 		git commit --quiet -m "doc: changelog for $next"
 		;;

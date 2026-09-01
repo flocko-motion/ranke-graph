@@ -409,7 +409,18 @@ release. This document is attached to the ranke-graph release beside
 `docs-spec/examples/docs-tree/` is a documentation tree written in this format: a root,
 two chapters, one asset, and every construct of @sec:constructs called at least
 once. Copy the directory into your repository as `docs/` and you have a
-compiling tree to start from.
+compiling tree to start from:
+
+#listing[
+```
+https://github.com/rankegraph/ranke-graph/tree/main/docs-spec/examples/docs-tree
+```
+]
+
+It is a specification artifact rather than a document, so `fetch-ranke-docs.sh`
+leaves it where it is: what that script delivers is what a chapter *imports*,
+and the example is something a repository copies once and then owns. Take it
+from the tag you intend to follow.
 
 *The prose is placeholder text, and deliberately so.* An example filled with
 real documentation is documentation that must be kept true, and this one would
