@@ -33,6 +33,23 @@ those fixed names, and this script picks them up. ranke-graph's own former
 changelog-stamping step is now its `scripts/release-pretag.sh`, unchanged in
 behaviour. See the script's own header for the full interface.
 
+**`V-TABLEREF` was blocking every Head History claim it should have allowed.**
+It restricted a `contribution/branches` claim's referrers to another
+`contribution/branches` claim, with no exception — but a `contribution/history`
+claim's `contribution/head` edge (`V-HISTCLAIM`) always names the archive's
+head, which is always a branch-table claim (`V-ARCHIVE`). Every history claim
+therefore failed verification the moment a real implementation checked one.
+`contribution/history`, through its `contribution/head` edge, is now a second
+permitted referrer.
+
+**`V-HISTADVANCE` is gone; `R-C6HISTORY` alone covers what it was for.**
+`V-HISTADVANCE` (v0.23.1) was misclassified `FORCED`: a `FORCED` rule must be
+decidable from a record or a closure, and this one was not, since a history
+claim sits outside both by design (`V-HISTREF`). What it required, the
+Sequencer writing a Head History entry at merge time, is `R-C6HISTORY`'s
+obligation already, correctly `FREE`. Keeping both would have restated the
+same requirement twice; `R-C6HISTORY` now states it in full on its own.
+
 ## v0.23.3 — 2026-09-01
 
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball
