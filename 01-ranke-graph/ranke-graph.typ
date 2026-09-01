@@ -21,12 +21,15 @@
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
-// Notation. U is a content-addressed k/v store. U(k) is the claim envelope at
+// Notation. U is a k/v store. U(k) is the claim envelope at
 // id k = H(S(env(v))); U(h) is the external content at hash h = H(c). 
 //   RG_k := closure(k, U)  — the graph rooted at head id k
 //   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
 // A later archive is a new tuple (U', k'); nothing is mutated in place.
 // "branch-table header (BTH)" is just the head claim U(k) of an archive.
+//   id_seq(i, s) := H(i, s) — second address scheme; s an arbitrary per-history
+//     seed. id_seq(0, s) is what's kept for recovery, self-describing as to
+//     hash algo (§Head Index).
 // ─────────────────────────────────────────────────────────────────────
 
 #show: paper.with(
@@ -182,10 +185,9 @@ Let $"env"$ be the *envelope*, a claim as it is stored: the scheme, the signatur
 
 Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4.2) for $S$, IPFS multihash for $H$, Ed25519 (RFC 8032) or ECDSA with RFC 6979 for $"Sign"$, and COSE_Sign1 (@rfc9052) for $"env"$, each fixed exactly in the normative specification (@rankespec).
 
-To optimise the encoding for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name, a type class, a type subtype, and an encoding class or subtype each abbreviate to the dot and one character (`content_size` → `.s`, `contribution` → `.c`, `contributor` → `.c`). Class and subtype are each carried in their own field, so `contribution/contributor` serializes as the pair `.c`, `.c`. The full table is fixed in the normative specification (@rankespec).
-An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
+Let $op("id")(v) = H(S("env"(v)))$ be a claim's *identity*: the hash of its stored record. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
 
-Identity is the hash of the stored record: $op("id")(v) = H(S("env"(v)))$. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
+Let $op("id")_"seq"(i, s) := H(i, s)$ be a second identity function, keyed on a step $i$ and a seed $s$ rather than on any record's own bytes (@sec:head-index).
 
 == Content <sec:content>
 
@@ -288,7 +290,8 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is a content-addressed set containing envelopes under their id $k$ (retrieved as $cal(U)(k)$) and *externalised content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). Both keys are hashes over the bytes they name, so one keyspace serves both and identical bytes are one entry. It holds everything a graph resolves against, and more besides: a *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
+$cal(U)$, the *Universe*, is a key/value store. An envelope is stored content-addressed, under its id $k$ (retrieved as $cal(U)(k)$), except a `contribution/history` claim (@sec:head-index), keyed instead under $op("id")_"seq"(i, s)$. *Externalised content* (@sec:content) is stored under its hash $h = H(c)$ (as $cal(U)(h)$).
+A *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
 
@@ -296,13 +299,26 @@ Given $cal(U)$ and an id $k$, the instance $"RG"_k := "closure"(k, cal(U))$ is t
 
 == Branches <sec:branches>
 
-A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim whose `contribution/branch` edges name all contained branches, each referencing its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
+A *branch* is a name resolving to a closure, anchored by its current head claim. A *branch table* is a `contribution/branches` claim whose `contribution/branch` edges name all contained branches, each referencing its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
 
 == Ranke-Archive <sec:archive>
 
 A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a branch-table claim, with the previous branch tables in its provenance, the tuple $(cal(U), k)$ of the Universe and its head id $k$. From it all branches, their history, and all their graphs derive. Adding to the archive yields a new tuple $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$: the head id $k$ is not mutated but superseded, the earlier $"RA"_k$ remaining recoverable. Multiple archives can share $cal(U)$; each with its own head id.
 
 A new archive is created by writing the initial claim and an empty `contribution/branches` claim, whose id is the archive's head $k$.
+
+== Head History <sec:head-index>
+
+Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without knowing the latest $k$, the archive is not retrievable, as the DAG only allows resolving backwards along the provenance chain. To track the used $k_i$ we construct a _Head History_ in the Universe: a sequence of claims of type `contribution/history`, each referencing the head it recorded. 
+
+Nothing else in the graph references a history claim: it is reached only through $op("id")_"seq"(i, s)$, so the log stays a parallel structure the ordinary closure never crosses.
+
+The *history seed* $s$ is a random string defined once in the first claim of the sequence. Knowing $k_0$, the id_seq of the first claim in the history sequence, 
+allows fetching that claim and the contained $s$ to then lookup any entry in the history at $op("id")_"seq"(i, s)$. 
+
+Because presence is monotone in $i$ (advances are sequential, without gaps), the current head is found by doubling ($i = 1, 2, 4, dots$) until a miss, then binary search between the last hit and the first miss — $O(log n)$ lookups needing nothing from storage beyond presence and retrieval by key.
+
+Once the last entry in the history is identified, the latest archive can be recovered.  
 
 = Discharging the Desiderata <sec:emerges>
 
@@ -365,7 +381,7 @@ Anchoring bounds `created_at`, the time the archive witnessed.
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity). Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. A `contribution/history` claim (@sec:head-index) is the one exception: its key $op("id")_"seq"(i, s)$ does not name its content, so integrity there instead checks the claim's declared $i$ against the slot it was fetched from, guarding against a validly-signed claim relocated to another. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity), unchanged either way. Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
@@ -420,11 +436,11 @@ Properties that follow from the structure beyond the desiderata.
 
 == Backup <sec:hash-backup>
 
-*Emerges from @sec:merkle + @sec:verifiability.* A single id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$.
+*Emerges from @sec:merkle + @sec:verifiability.* $op("id")_"seq"(0, s)$, naming the first claim in the Head History (@sec:head-index), recovers and verifies $"RG"_k$ from any replica of $cal(U)$.
 
 == Composing the Universe <sec:composable>
 
-*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$ is only a set of content-addressed claims, its physical form is free: claims may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure; no id and no closure changes with the location of the bytes. Stacking, partitioning, replication, and backup are one property seen from different sides.
+*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$'s keys, content hashes and $op("id")_"seq"(i, s)$ alike, are fixed independent of storage location, its physical form is free. Entries may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure; id and closure stay fixed regardless of where the bytes live.
 
 = Relation to Prior Work <sec:related-work>
 
@@ -505,6 +521,7 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`contribution/branches`*: a branch-table claim indexing the archive's branches (see @sec:branches)
 - *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
 - *`contribution/delete`*: a claim documenting that a referenced claim's bytes were physically removed
+- *`contribution/history`*: a head-history entry, addressed by $op("id")_"seq"(i, s)$ rather than its own content id (@sec:head-index)
 
 *Edge classes:*
 
@@ -518,6 +535,11 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
   - *`contribution/diff`*: points at a claim the owning claim overlays, restating only the delta; the full claim is materialised by applying the diff chain, a storage optimisation carrying full provenance
   - *`contribution/delete`*: points at a claim whose bytes were physically removed, documenting the gap
   - *`contribution/expiry`*: points at a contributor claim, naming the last time its key is valid; it expires after that time
+
+== Encoding Aliases <sec:aliases>
+
+To optimise the encoding $S$ (@sec:primitives) for size, we allow aliases for the predefined field names and types. An alias carries a leading `.`, marking the reserved namespace: a field name, a type class, a type subtype, and an encoding class or subtype each abbreviate to the dot and one character (`content_size` → `.s`, `contribution` → `.c`, `contributor` → `.c`). Class and subtype are each carried in their own field, so `contribution/contributor` serializes as the pair `.c`, `.c`. The full table is fixed in the normative specification (@rankespec).
+An alias is semantically identical to its long form; the reference implementation applies aliases automatically and presents the long form through a common interface.
 
 #v(1em)
 #text(size: 0.92em)[*Acknowledgements.* This paper was prepared with the assistance of AI tools (Claude Opus 4.6–4.8, Anthropic).]

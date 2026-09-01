@@ -7,6 +7,34 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.1 — 2026-09-01
+
+**A Ranke-Archive's head history is addressed independently of content.** The
+foundation paper adds a second identity function, `id_seq(i, s)`, keyed on a
+step and a per-history seed rather than on a claim's own bytes. A
+`contribution/history` claim recorded under it lets an archive's current head
+be found by a doubling-then-binary search over the Universe alone — no
+pointer kept outside the graph. Universe, Verifiability, Backup, Composing the
+Universe, and the Type Vocabulary state the mechanism and its one exception to
+content addressing.
+
+RankeDB's Sequencer used to keep this history in its own persistence adapter,
+a bespoke port with its own backends (in-memory, filesystem, Postgres). That
+port is gone: the history now rides the existing Blob Store contract, and the
+merge procedure records the next entry on every advance. The normative
+specification gains six rules for the mechanism (`V-IDSEQ`, `V-HISTCLAIM`,
+`V-HISTCLAIM0`, `V-HISTREF`, `V-HISTADVANCE`, `V-IDSEQVERIFY`) and two
+reserving history claims to the Sequencer (`R-C2HISTORY`, `R-C6HISTORY`).
+
+*This is new, mandatory behaviour.* `V-HISTADVANCE` is FORCED: any archive
+advance not accompanied by a Head History entry fails verification. An
+existing implementation needs Head History support to stay conformant.
+
+**A branch's head need not be a `contribution/head` claim.** §Branches said
+otherwise, overstating the consolidation case (multiple open heads gathered
+into one) as the general rule. The ordinary case leaves a branch's head as
+whatever claim was last contributed — a `derivation`, an `entity`, anything.
+
 ## v0.23.0 — 2026-09-01
 
 **The authoring guide says where the example tree is.** It told a reader to copy

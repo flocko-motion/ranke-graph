@@ -52,4 +52,11 @@ placed by `make docs-place` and gitignored. `make example` and `make
 example-html` build the same chapters through the two backends; `make verify`
 runs both. Neither example is released.
 
+## Changelog
+
+Making a change that alters what a document requires, defines, or removes
+means updating `CHANGELOG.md`'s `## Unreleased` section in the same change —
+its own header states exactly what earns an entry. Summarize: one entry per
+change that matters to a reader, not a log of every edit it took to get there.
+
 Only after reading the papers should you start on the task the user gives you.

@@ -77,7 +77,7 @@ $(PDF_DIR):
 $(PDF_DIR)/01-ranke-graph.pdf: 01-ranke-graph/ranke-graph.typ $(SHARED) | $(PDF_DIR)
 	$(TYPST) compile --root . $< $@
 
-$(PDF_DIR)/02-ranke-db.pdf: 02-ranke-db/ranke-db.typ $(SHARED) | $(PDF_DIR)
+$(PDF_DIR)/02-ranke-db.pdf: 02-ranke-db/ranke-db.typ $(SHARED) 02-ranke-db/drawio/architecture.svg 02-ranke-db/drawio/architecture-storage\ stack.drawio.png | $(PDF_DIR)
 	$(TYPST) compile --root . $< $@
 
 $(PDF_DIR)/03-ranke-workers.pdf: 03-ranke-workers/ranke-workers.typ $(SHARED) | $(PDF_DIR)
