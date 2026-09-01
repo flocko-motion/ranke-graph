@@ -5,6 +5,23 @@ implementation follows, the papers' claims, the series' vocabulary, and the
 conformance vectors. A change earns an entry when it alters what a document
 requires, defines, or removes; rewording does not.
 
+## Unreleased
+
+## v0.23.0 — 2026-09-01
+
+**The authoring guide says where the example tree is.** It told a reader to copy
+the directory without saying where to find it, and the fetcher does not deliver
+it — reasonably, since what the fetcher delivers is what a chapter imports,
+while the example is copied once and then owned. The annex now carries the URL
+and says why it arrives that way.
+
+**Release tooling.** `scripts/release.sh` leaves a fresh `## Unreleased` heading
+behind after stamping one, so a change always has a section to write into.
+Cutting a release consumed the heading and put nothing back, which is why there
+was none. It also now refuses to stamp an *empty* `## Unreleased`: without that
+check, leaving a heading behind would let the next release ship recording
+nothing, which is the failure the step exists to prevent.
+
 ## v0.22.0 — 2026-08-31
 
 **`docs-format/` is now `docs-spec/`**, and the document it holds is
