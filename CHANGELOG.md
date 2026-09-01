@@ -21,6 +21,18 @@ own case statement, which only runs once `verify` already has. `check-release-bu
 checks `$(MAKECMDGOALS)` for one of the six recognized words first, so a forgotten
 or misspelled bump word fails immediately.
 
+**`scripts/release.sh` is now `scripts/release-cycle.sh`, shared across every
+consumer.** ranke-go, ranke-ts, ranke-db and ranke-graph each carried their own
+near-identical copy of the same release mechanics (branch resolution, the
+merge-then-tag dance, the wait for CI) — the two bugs just fixed above had to
+be hand-applied to four files because of it. What differs per repo (how the
+next version is decided, what must happen before the tag is cut) is now a
+convention, not a fork: a consumer drops `scripts/release-next-version.sh`,
+`scripts/release-pretag.sh`, and/or `scripts/release-feature-branch-only` at
+those fixed names, and this script picks them up. ranke-graph's own former
+changelog-stamping step is now its `scripts/release-pretag.sh`, unchanged in
+behaviour. See the script's own header for the full interface.
+
 ## v0.23.3 — 2026-09-01
 
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball

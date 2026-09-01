@@ -324,14 +324,14 @@ check-clean-tree:
 	@[ -z "$$(git status --porcelain)" ] || { echo "working tree is dirty — commit or stash before releasing" >&2; exit 1; }
 
 # Same reasoning as check-clean-tree: a missing or misspelled bump word is a free,
-# instant check, and verify is not — scripts/release.sh's own case statement still
-# validates it too, but only after verify already ran.
+# instant check, and verify is not — scripts/release-cycle.sh's own case statement
+# still validates it too, but only after verify already ran.
 check-release-bump:
 	@[ -n "$(filter major minor patch breaking feature fix,$(MAKECMDGOALS))" ] || \
 		{ echo "usage: make release <major|breaking | minor|feature | patch|fix>" >&2; exit 1; }
 
 release: check-clean-tree check-release-bump verify ## make release <major|minor|patch> — verify, merge to the default branch, tag, push
-	@./scripts/release.sh $(filter major minor patch breaking feature fix,$(MAKECMDGOALS))
+	@./scripts/release-cycle.sh $(filter major minor patch breaking feature fix,$(MAKECMDGOALS))
 
 # Absorb the positional bump word in `make release <bump>` so it isn't treated
 # as a missing target.
