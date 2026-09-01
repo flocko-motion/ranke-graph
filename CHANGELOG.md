@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.4 — 2026-09-01
+
 **`make release` checks the tree is clean before `verify`, not after.**
 `release: verify` ran the whole gate — every paper, the schema check, both
 docs backends — before `scripts/release.sh`'s own first line ever asked
