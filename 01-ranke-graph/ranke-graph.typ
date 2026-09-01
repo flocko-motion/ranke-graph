@@ -299,7 +299,7 @@ Given $cal(U)$ and an id $k$, the instance $"RG"_k := "closure"(k, cal(U))$ is t
 
 == Branches <sec:branches>
 
-A *branch* is a name resolving to a closure, anchored by a `contribution/head` claim. A *branch table* is a `contribution/branches` claim whose `contribution/branch` edges name all contained branches, each referencing its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
+A *branch* is a name resolving to a closure, anchored by its current head claim. A *branch table* is a `contribution/branches` claim whose `contribution/branch` edges name all contained branches, each referencing its current head. A revision need not restate them all: as a `contribution/diff` over the previous table (@sec:claims) it records only the changed entries, the full table being materialised by overlaying the diff chain back to the initial empty table (@sec:archive). All are stored in $cal(U)$; the id of the current branch table heads its archive (@sec:archive).
 
 == Ranke-Archive <sec:archive>
 
@@ -309,7 +309,9 @@ A new archive is created by writing the initial claim and an empty `contribution
 
 == Head History <sec:head-index>
 
-Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without knowing the latest $k$, the archive is not retrievable, as the DAG only allows resolving backwards along the provenance chain. To track the used $k_i$ we construct a _Head History_ in the Universe: a sequence of claims of type `contribution/history`, each referencing the head it recorded.
+Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without knowing the latest $k$, the archive is not retrievable, as the DAG only allows resolving backwards along the provenance chain. To track the used $k_i$ we construct a _Head History_ in the Universe: a sequence of claims of type `contribution/history`, each referencing the head it recorded. 
+
+Nothing else in the graph references a history claim: it is reached only through $op("id")_"seq"(i, s)$, so the log stays a parallel structure the ordinary closure never crosses.
 
 The *history seed* $s$ is a random string defined once in the first claim of the sequence. Knowing $k_0$, the id_seq of the first claim in the history sequence, 
 allows fetching that claim and the contained $s$ to then lookup any entry in the history at $op("id")_"seq"(i, s)$. 

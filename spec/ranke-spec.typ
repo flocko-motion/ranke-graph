@@ -245,6 +245,31 @@ name.]
 `contribution/branches` claim, and only through its `contribution/diff` or
 `contribution/branches` edge (`R-C6MERGE`). (foundation paper §Branches)]
 
+#rule("V-IDSEQ", FORCED)[$op("id")_"seq"(i, s) := H(S([i, s]))$: $i$ and $s$,
+CBOR Deterministic Encoded as a two-element array. A claim always serializes
+as a map (`V-SER`), never an array, so no claim's bytes can equal an
+$op("id")_"seq"$ input — CBOR's major type alone separates the two, with no
+further convention to state. (foundation paper §Head Index)]
+
+#rule("V-HISTCLAIM", FORCED)[A `contribution/history` claim MUST carry
+`history_index` (the step $i$) and a `contribution/head` edge naming the head
+recorded at that step. (foundation paper §Head Index)]
+
+#rule("V-HISTCLAIM0", FORCED)[The claim at $i = 0$ MUST carry `history_seed` with the value $s$ its address scheme is keyed on.
+(foundation paper §Head Index)]
+
+#rule("V-HISTREF", FORCED)[An edge's `reference` MUST NOT resolve to a
+`contribution/history` claim (foundation paper §Head Index)]
+
+#rule("V-HISTADVANCE", FORCED)[Every archive advance $k arrow.r k'$ MUST be
+accompanied by a new `contribution/history` claim naming $k'$ at the next
+index (foundation paper §Head Index)]
+
+#rule("V-IDSEQVERIFY", FORCED)[A `contribution/history` claim fetched at
+$op("id")_"seq"(i, s)$ MUST carry `history_index` equal to $i$; a mismatch is
+treated as absence at that slot. `V-ID` and `V-SIG` otherwise apply
+unchanged. (foundation paper §Verifiability)]
+
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
 
@@ -285,6 +310,10 @@ A system account MAY commit a *request* instead (a
 Sequencer honours at merge (`R-C6REQUEST`). (RankeDB paper §Sequencer, step 2;
 §Contributor Keys Life Cycle)]
 
+#rule("R-C2HISTORY", FREE)[A contribution from a system account MUST NOT
+contain a `contribution/history` claim: it is created by the Sequencer alone,
+as part of merging (`R-C6HISTORY`). (RankeDB paper §Sequencer, step 2)]
+
 #rule("R-C3CLOSE", FREE)[Before verification a contribution MUST be *closed*: each
 claim's references are followed, drawing in every referenced claim outside the
 contribution (from another branch or the wider Universe) recursively, until every
@@ -317,6 +346,10 @@ making it a base claim, so the overlay that materialises the table stops there w
 chain beyond it stays reachable. Its `contribution/branch` edges MUST name, for each branch
 they bind, the head claims of the contribution merged there. (RankeDB paper
 §Sequencer, step 6)]
+
+#rule("R-C6HISTORY", FREE)[Step 6 is where the archive advance happens, so it
+is where the Sequencer writes the next Head History entry (`V-HISTADVANCE`).
+(RankeDB paper §Sequencer, step 6)]
 
 #rule("R-C6REQUEST", FREE)[Every request a merged contribution carries (`R-C2TYPE`)
 MUST produce its limiting claim in the same merge. That claim MUST carry the same
@@ -741,6 +774,8 @@ the aliases its names and types may take.
     [`pubkey_valid_from`],    [`v`], [], [], [], [],                                  [`text`],        [`t`],
     [`pubkey_expires_after`], [`x`], [], [], [], [],                                  [`video`],       [`V`],
     [`delete_by`],            [`d`], [], [], [], [], [], [],
+    [`history_index`],       [`I`], [], [], [`history`],     [`y`], [], [],
+    [`history_seed`],        [`S`], [], [], [], [], [], [],
   ),
   caption: [Aliases, each serialized with the reserved `.`. `source` and `entity`
   are node classes alone, `prune` an edge subtype alone. Encoding subtypes are @tbl:encsub.],
