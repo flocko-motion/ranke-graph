@@ -15,6 +15,12 @@ prerequisite: free and instant, so a dirty tree fails immediately rather than
 after a full build. Moved out of `release.sh` (redundant now) and its later
 steps renumbered down by one.
 
+**`make release` also checks the bump word before `verify`, not after.** Same
+gap: `major|minor|patch` (and its aliases) was validated by `scripts/release.sh`'s
+own case statement, which only runs once `verify` already has. `check-release-bump`
+checks `$(MAKECMDGOALS)` for one of the six recognized words first, so a forgotten
+or misspelled bump word fails immediately.
+
 ## v0.23.3 — 2026-09-01
 
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball
