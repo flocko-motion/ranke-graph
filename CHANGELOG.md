@@ -7,6 +7,14 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`V-ARCHIVEHEIGHT` states why an archive's genesis branch-table has height
+1.** Its `contribution/contributor` edge is its only reference, resolving
+directly to the archive's initial claim, height 0 — the derivation
+`V-HISTCLAIM0` needs to anchor `V-HISTCHAIN`'s base case to true genesis
+rather than an arbitrary point in the chain, not just the number itself.
+`V-ROOT` now points to it as the concrete case of its own height-0/height-1
+split; `V-HISTCLAIM0` cites it instead of repeating the derivation.
+
 ## v0.23.5 — 2026-09-01
 
 **`fetch-ranke-docs.sh` also carries `TYPST_VERSION`.** It names the Typst
