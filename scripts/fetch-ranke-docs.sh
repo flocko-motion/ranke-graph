@@ -13,31 +13,35 @@
 # which spec a green run was measured against, which is how ranke-ts shipped a gate
 # reading six-day-old vectors. The stamp turns "is this current?" into a comparison.
 #
-# THREE MODES:
+# FIVE MODES:
 #
 #   (default)    fetch unconditionally — `make docs`, for when you want the copy
 #                replaced whatever the stamp says.
 #   --if-moved   fetch only when the remote ref has moved off the stamp, which is
 #                one 40-byte `git ls-remote` against a 1.8 MB clone. This is the
 #                mode `make verify` runs, so a gate cannot read a stale cache.
+#   --release R  fetch releases/download/R/ranke-docs.tar.gz (R "latest" for
+#                releases/latest/download/...) instead of cloning. No git at
+#                all — for a build that cannot clone, or a consumer that wants
+#                to trace to a released version rather than a branch tip, the
+#                same discipline tools/go.mod already holds ranke-go to. The
+#                tarball carries its own stamp (see --bundle), so --if-moved's
+#                freshness check reads a release-fetched tree exactly as it
+#                reads a cloned one.
 #   --place      write the vocabulary shims and touch nothing else. No network.
 #                ranke-graph itself runs this against its own working tree; a
 #                consumer needs it only to re-place after deleting a shim.
 #   --bundle F   pack the documents of the tree you are standing in into the
 #                tarball F. No network. ranke-graph's own `make docs-bundle`
-#                runs this; a consumer has no use for it.
+#                runs this, to publish what --release downloads; a consumer
+#                has no use for it.
 #
-# THE DOCUMENT SET IS DEFINED ONCE, in collect_documents() below, and both the
-# clone copy and --bundle go through it. A tarball and a clone therefore give
+# THE DOCUMENT SET IS DEFINED ONCE, in collect_documents() below, and the clone
+# copy and --bundle both go through it. A tarball and a clone therefore give
 # the same tree, so a gate cannot pass on one delivery path and fail on the
-# other.
-#
-# NO GIT: the same documents are published as a release asset,
-# releases/latest/download/ranke-docs.tar.gz, for a build that cannot clone. It
-# unpacks to the tree this script would have written, stamp included. What it
-# lacks is the cheap freshness question: --if-moved costs one 40-byte
-# git ls-remote, while a tarball's currency is a matter of which release you
-# took.
+# other — and --release, reading a tarball ranke-graph's own current script
+# built, cannot serve a tree assembled by a consumer's stale cached copy of
+# this file either.
 #
 # FAILING RATHER THAN GUESSING: --if-moved with no reachable remote cannot establish
 # freshness, so it fails instead of passing blind on whatever is on disk — the same
@@ -82,6 +86,11 @@
 #   docs-current: $(RANKE_FETCHER)
 #   	@RANKE_GRAPH_REF=$(RANKE_GRAPH_REF) PAPERS_DIR=$(PAPERS_DIR) DOCS_DIR=docs $(RANKE_FETCHER) --if-moved
 #
+#   RANKE_GRAPH_RELEASE ?= latest
+#
+#   docs-release: $(RANKE_FETCHER)
+#   	@PAPERS_DIR=$(PAPERS_DIR) DOCS_DIR=docs $(RANKE_FETCHER) --release $(RANKE_GRAPH_RELEASE)
+#
 # bin/ is gitignored: the script is fetched infrastructure, never vendored, so a
 # consumer cannot drift from the shared one.
 
@@ -96,13 +105,15 @@ stamp="$dir/.ranke-graph-sha"
 
 mode="fetch"
 bundle_out=""
+release_ref="latest"
 case "${1:-}" in
 	--if-moved) mode="if-moved" ;;
 	--place)    mode="place" ;;
 	--bundle)   mode="bundle"; bundle_out="${2:-}"
 	            [ -n "$bundle_out" ] || { echo "fetch-ranke-docs: --bundle needs a tarball path" >&2; exit 2; } ;;
+	--release)  mode="release"; release_ref="${2:-latest}" ;;
 	"")         ;;
-	*) echo "fetch-ranke-docs: unknown argument '$1' — the modes are --if-moved, --place and --bundle" >&2; exit 2 ;;
+	*) echo "fetch-ranke-docs: unknown argument '$1' — the modes are --if-moved, --place, --bundle and --release" >&2; exit 2 ;;
 esac
 
 # The files a gate opens. A stamp matching the remote says nothing about a copy
@@ -196,6 +207,43 @@ if [ "$mode" = "bundle" ]; then
 	mkdir -p "$(dirname "$bundle_out")"
 	tar -C "$work" -czf "$bundle_out" ranke-docs
 	echo ">> wrote $bundle_out — $(find "$work/ranke-docs" -type f | wc -l | tr -d ' ') file(s), $(du -h "$bundle_out" | cut -f1)"
+	exit 0
+fi
+
+if [ "$mode" = "release" ]; then
+	if [ "$release_ref" = "latest" ]; then
+		url="$repo/releases/latest/download/ranke-docs.tar.gz"
+	else
+		url="$repo/releases/download/$release_ref/ranke-docs.tar.gz"
+	fi
+	echo ">> fetching ranke-graph documents from $url"
+	tmp=$(mktemp -d)
+	trap 'rm -rf "$tmp"' EXIT
+	if ! curl -fsSL "$url" -o "$tmp/ranke-docs.tar.gz"; then
+		echo "fetch-ranke-docs: cannot fetch $url — check the release and the asset both exist" >&2
+		exit 1
+	fi
+	tar -C "$tmp" -xzf "$tmp/ranke-docs.tar.gz"
+
+	# Replaced whole, as the clone path replaces $dir whole: a paper withdrawn
+	# upstream must disappear here too.
+	rm -rf "$dir"
+	mkdir -p "$(dirname "$dir")"
+	mv "$tmp/ranke-docs" "$dir"
+
+	if ! have_gated; then
+		echo "fetch-ranke-docs: $url carries no spec/ranke-spec.typ and spec/rql.schema.json — the gates have nothing to read" >&2
+		exit 1
+	fi
+	if [ -n "$docs" ] && [ ! -f "$shared/vocabulary.typ" ]; then
+		echo "fetch-ranke-docs: $url carries no $shared/vocabulary.typ — DOCS_DIR has nothing to point at" >&2
+		exit 1
+	fi
+	# The tarball carries its own .ranke-graph-sha (--bundle wrote it), landing at
+	# $stamp with the rest of the tree — nothing to write here, and --if-moved
+	# reads it exactly as it reads a clone's.
+	place_shims
+	echo ">> pulled $(find "$dir" -name '*.typ' | wc -l | tr -d ' ') document(s) from $release_ref, stamped $(cat "$stamp" 2>/dev/null || echo 'unstamped')"
 	exit 0
 fi
 

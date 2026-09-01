@@ -7,6 +7,18 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball
+`docs-bundle` publishes was documented as usable by a consumer that cannot
+clone, but nothing in the script actually fetched it — every consumer still
+cloned `main` (or `--if-moved`'s cheap check against it) even for a build that
+wanted a released version. `--release R` (`R` a tag, or `latest`) downloads
+and unpacks `releases/.../ranke-docs.tar.gz` in place of the clone, no git
+required, and reads the tarball's own embedded stamp so `--if-moved`'s
+freshness check reads a release-fetched tree exactly as it reads a cloned
+one. A consumer pinning `R` to a tag traces its documents to a released
+version rather than to `main`'s tip — the discipline `tools/go.mod` already
+holds `ranke-go` to.
+
 ## v0.23.2 — 2026-09-01
 
 **The release bundle carries `docs-spec/`.** `ranke-docs.tar.gz` packed the
