@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.0 — 2026-09-01
+
 **The authoring guide says where the example tree is.** It told a reader to copy
 the directory without saying where to find it, and the fetcher does not deliver
 it — reasonably, since what the fetcher delivers is what a chapter imports,
