@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.6 — 2026-09-01
+
 **`V-ARCHIVEHEIGHT` states why an archive's genesis branch-table has height
 1.** Its `contribution/contributor` edge is its only reference, resolving
 directly to the archive's initial claim, height 0 — the derivation
