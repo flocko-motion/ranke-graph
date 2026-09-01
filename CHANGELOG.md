@@ -7,6 +7,51 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.4 — 2026-09-01
+
+**`make release` checks the tree is clean before `verify`, not after.**
+`release: verify` ran the whole gate — every paper, the schema check, both
+docs backends — before `scripts/release.sh`'s own first line ever asked
+whether the tree was even clean. `check-clean-tree` is now `release`'s first
+prerequisite: free and instant, so a dirty tree fails immediately rather than
+after a full build. Moved out of `release.sh` (redundant now) and its later
+steps renumbered down by one.
+
+**`make release` also checks the bump word before `verify`, not after.** Same
+gap: `major|minor|patch` (and its aliases) was validated by `scripts/release.sh`'s
+own case statement, which only runs once `verify` already has. `check-release-bump`
+checks `$(MAKECMDGOALS)` for one of the six recognized words first, so a forgotten
+or misspelled bump word fails immediately.
+
+**`scripts/release.sh` is now `scripts/release-cycle.sh`, shared across every
+consumer.** ranke-go, ranke-ts, ranke-db and ranke-graph each carried their own
+near-identical copy of the same release mechanics (branch resolution, the
+merge-then-tag dance, the wait for CI) — the two bugs just fixed above had to
+be hand-applied to four files because of it. What differs per repo (how the
+next version is decided, what must happen before the tag is cut) is now a
+convention, not a fork: a consumer drops `scripts/release-next-version.sh`,
+`scripts/release-pretag.sh`, and/or `scripts/release-feature-branch-only` at
+those fixed names, and this script picks them up. ranke-graph's own former
+changelog-stamping step is now its `scripts/release-pretag.sh`, unchanged in
+behaviour. See the script's own header for the full interface.
+
+**`V-TABLEREF` was blocking every Head History claim it should have allowed.**
+It restricted a `contribution/branches` claim's referrers to another
+`contribution/branches` claim, with no exception — but a `contribution/history`
+claim's `contribution/head` edge (`V-HISTCLAIM`) always names the archive's
+head, which is always a branch-table claim (`V-ARCHIVE`). Every history claim
+therefore failed verification the moment a real implementation checked one.
+`contribution/history`, through its `contribution/head` edge, is now a second
+permitted referrer.
+
+**`V-HISTADVANCE` is gone; `R-C6HISTORY` alone covers what it was for.**
+`V-HISTADVANCE` (v0.23.1) was misclassified `FORCED`: a `FORCED` rule must be
+decidable from a record or a closure, and this one was not, since a history
+claim sits outside both by design (`V-HISTREF`). What it required, the
+Sequencer writing a Head History entry at merge time, is `R-C6HISTORY`'s
+obligation already, correctly `FREE`. Keeping both would have restated the
+same requirement twice; `R-C6HISTORY` now states it in full on its own.
+
 ## v0.23.3 — 2026-09-01
 
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball

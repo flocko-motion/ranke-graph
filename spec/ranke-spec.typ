@@ -241,9 +241,11 @@ name.]
 #rule("V-ARCHIVE", FORCED)[An archive's head MUST be a `contribution/branches` claim.
 (foundation paper §Ranke-Archive)]
 
-#rule("V-TABLEREF", FORCED)[Only a `contribution/branches` claim may reference a
-`contribution/branches` claim, and only through its `contribution/diff` or
-`contribution/branches` edge (`R-C6MERGE`). (foundation paper §Branches)]
+#rule("V-TABLEREF", FORCED)[A `contribution/branches` claim's only referrers
+are another `contribution/branches` claim, through its `contribution/diff` or
+`contribution/branches` edge (`R-C6MERGE`), and a `contribution/history`
+claim, through its `contribution/head` edge. (foundation paper §Branches,
+§Head Index)]
 
 #rule("V-IDSEQ", FORCED)[$op("id")_"seq"(i, s) := H(S([i, s]))$: $i$ and $s$,
 CBOR Deterministic Encoded as a two-element array. A claim always serializes
@@ -260,10 +262,6 @@ recorded at that step. (foundation paper §Head Index)]
 
 #rule("V-HISTREF", FORCED)[An edge's `reference` MUST NOT resolve to a
 `contribution/history` claim (foundation paper §Head Index)]
-
-#rule("V-HISTADVANCE", FORCED)[Every archive advance $k arrow.r k'$ MUST be
-accompanied by a new `contribution/history` claim naming $k'$ at the next
-index (foundation paper §Head Index)]
 
 #rule("V-IDSEQVERIFY", FORCED)[A `contribution/history` claim fetched at
 $op("id")_"seq"(i, s)$ MUST carry `history_index` equal to $i$; a mismatch is
@@ -347,9 +345,10 @@ chain beyond it stays reachable. Its `contribution/branch` edges MUST name, for 
 they bind, the head claims of the contribution merged there. (RankeDB paper
 §Sequencer, step 6)]
 
-#rule("R-C6HISTORY", FREE)[Step 6 is where the archive advance happens, so it
-is where the Sequencer writes the next Head History entry (`V-HISTADVANCE`).
-(RankeDB paper §Sequencer, step 6)]
+#rule("R-C6HISTORY", FREE)[Step 6, where the archive advance $k arrow.r k'$
+happens, MUST also write the next Head History entry: a `contribution/history`
+claim naming $k'$ at the next index. (RankeDB paper §Sequencer, step 6;
+foundation paper §Head Index)]
 
 #rule("R-C6REQUEST", FREE)[Every request a merged contribution carries (`R-C2TYPE`)
 MUST produce its limiting claim in the same merge. That claim MUST carry the same
