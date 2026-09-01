@@ -116,10 +116,15 @@ have_gated() {
 	done
 }
 
-# THE DOCUMENT SET. The numbered paper directories, shared/, spec/, glossary/
-# and the licence — with figure sources, working notes and built PDFs left out.
-# No gate reads any of those, and 02-ranke-db/drawio alone was 968 KB of the
-# 976 KB a full copy carried; without it the whole set is 117 KB.
+# THE DOCUMENT SET. The numbered paper directories, shared/, spec/, docs-spec/,
+# glossary/ and the licence — with figure sources, working notes and built PDFs
+# left out. No gate reads any of those, and 02-ranke-db/drawio alone was 968 KB
+# of the 976 KB a full copy carried; without it the whole set is 117 KB.
+#
+# docs-spec/examples/ ships too: it is the worked example the specification
+# points at (a reference chapter tree, a stub HTML backend), and every backend
+# author needs it. Leaving it out forced a consumer to fetch the fixture file
+# by file through the GitHub trees API instead of reading it from the release.
 #
 # ranke-graph's own docs/ tree is absent on purpose: its chapters import a
 # `vocabulary.typ` that would not resolve where they landed, so a copy here is a
@@ -128,19 +133,24 @@ have_gated() {
 # Hidden entries are dropped too. A clone carries none inside the document set,
 # but --bundle reads a working tree, which carries whatever a local tool left
 # there — and a release must ship the documents, not somebody's editor state.
+# The same reasoning excludes the two gitignored shims `make docs-place` writes
+# into the example tree: a consumer supplies those themselves (the format's own
+# design), so shipping a local dev's copy would ship the wrong ones.
 doc_excludes=(
 	--exclude=drawio
 	--exclude=notes.md
 	--exclude=quotes.md
 	--exclude='*.pdf'
 	--exclude='.*'
+	--exclude='docs-spec/examples/docs-tree/vocabulary.typ'
+	--exclude='docs-spec/examples/docs-tree/handbook.typ'
 )
 
 collect_documents() {
 	local src="$1" dst="$2"
 	local members=() d
 	for d in "$src"/[0-9]*-*/; do [ -d "$d" ] && members+=("$(basename "$d")"); done
-	for d in shared spec glossary; do [ -d "$src/$d" ] && members+=("$d"); done
+	for d in shared spec docs-spec glossary; do [ -d "$src/$d" ] && members+=("$d"); done
 	[ -f "$src/LICENSE" ] && members+=(LICENSE)
 	[ ${#members[@]} -gt 0 ] || { echo "fetch-ranke-docs: $src holds no documents" >&2; return 1; }
 	mkdir -p "$dst"

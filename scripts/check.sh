@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-TYPST_VERSION=0.15.0
+TYPST_VERSION="$(cat "$(dirname "$0")/../TYPST_VERSION")"
 
 if ! command -v typst > /dev/null 2>&1; then
 	case "$(uname -m)" in

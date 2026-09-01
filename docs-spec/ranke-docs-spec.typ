@@ -386,6 +386,17 @@ chapter author writes.
 not the source: `--input version=v0.21.0`. Absent, a handbook says `dev`, which
 is what a working copy should say.]
 
+#rule("G-TYPST", BUILD)[The Typst compiler version a part repository built its
+release with is published as a plain-text file attached beside the release
+asset, one line, e.g. `0.13.0`.]
+
+A reusable check for the pin ships beside this specification:
+`docs-spec/scripts/check-typst-upgrade.sh` compares a repository's own
+`TYPST_VERSION` against Typst's latest release and reports the difference. It
+never writes the file itself — bumping the pin is a decision a maintainer
+makes, not a script. Copy it into a part repository the same way as the
+reference tree (@sec:annex), and wire it to a `make upgrade` target of its own.
+
 The targets in this repository, which a part repository mirrors:
 
 #listing[
