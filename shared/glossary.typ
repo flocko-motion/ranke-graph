@@ -124,6 +124,12 @@
   (key: "ranke-archive", short: "Ranke-Archive", group: "01 · Ranke-Graph",
    description: [$"RA"_k$, a Ranke-Graph whose head $cal(U)(k)$ is a branch-table claim; the tuple $(cal(U), k)$ of the Universe and a head id. Adding yields a new tuple $(cal(U)', k')$ — nothing is mutated. (foundation paper §Ranke-Archive)]),
 
+  (key: "head-index", short: "head index", group: "01 · Ranke-Graph",
+   description: [The second address scheme $op("id")_"seq"(i, s) := H(i, s)$, keyed on a #gls("history-seed") $s$, naming the `contribution/history` claim recorded at step $i$ — computable without already knowing the archive's current head. (foundation paper §Head Index)]),
+
+  (key: "history-seed", short: "history seed", group: "01 · Ranke-Graph",
+   description: [An arbitrary value $s$ chosen once, when a history begins, with no meaning beyond avoiding collision with another history's seed; the second input to #gls("head-index")'s $op("id")_"seq"(i, s)$. (foundation paper §Head Index)]),
+
   (key: "consolidating-head", short: "consolidating head", group: "01 · Ranke-Graph",
    description: [A `contribution/head` claim with edges to every open head, gathering them into a single head. (foundation paper §Consolidation)]),
 

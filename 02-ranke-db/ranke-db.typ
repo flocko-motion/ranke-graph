@@ -152,7 +152,7 @@ At its centre, the core wraps the library that implements the Ranke-Graph ADT (@
   ) <fig:adapters>
 ]
 
-Choosing this architecture is the answer to R2: every port is a narrow contract: the blob store has three functions (@sec:blob), the Sequencer's persistence adapter three (@sec:Sequencer). Supporting a new backend is therefore a small adapter, and RankeDB's adapters can be read at a glance. _Discharges R2._
+Choosing this architecture is the answer to R2: every port is a narrow contract, e.g. the blob store three functions (@sec:blob). Supporting a new backend is therefore a small adapter, and RankeDB's adapters can be read at a glance. _Discharges R2._
 
 The combination and configuration of the adapters into a runnable instance of ranke-db is done using a config file. Such a configuration specifies one single instance, the analogue to a single Database within e.g. a Postgres service. One statically defined instance per configuration keeps the technology simple and maintainable; a management layer for administering multiple such instances (configuring them, and starting, stopping, or monitoring them) can be implemented on top of this.
 
@@ -264,7 +264,7 @@ _Discharges R6._
 == Sequencer <sec:Sequencer>
 
 The foundation paper defines how an archive advances under addition: a contribution takes the tuple $(cal(U), k)$ to a new $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$, superseding the head id $k$ rather than mutating it (§Ranke-Archive). The *Sequencer* is RankeDB's mechanism realising the archive's advance. It maintains the sequence of head ids $k_0, k_1, dots, k_n$ (its latest $k_n$ the head read from and appended to) under concurrent reads from and writes to its branches by many clients, and guards the *structural* validity invariant by verifying every contribution before it merges.
-A corrupted head id, or one pointing at a claim that failed to persist in the storage backend, would leave the graph unretrievable. The claims remain in the Universe, but finding the right head among millions of claims can be costly or even impossible without enumeration. For that reason the RankeDB _Sequencer_ keeps the whole *history* of the head, thus allowing rollbacks to previous states. That history is held in the Sequencer's *persistence adapter*, a narrow port with three operations: read the latest or an earlier head, its length, and append.
+A corrupted head id, or one pointing at a claim that failed to persist in the storage backend, would leave the graph unretrievable. The claims remain in the Universe, but finding the right head among millions of claims can be costly or even impossible without enumeration. The foundation paper's *Head History* (§Head Index) solves this inside the Universe itself: each advance is recorded as a `contribution/history` claim addressed by $op("id")_"seq"(i, s)$, so the Sequencer recovers the latest head by search and any earlier one by direct lookup — no separate port, no state kept outside the graph.
 
 At the claim level, that advance is the foundation's construction: a set $C$, each claim created atomically (§Claims), gathered under a new consolidating head, yields $"RG"_(k') = "closure"(k', cal(U)')$ with $cal(U) subset.eq cal(U)'$, $C subset.eq cal(U)'$, $"RG"_k subset.eq "RG"_(k')$, and $"valid"("RG"_k) arrow.r.double "valid"("RG"_(k'))$ by construction (§Consolidation, §Validity). A single such addition can merge any number of claims, and each claim carries its whole referenced closure into the graph.  
 
@@ -275,7 +275,7 @@ As adding an arbitrarily large set of claims (the _'contribution'_) can be time-
 3) Completing: the contribution is _closed_; each claim's references are followed, drawing in any referenced claim outside it (from another branch of the archive or the wider Universe) together with their limiting claims (@sec:crossbranch), recursively, until every path reaches a claim already in the base's closure. Read access to all branch-external claims is required. 
 4) Verifying: every claim in the closed contribution is verified against the base, and the contribution _sealed_: its contents fixed, so by immutability whatever verified stays valid however long it waits. In practice completion and verification run as one traversal: the walk that follows a claim's references also checks it.
 5) Persisting: the sealed contribution is written to the Universe (content addressing stores only the claims and content not already present) and propagated across the storage layers (@sec:composition), so its whole closure is durably present before the head advances.
-6) Merging: the Sequencer references the contribution's head claim(s) in a new branch-table claim and advances the head, $k arrow.r k'$; the contribution becomes part of the target branch from that moment.
+6) Merging: the Sequencer references the contribution's head claim(s) in a new branch-table claim and advances the head, $k arrow.r k'$, recording it as the next Head History entry (foundation paper §Head Index); the contribution becomes part of the target branch from that moment.
 
 Any step failing results in the rejection of the contribution. 
 
