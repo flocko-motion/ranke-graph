@@ -70,7 +70,7 @@ PDFS := \
   $(PDF_DIR)/ranke-spec.pdf \
   $(PDF_DIR)/ranke-docs-spec.pdf
 
-.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle upgrade constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle release major minor patch breaking feature fix
+.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle upgrade constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle check-clean-tree release major minor patch breaking feature fix
 
 ##@ Documents
 
@@ -314,10 +314,16 @@ testdata-bundle: ## pack those artifacts as dist/ranke-testdata.tar.gz for relea
 
 ##@ Release
 
-# Cut a release: verify → clean tree → merge to the default branch via PR → tag
+# Cut a release: clean tree → verify → merge to the default branch via PR → tag
 # the merged tip → push the tag (which triggers release.yml) → return to your
 # branch. Usage: make release <major|minor|patch> (aliases: breaking|feature|fix).
-release: verify ## make release <major|minor|patch> — verify, merge to the default branch, tag, push
+#
+# check-clean-tree first, ahead of verify: a dirty tree is a free, instant check,
+# and verify is not — failing on it should not cost a build first.
+check-clean-tree:
+	@[ -z "$$(git status --porcelain)" ] || { echo "working tree is dirty — commit or stash before releasing" >&2; exit 1; }
+
+release: check-clean-tree verify ## make release <major|minor|patch> — verify, merge to the default branch, tag, push
 	@./scripts/release.sh $(filter major minor patch breaking feature fix,$(MAKECMDGOALS))
 
 # Absorb the positional bump word in `make release <bump>` so it isn't treated

@@ -21,15 +21,9 @@ case "$bump" in
 		;;
 esac
 
-# 1. Clean tree — a release must capture a committed state.
-if [ -n "$(git status --porcelain)" ]; then
-	echo "working tree is dirty — commit or stash before releasing" >&2
-	exit 1
-fi
-
 git fetch --tags --force origin >/dev/null 2>&1 || true
 
-# 2. The version this run will cut, computed before anything is merged so the
+# 1. The version this run will cut, computed before anything is merged so the
 #    changelog can be checked against it. Bump from the latest RELEASE tag,
 #    ignoring non-semver and prerelease tags.
 # `|| true`: on the first release there are no tags, so grep matches nothing and
@@ -49,7 +43,7 @@ default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null
 default="${default:-main}"
 start="$(git rev-parse --abbrev-ref HEAD)"
 
-# 3. The changelog names the release being cut, so the tagged tree carries it.
+# 2. The changelog names the release being cut, so the tagged tree carries it.
 #    An "## Unreleased" heading is stamped and committed here, on the branch
 #    being released, so the merge carries it to the tag. A fresh empty one is
 #    left in its place, so the next change always has a section to write into
@@ -96,7 +90,7 @@ esac
 trap 'git checkout --quiet "$start" 2>/dev/null || true' EXIT
 
 if [ "$start" != "$default" ]; then
-	# 4. Feature branch: push it, open a PR if there isn't one, and merge it into
+	# 3. Feature branch: push it, open a PR if there isn't one, and merge it into
 	#    the default branch — without switching this checkout — so the tag comes
 	#    off the merged tip.
 	if ! command -v gh >/dev/null; then
@@ -140,12 +134,12 @@ else
 	target="HEAD"
 fi
 
-# 5. Tag the merged tip and push the tag.
+# 4. Tag the merged tip and push the tag.
 echo "tagging ${latest} -> ${next} on ${default}"
 git tag -a "$next" "$target" -m "release $next"
 git push origin "$next"
 
-# 6. Wait for the tag-triggered release workflow, so a failed build or publish
+# 5. Wait for the tag-triggered release workflow, so a failed build or publish
 #    surfaces here instead of silently. Match the run by the tagged commit's SHA
 #    (reliable for tag pushes, where headBranch is unset).
 if command -v gh >/dev/null; then

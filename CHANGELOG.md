@@ -7,6 +7,14 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`make release` checks the tree is clean before `verify`, not after.**
+`release: verify` ran the whole gate — every paper, the schema check, both
+docs backends — before `scripts/release.sh`'s own first line ever asked
+whether the tree was even clean. `check-clean-tree` is now `release`'s first
+prerequisite: free and instant, so a dirty tree fails immediately rather than
+after a full build. Moved out of `release.sh` (redundant now) and its later
+steps renumbered down by one.
+
 ## v0.23.3 — 2026-09-01
 
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball
