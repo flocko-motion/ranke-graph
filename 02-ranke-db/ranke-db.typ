@@ -147,7 +147,7 @@ At its centre, the core wraps the library that implements the Ranke-Graph ADT (@
   )
   #figure(
     placement: auto,
-    image("drawio/architecture.drawio.png", width: 100%),
+    image("drawio/architecture.svg", width: 100%),
     caption: [RankeDB as a hexagonal core wrapping the ranke-graph library: six independent adapter ports, each shown with the backends RankeDB ships, and configuration entering as the launch artifact rather than a port.],
   ) <fig:adapters>
 ]
@@ -264,7 +264,7 @@ _Discharges R6._
 == Sequencer <sec:Sequencer>
 
 The foundation paper defines how an archive advances under addition: a contribution takes the tuple $(cal(U), k)$ to a new $(cal(U)', k')$ with $cal(U) subset.eq cal(U)'$, superseding the head id $k$ rather than mutating it (§Ranke-Archive). The *Sequencer* is RankeDB's mechanism realising the archive's advance. It maintains the sequence of head ids $k_0, k_1, dots, k_n$ (its latest $k_n$ the head read from and appended to) under concurrent reads from and writes to its branches by many clients, and guards the *structural* validity invariant by verifying every contribution before it merges.
-A corrupted head id, or one pointing at a claim that failed to persist in the storage backend, would leave the graph unretrievable. The claims remain in the Universe, but finding the right head among millions of claims can be costly or even impossible without enumeration. The foundation paper's *Head History* (§Head Index) solves this inside the Universe itself: each advance is recorded as a `contribution/history` claim addressed by $op("id")_"seq"(i, s)$, so the Sequencer recovers the latest head by search and any earlier one by direct lookup — no separate port, no state kept outside the graph.
+A corrupted head id, or one pointing at a claim that failed to persist in the storage backend, would leave the graph unretrievable. The claims remain in the Universe, but finding the right head among millions of claims can be costly or even impossible without enumeration. The foundation paper's *Head History* (§Head Index) solves this inside the Universe itself: each advance is recorded as a `contribution/history` claim addressed by $op("id")_"seq"(i, s)$, so the Sequencer recovers the latest head by search and any earlier one by direct lookup.
 
 At the claim level, that advance is the foundation's construction: a set $C$, each claim created atomically (§Claims), gathered under a new consolidating head, yields $"RG"_(k') = "closure"(k', cal(U)')$ with $cal(U) subset.eq cal(U)'$, $C subset.eq cal(U)'$, $"RG"_k subset.eq "RG"_(k')$, and $"valid"("RG"_k) arrow.r.double "valid"("RG"_(k'))$ by construction (§Consolidation, §Validity). A single such addition can merge any number of claims, and each claim carries its whole referenced closure into the graph.  
 
