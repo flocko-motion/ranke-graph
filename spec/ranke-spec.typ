@@ -141,8 +141,11 @@ in the closure, and MUST reference a *claim*, never an edge. (foundation paper
 
 #rule("V-ROOT", FORCED)[Every claim MUST either be an *initial claim* (one with
 no references) or carry exactly one `contribution/contributor` edge. Several initial
-claims are admitted, as a federated merge of independent lines produces. (foundation
-paper §Ranke-Graph, §Validity, §Provenance)]
+claims are admitted, as a federated merge of independent lines produces. A
+claim without a `contribution/contributor` edge has height 0; one with the
+edge has height at least 1. `V-ARCHIVEHEIGHT` names the claim that reaches
+exactly that minimum: an archive's first branch-table. (foundation paper
+§Ranke-Graph, §Validity, §Provenance)]
 
 #rule("V-CONTENT", FORCED)[If a claim declares content, it MUST carry both
 `content_size` (its exact byte length) and `encoding` (its media type). Inline
@@ -241,6 +244,11 @@ name.]
 #rule("V-ARCHIVE", FORCED)[An archive's head MUST be a `contribution/branches` claim.
 (foundation paper §Ranke-Archive)]
 
+#rule("V-ARCHIVEHEIGHT", FORCED)[An archive's first branch-table claim MUST
+have height 1: its `contribution/contributor` edge is its only reference,
+resolving to the archive's initial claim, height 0. (foundation paper
+§Ranke-Archive, §Nodes)]
+
 #rule("V-TABLEREF", FORCED)[A `contribution/branches` claim's only referrers
 are another `contribution/branches` claim, through its `contribution/diff` or
 `contribution/branches` edge (`R-C6MERGE`), and a `contribution/history`
@@ -258,8 +266,9 @@ further convention to state. (foundation paper §Head Index)]
 recorded at that step. (foundation paper §Head Index)]
 
 #rule("V-HISTCLAIM0", FORCED)[The claim at $i = 0$ MUST carry `history_seed`
-with the value $s$ its address scheme is keyed on, and MUST reference a claim
-of type `contribution/branches` of height 1. (foundation paper §Head Index)]
+with the value $s$ its address scheme is keyed on, and MUST reference the
+archive's first branch-table claim, height 1 (`V-ARCHIVEHEIGHT`). (foundation
+paper §Head Index)]
 
 #rule("V-HISTCHAIN", FORCED)[The head named by the `contribution/history`
 claim at $op("id")_"seq"(i, s)$, walked back exactly $i$ steps along its own
