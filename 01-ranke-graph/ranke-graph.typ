@@ -27,9 +27,10 @@
 //   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
 // A later archive is a new tuple (U', k'); nothing is mutated in place.
 // "branch-table header (BTH)" is just the head claim U(k) of an archive.
-//   id_seq(i, s) := H(i, s) — second address scheme; s an arbitrary per-history
-//     seed. id_seq(0, s) is what's kept for recovery, self-describing as to
-//     hash algo (§Head Index).
+//   id_seq(i, s) := H(i, s) — second address scheme; s a per-history seed.
+//   hist_i := id_seq(i, s) — the id of the Head History's i-th claim. hist_0
+//     is what's kept for recovery, self-describing as to hash algo, and s is
+//     read out of U(hist_0) (§Head Index).
 // ─────────────────────────────────────────────────────────────────────
 
 #show: paper.with(
@@ -313,8 +314,7 @@ Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without knowing th
 
 Nothing else in the graph references a history claim: it is reached only through $op("id")_"seq"(i, s)$, so the log stays a parallel structure the ordinary closure never crosses.
 
-The *history seed* $s$ is a random string defined once in the first claim of the sequence. Knowing $k_0$, the id_seq of the first claim in the history sequence, 
-allows fetching that claim and the contained $s$ to then lookup any entry in the history at $op("id")_"seq"(i, s)$. 
+The *history seed* $s$ is fixed once per history, distinct from any other history's, so the two never share a slot. $"hist"_0$, the id of the sequence's first claim, is what is kept for recovery: fetching $cal(U)("hist"_0)$ yields $s$, and every entry of the history is then addressable at $"hist"_i$.
 
 Because presence is monotone in $i$ (advances are sequential, without gaps), the current head is found by doubling ($i = 1, 2, 4, dots$) until a miss, then binary search between the last hit and the first miss — $O(log n)$ lookups needing nothing from storage beyond presence and retrieval by key.
 
@@ -436,7 +436,7 @@ Properties that follow from the structure beyond the desiderata.
 
 == Backup <sec:hash-backup>
 
-*Emerges from @sec:merkle + @sec:verifiability.* A single head id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$. The id of the Head History's first claim (@sec:head-index) recovers the sequence of pointers that reference the $k_i$ over time, which can each recover the referenced archives the same way.
+*Emerges from @sec:merkle + @sec:verifiability.* A single head id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$. $"hist"_0$ (@sec:head-index) recovers the sequence of pointers that reference the $k_i$ over time, which can each recover the referenced archives the same way.
 
 == Composing the Universe <sec:composable>
 
