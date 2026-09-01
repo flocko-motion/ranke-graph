@@ -7,6 +7,13 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`fetch-ranke-docs.sh` also carries `TYPST_VERSION`.** It names the Typst
+release that renders the fetched documents correctly (`shared/handbook.typ`
+among them), which makes it a fact about the fetch, the same as
+`vocabulary.typ` already is — not a pin a consumer decides and maintains on
+its own. That let one part repo's copy silently drift from ranke-graph's;
+`ranke-website`'s downstream feedback caught it before `G-TYPST` did.
+
 ## v0.23.4 — 2026-09-01
 
 **`make release` checks the tree is clean before `verify`, not after.**

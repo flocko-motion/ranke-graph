@@ -128,14 +128,21 @@ have_gated() {
 }
 
 # THE DOCUMENT SET. The numbered paper directories, shared/, spec/, docs-spec/,
-# glossary/ and the licence — with figure sources, working notes and built PDFs
-# left out. No gate reads any of those, and 02-ranke-db/drawio alone was 968 KB
-# of the 976 KB a full copy carried; without it the whole set is 117 KB.
+# glossary/, TYPST_VERSION and the licence — with figure sources, working notes
+# and built PDFs left out. No gate reads any of those, and 02-ranke-db/drawio
+# alone was 968 KB of the 976 KB a full copy carried; without it the whole set
+# is 117 KB.
 #
 # docs-spec/examples/ ships too: it is the worked example the specification
 # points at (a reference chapter tree, a stub HTML backend), and every backend
 # author needs it. Leaving it out forced a consumer to fetch the fixture file
 # by file through the GitHub trees API instead of reading it from the release.
+#
+# TYPST_VERSION travels with the papers, not separately: it names the Typst
+# release that renders THESE documents (shared/handbook.typ among them)
+# correctly, so it is a fact about this fetch, the same as vocabulary.typ is —
+# not a pin a consumer decides and maintains on its own, which is what let
+# ranke-db's copy drift silently until something downstream noticed.
 #
 # ranke-graph's own docs/ tree is absent on purpose: its chapters import a
 # `vocabulary.typ` that would not resolve where they landed, so a copy here is a
@@ -163,6 +170,7 @@ collect_documents() {
 	for d in "$src"/[0-9]*-*/; do [ -d "$d" ] && members+=("$(basename "$d")"); done
 	for d in shared spec docs-spec glossary; do [ -d "$src/$d" ] && members+=("$d"); done
 	[ -f "$src/LICENSE" ] && members+=(LICENSE)
+	[ -f "$src/TYPST_VERSION" ] && members+=(TYPST_VERSION)
 	[ ${#members[@]} -gt 0 ] || { echo "fetch-ranke-docs: $src holds no documents" >&2; return 1; }
 	mkdir -p "$dst"
 	tar -C "$src" -cf - "${doc_excludes[@]}" "${members[@]}" | tar -C "$dst" -xf -
