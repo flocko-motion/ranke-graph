@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.5 — 2026-09-01
+
 **`fetch-ranke-docs.sh` also carries `TYPST_VERSION`.** It names the Typst
 release that renders the fetched documents correctly (`shared/handbook.typ`
 among them), which makes it a fact about the fetch, the same as
