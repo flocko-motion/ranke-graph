@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.1 — 2026-09-01
+
 **A Ranke-Archive's head history is addressed independently of content.** The
 foundation paper adds a second identity function, `id_seq(i, s)`, keyed on a
 step and a per-history seed rather than on a claim's own bytes. A
