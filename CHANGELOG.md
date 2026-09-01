@@ -14,6 +14,17 @@ among them), which makes it a fact about the fetch, the same as
 its own. That let one part repo's copy silently drift from ranke-graph's;
 `ranke-website`'s downstream feedback caught it before `G-TYPST` did.
 
+**`V-HISTCHAIN` verifies Head History traces back to this archive's own
+genesis.** Signature checking alone cannot catch a `contribution/history`
+claim signed by, or pointing into, an unrelated graph: a foreign
+contributor's signature verifies exactly as cleanly as a local one. Walking
+the head a history claim names back exactly $i$ steps along its own
+`contribution/diff`/`contribution/branches` predecessor edges, and checking
+it reaches the head named at `id_seq(0, s)`, roots the check in this
+archive's own seed instead — the one thing a foreign claim can't share.
+`V-HISTCLAIM0` now also requires that anchor to be a `contribution/branches`
+claim of height 1, the archive's genesis table.
+
 ## v0.23.4 — 2026-09-01
 
 **`make release` checks the tree is clean before `verify`, not after.**
