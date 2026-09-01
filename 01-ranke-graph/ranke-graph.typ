@@ -290,7 +290,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is a key/value store. An envelope is stored content-addressed, under its id $k$ (retrieved as $cal(U)(k)$), except a `contribution/history` claim (@sec:head-index), keyed instead under $op("id")_"seq"(i, s)$. *Externalised content* (@sec:content) is stored under its hash $h = H(c)$ (as $cal(U)(h)$).
+$cal(U)$, the *Universe*, is a key/value store. An envelope is stored content-addressed, under its id $k$ (retrieved as $cal(U)(k)$), except a `contribution/history` claim (@sec:head-index), keyed instead under $op("id")_"seq"(i, s)$. *Externalised content* (@sec:content) is stored under its hash $h = H(c)$ (as $cal(U)(h)$). 
 A *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
@@ -353,7 +353,7 @@ Traversal terminates at *one or more* initial claims: a graph grown from a singl
 
 == Immutability <sec:immutability>
 
-Closure from $k$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With monotonicity of $cal(U)$ (@sec:universe), recovery from $k$ yields the same $"RG"_k$ forever.
+Closure from $k$ is deterministic (@sec:head); under collision-resistance of $H$ (@sec:merkle), modifying $S(v)$ produces a different claim. With $cal(U)$'s content-addressed keys never changing once written (@sec:universe), recovery from $k$ yields the same $"RG"_k$ forever.
 
 #dref[D2, this section]
 
@@ -436,7 +436,7 @@ Properties that follow from the structure beyond the desiderata.
 
 == Backup <sec:hash-backup>
 
-*Emerges from @sec:merkle + @sec:verifiability.* $op("id")_"seq"(0, s)$, naming the first claim in the Head History (@sec:head-index), recovers and verifies $"RG"_k$ from any replica of $cal(U)$.
+*Emerges from @sec:merkle + @sec:verifiability.* A single head id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$. The id of the Head History's first claim (@sec:head-index) recovers the sequence of pointers that reference the $k_i$ over time, which can each recover the referenced archives the same way.
 
 == Composing the Universe <sec:composable>
 

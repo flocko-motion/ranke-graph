@@ -7,6 +7,17 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.7 — 2026-09-01
+
+**§Backup states two recovery paths, not one conflated with the other.** A
+single head id $k$ recovers and verifies $RG_k$ directly. The id of the Head
+History's first claim recovers the seed instead, from which the sequence of
+per-step pointers can be looked up and each referenced archive recovered the
+same way — not, as an earlier pass said, a direct route to "whichever head
+the archive currently holds." RankeDB's `$universe` access right is worded to
+match: "an id kept outside RankeDB," not "a head id," since the Head
+History's first-claim id isn't a head id either.
+
 ## v0.23.6 — 2026-09-01
 
 **`V-ARCHIVEHEIGHT` states why an archive's genesis branch-table has height
