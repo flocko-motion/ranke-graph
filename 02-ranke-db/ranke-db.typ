@@ -330,7 +330,7 @@ Access control is a set of *system accounts* defined in the configuration, each 
 
 Special targets carry a `$` prefix, and each names one server-wide surface, so a grant over one is highly privileged. Because `$` is illegal in ordinary branch names, no glob matches a `$`-name and none of this is conferred by accident.
 
-- `$universe`: *R* over the whole Universe, including claims outside the current archive. Addressing a graph by head id alone bypasses the branch table, which is what makes it privileged and what makes it indispensable: restoring a backup may begin with nothing but a Universe and a head id kept outside RankeDB.
+- `$universe`: *R* over the whole Universe, including claims outside the current archive. Addressing a graph by head id alone bypasses the branch table, which is what makes it privileged and what makes it indispensable: restoring a backup may begin with nothing but a Universe and an id kept outside RankeDB.
 - `$archive`: *R* over the archive in its current state.
 - `$branches`: the branch tables. *C* contributes a new table, which is how a branch is created, repointed, or hidden; *R* enumerates the current table.
 
