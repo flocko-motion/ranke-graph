@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.2 — 2026-09-01
+
 **The release bundle carries `docs-spec/`.** `ranke-docs.tar.gz` packed the
 numbered papers, `shared/`, `spec/`, and `glossary/`, but not `docs-spec/` — so
 the worked example the specification points a backend author at (a reference
