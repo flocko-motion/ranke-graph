@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.3 — 2026-09-01
+
 **`fetch-ranke-docs.sh` gains a `--release R` mode.** The release tarball
 `docs-bundle` publishes was documented as usable by a consumer that cannot
 clone, but nothing in the script actually fetched it — every consumer still
