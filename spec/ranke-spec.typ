@@ -257,8 +257,14 @@ further convention to state. (foundation paper §Head Index)]
 `history_index` (the step $i$) and a `contribution/head` edge naming the head
 recorded at that step. (foundation paper §Head Index)]
 
-#rule("V-HISTCLAIM0", FORCED)[The claim at $i = 0$ MUST carry `history_seed` with the value $s$ its address scheme is keyed on.
-(foundation paper §Head Index)]
+#rule("V-HISTCLAIM0", FORCED)[The claim at $i = 0$ MUST carry `history_seed`
+with the value $s$ its address scheme is keyed on, and MUST reference a claim
+of type `contribution/branches` of height 1. (foundation paper §Head Index)]
+
+#rule("V-HISTCHAIN", FORCED)[The head named by the `contribution/history`
+claim at $op("id")_"seq"(i, s)$, walked back exactly $i$ steps along its own
+`contribution/diff`/`contribution/branches` predecessor edges, MUST reach the
+head named at $op("id")_"seq"(0, s)$. (foundation paper §Head Index)]
 
 #rule("V-HISTREF", FORCED)[An edge's `reference` MUST NOT resolve to a
 `contribution/history` claim (foundation paper §Head Index)]
