@@ -271,7 +271,7 @@ archive's first branch-table claim, height 1 (`V-ARCHIVEHEIGHT`). (foundation
 paper §Head Index)]
 
 #rule("V-HISTCHAIN", FORCED)[The head named by the `contribution/history`
-claim at $op("id")_"seq"(i, s)$, walked back exactly $i$ steps along its own
+claim at $op("id")_"seq"(i, s)$, walked back along its own
 `contribution/diff`/`contribution/branches` predecessor edges, MUST reach the
 head named at $op("id")_"seq"(0, s)$. (foundation paper §Head Index)]
 

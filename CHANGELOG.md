@@ -7,6 +7,16 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`V-HISTCHAIN` admits a Head History with gaps.** The walk-back from the
+head named at index $i$ to the one named at index $0$ now only needs to
+reach it, at whatever distance the intervening advances left — previously it
+had to land exactly $i$ predecessor steps back, which only holds if every
+single archive advance gets its own entry. That was a portable, `FORCED`
+requirement; writing on every advance is `R-C6HISTORY`, RankeDB's own
+choice (`FREE`), so the ADT-level rule shouldn't have assumed it. RankeDB's
+own history still stays gapless; another implementation MAY now batch
+entries and still verify.
+
 ## v0.23.7 — 2026-09-01
 
 **§Backup states two recovery paths, not one conflated with the other.** A
