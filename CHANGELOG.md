@@ -7,6 +7,25 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.23.2 — 2026-09-01
+
+**The release bundle carries `docs-spec/`.** `ranke-docs.tar.gz` packed the
+numbered papers, `shared/`, `spec/`, and `glossary/`, but not `docs-spec/` — so
+the worked example the specification points a backend author at (a reference
+chapter tree, a stub HTML backend) was reachable only by fetching it file by
+file through the GitHub trees API. It is in the bundle now, the two gitignored
+shims a consumer supplies themselves excluded.
+
+**Part repositories publish the Typst version they built with.** `G-TYPST`
+(docs-spec) requires it: a plain-text file, one line, attached beside the
+release asset — not a fact a consumer has to read a Makefile to find.
+`ranke-graph` follows its own rule: `TYPST_VERSION` at the repository root is
+now the one pin `scripts/check.sh`, the release workflow, and
+`dist/TYPST_VERSION` all read, replacing three copies that could drift apart.
+`docs-spec/scripts/check-typst-upgrade.sh` ships beside the specification for
+a part repository to copy: it checks a pin against Typst's latest release and
+reports the difference, never writing it.
+
 ## v0.23.1 — 2026-09-01
 
 **A Ranke-Archive's head history is addressed independently of content.** The

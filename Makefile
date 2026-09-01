@@ -30,7 +30,12 @@
 # Both examples are fixtures rather than documentation: the gate compiles the
 # tree through each backend, and neither is released.
 
-TYPST   := typst
+# The one file every build, script, and workflow reads the pinned Typst
+# version from (G-TYPST, docs-spec): `scripts/check.sh` and
+# .github/workflows/release.yml both read it too, so the pin lives in one
+# place rather than three that can drift apart.
+TYPST_VERSION := $(shell cat TYPST_VERSION)
+TYPST         := typst
 SHARED  := shared/template.typ shared/vocabulary.typ shared/typography.typ \
            shared/constructs.typ shared/sources.bib
 PDF_DIR := pdf
@@ -65,7 +70,7 @@ PDFS := \
   $(PDF_DIR)/ranke-spec.pdf \
   $(PDF_DIR)/ranke-docs-spec.pdf
 
-.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle release major minor patch breaking feature fix
+.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle upgrade constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle release major minor patch breaking feature fix
 
 ##@ Documents
 
@@ -149,6 +154,11 @@ DOCS_BUNDLE := dist/ranke-docs.tar.gz
 
 docs-bundle: ## pack the documents as dist/ranke-docs.tar.gz for release
 	@./scripts/fetch-ranke-docs.sh --bundle $(DOCS_BUNDLE)
+	@mkdir -p dist
+	@cp TYPST_VERSION dist/TYPST_VERSION
+
+upgrade: ## check TYPST_VERSION against Typst's latest release
+	@docs-spec/scripts/check-typst-upgrade.sh
 
 docs-clean: ## remove the generated docs backend shims and the HTML build tree
 	rm -f $(DOCS_SHIMS)

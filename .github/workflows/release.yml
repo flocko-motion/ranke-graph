@@ -15,10 +15,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read Typst version
+        id: typst-version
+        run: echo "version=$(cat TYPST_VERSION)" >> "$GITHUB_OUTPUT"
+
       - name: Install Typst
         uses: typst-community/setup-typst@v3
         with:
-          typst-version: '0.15.0'
+          typst-version: ${{ steps.typst-version.outputs.version }}
 
       - name: Build papers and companions
         # DOCS_VERSION reaches the handbook's front matter (G-VERSION); the
@@ -60,3 +64,4 @@ jobs:
             spec/rql.schema.json
             dist/ranke-testdata.tar.gz
             dist/ranke-docs.tar.gz
+            dist/TYPST_VERSION
