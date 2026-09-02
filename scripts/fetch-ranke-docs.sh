@@ -75,7 +75,8 @@
 #
 #   RANKE_GRAPH_REF   ?= main
 #   RANKE_FETCHER     := bin/fetch-ranke-docs.sh
-#   RANKE_FETCHER_URL := https://raw.githubusercontent.com/rankegraph/ranke-graph/$(RANKE_GRAPH_REF)/scripts/fetch-ranke-docs.sh
+#   RANKE_GRAPH_RAW   := https://raw.githubusercontent.com/rankegraph/ranke-graph
+#   RANKE_FETCHER_URL := $(RANKE_GRAPH_RAW)/$(RANKE_GRAPH_REF)/scripts/fetch-ranke-docs.sh
 #
 #   $(RANKE_FETCHER):
 #   	@mkdir -p $(dir $@) && curl -fsSL $(RANKE_FETCHER_URL) -o $@ && chmod +x $@
@@ -95,13 +96,9 @@
 #   	@rm -f $(RANKE_FETCHER)
 #   	@$(MAKE) $(RANKE_FETCHER)
 #
-# WHY UPGRADE REFRESHES IT: $(RANKE_FETCHER) is a file target with no prerequisite,
-# so make builds it once and the cached copy then stands for good. A consumer goes
-# on running the script it first downloaded, missing every fix and every new
-# document directory since. `upgrade` already means "bring everything to latest" in
-# a consumer, so refreshing the cached script there is what makes that sentence
-# true. The same holds for every script a consumer caches from here,
-# release-cycle.sh among them.
+# WHY UPGRADE REFRESHES IT: make builds a prerequisite-free file target once, so the
+# cached copy stands for good and a consumer keeps running the script it first took.
+# Every cached script needs the line, release-cycle.sh among them.
 #
 # bin/ is gitignored: the script is fetched infrastructure, never vendored, so a
 # consumer cannot drift from the shared one.
@@ -139,33 +136,11 @@ have_gated() {
 	done
 }
 
-# THE DOCUMENT SET. The numbered paper directories, shared/, spec/, docs-spec/,
-# glossary/, TYPST_VERSION and the licence — with figure sources, working notes
-# and built PDFs left out. No gate reads any of those, and 02-ranke-db/drawio
-# alone was 968 KB of the 976 KB a full copy carried; without it the whole set
-# is 117 KB.
-#
-# docs-spec/examples/ ships too: it is the worked example the specification
-# points at (a reference chapter tree, a stub HTML backend), and every backend
-# author needs it. Leaving it out forced a consumer to fetch the fixture file
-# by file through the GitHub trees API instead of reading it from the release.
-#
-# TYPST_VERSION travels with the papers, not separately: it names the Typst
-# release that renders THESE documents (shared/handbook.typ among them)
-# correctly, so it is a fact about this fetch, the same as vocabulary.typ is —
-# not a pin a consumer decides and maintains on its own, which is what let
-# ranke-db's copy drift silently until something downstream noticed.
-#
-# ranke-graph's own docs/ tree is absent on purpose: its chapters import a
-# `vocabulary.typ` that would not resolve where they landed, so a copy here is a
-# tree that cannot be built. The authoring guide names where it lives.
-#
-# Hidden entries are dropped too. A clone carries none inside the document set,
-# but --bundle reads a working tree, which carries whatever a local tool left
-# there — and a release must ship the documents, not somebody's editor state.
-# The same reasoning excludes the two gitignored shims `make docs-place` writes
-# into the example tree: a consumer supplies those themselves (the format's own
-# design), so shipping a local dev's copy would ship the wrong ones.
+# THE DOCUMENT SET, 117 KB of it: drawio alone was 968 KB of the 976 a full copy
+# carried. docs-spec/examples ships, since every backend author reads it.
+# TYPST_VERSION is a fact about this fetch, not a pin a consumer maintains. This
+# repo's own docs/ imports a vocabulary.typ that resolves nowhere else. --bundle
+# reads a working tree, so dotfiles and the two placed shims stay out of it.
 doc_excludes=(
 	--exclude=drawio
 	--exclude=notes.md
@@ -188,11 +163,8 @@ collect_documents() {
 	tar -C "$src" -cf - "${doc_excludes[@]}" "${members[@]}" | tar -C "$dst" -xf -
 }
 
-# The two files a chapter imports. Each is one line: the chapter names
-# `vocabulary.typ`, the shim says which rendering lives behind it, and the
-# project-absolute path means the chapter's own depth never enters into it.
-# Compiling needs `--root` at the repository root, which is where that path
-# starts.
+# The two files a chapter imports. The project-absolute path keeps a chapter's
+# own depth out of it, and wants `--root` at the repository root.
 place_shims() {
 	[ -n "$docs" ] || return 0
 	[ -d "$shared" ] || {
@@ -259,9 +231,7 @@ if [ "$mode" = "release" ]; then
 		echo "fetch-ranke-docs: $url carries no $shared/vocabulary.typ — DOCS_DIR has nothing to point at" >&2
 		exit 1
 	fi
-	# The tarball carries its own .ranke-graph-sha (--bundle wrote it), landing at
-	# $stamp with the rest of the tree — nothing to write here, and --if-moved
-	# reads it exactly as it reads a clone's.
+	# --bundle stamped the tarball, so --if-moved reads it as it reads a clone's.
 	place_shims
 	echo ">> pulled $(find "$dir" -name '*.typ' | wc -l | tr -d ' ') document(s) from $release_ref, stamped $(cat "$stamp" 2>/dev/null || echo 'unstamped')"
 	exit 0

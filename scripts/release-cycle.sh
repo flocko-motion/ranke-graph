@@ -61,7 +61,8 @@
 # Cache the script, so an offline run has it:
 #
 #   RELEASE_CYCLER     := bin/release-cycle.sh
-#   RELEASE_CYCLER_URL := https://raw.githubusercontent.com/rankegraph/ranke-graph/main/scripts/release-cycle.sh
+#   RANKE_GRAPH_RAW    := https://raw.githubusercontent.com/rankegraph/ranke-graph
+#   RELEASE_CYCLER_URL := $(RANKE_GRAPH_RAW)/main/scripts/release-cycle.sh
 #
 #   $(RELEASE_CYCLER):
 #   	@mkdir -p $(dir $@) && curl -fsSL $(RELEASE_CYCLER_URL) -o $@ && chmod +x $@
