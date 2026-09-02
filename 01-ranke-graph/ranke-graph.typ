@@ -21,16 +21,17 @@
 // ─────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────
-// Notation. U is a k/v store. U(k) is the claim envelope at
+// Notation. U is a content-addressed k/v store. U(k) is the claim envelope at
 // id k = H(S(env(v))); U(h) is the external content at hash h = H(c). 
 //   RG_k := closure(k, U)  — the graph rooted at head id k
 //   RA_k                    — the Ranke-Archive rooted at k; tuple (U, k)
 // A later archive is a new tuple (U', k'); nothing is mutated in place.
 // "branch-table header (BTH)" is just the head claim U(k) of an archive.
-//   id_seq(i, s) := H(i, s) — second address scheme; s a per-history seed.
-//   hist_i := id_seq(i, s) — the id of the Head History's i-th claim. hist_0
-//     is what's kept for recovery, self-describing as to hash algo, and s is
-//     read out of U(hist_0) (§Head Index).
+//   id_seq(i, s) := H(i, s) — second address scheme; s a per-list seed,
+//     carried in every bookmark, so any bookmark's id opens the list and is
+//     self-describing as to hash algo (§Bookmarks).
+//   U_hist — the bookmark store, keyed by id_seq(i, s); defined apart from U,
+//     freely co-located with it physically (§Bookmarks).
 // ─────────────────────────────────────────────────────────────────────
 
 #show: paper.with(
@@ -188,7 +189,7 @@ Any satisfying choice is acceptable. We propose CBOR Deterministic (RFC 8949 §4
 
 Let $op("id")(v) = H(S("env"(v)))$ be a claim's *identity*: the hash of its stored record. As edges are fully contained in the `edges` field of the node, `S(v)` includes all edges. The signing key is the private key corresponding to the pubkey in $v$'s `contribution/contributor` (or in $v$'s own content, when $v$ is an initial claim).
 
-Let $op("id")_"seq"(i, s) := H(i, s)$ be a second identity function, keyed on a step $i$ and a seed $s$ rather than on any record's own bytes (@sec:head-index).
+Let $op("id")_"seq"(i, s) := H(i, s)$ be a second address scheme, keyed on a step $i$ and a seed $s$ rather than on any record's bytes (@sec:bookmarks).
 
 == Content <sec:content>
 
@@ -291,7 +292,7 @@ A *Ranke-Graph* (RG) is a set of claims forming a graph. An RG is _valid_ if eve
 
 == Universe <sec:universe>
 
-$cal(U)$, the *Universe*, is a key/value store. An envelope is stored content-addressed, under its id $k$ (retrieved as $cal(U)(k)$), except a `contribution/history` claim (@sec:head-index), keyed instead under $op("id")_"seq"(i, s)$. *Externalised content* (@sec:content) is stored under its hash $h = H(c)$ (as $cal(U)(h)$). 
+$cal(U)$, the *Universe*, is a content-addressed key/value store: an envelope is stored under its id $k$ (retrieved as $cal(U)(k)$), and *externalised content* (@sec:content) under its hash $h = H(c)$ (as $cal(U)(h)$). Both keys are hashes over the bytes they name, so one keyspace serves both and identical bytes are one entry.
 A *Ranke-Graph instance* $"RG"_k$, addressed by a head id $k$ (@sec:head), is a subset $"RG"_k subset.eq cal(U)$, and other archives may share the same $cal(U)$.
 
 == Closures <sec:head>
@@ -308,17 +309,11 @@ A *Ranke-Archive* $"RA"_k$ is a Ranke-Graph $"RG"_k$ whose head $cal(U)(k)$ is a
 
 A new archive is created by writing the initial claim and an empty `contribution/branches` claim, whose id is the archive's head $k$.
 
-== Head History <sec:head-index>
+== Bookmarks <sec:bookmarks>
 
-Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without knowing the latest $k$, the archive is not retrievable, as the DAG only allows resolving backwards along the provenance chain. To track the used $k_i$ we construct a _Head History_ in the Universe: a sequence of claims of type `contribution/history`, each referencing the head it recorded. 
-
-Nothing else in the graph references a history claim: it is reached only through $op("id")_"seq"(i, s)$, so the log stays a parallel structure the ordinary closure never crosses.
-
-The *history seed* $s$ is fixed once per history, distinct from any other history's, so the two never share a slot. $"hist"_0$, the id of the sequence's first claim, is what is kept for recovery: fetching $cal(U)("hist"_0)$ yields $s$, and every entry of the history is then addressable at $"hist"_i$.
-
-Because presence is monotone in $i$ (advances are sequential, without gaps), the current head is found by doubling ($i = 1, 2, 4, dots$) until a miss, then binary search between the last hit and the first miss — $O(log n)$ lookups needing nothing from storage beyond presence and retrieval by key.
-
-Once the last entry in the history is identified, the latest archive can be recovered.  
+Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without the latest $k$ the archive is unreachable: the DAG resolves only backwards, and a store that retrieves by key offers no enumeration to search. The locator for the moving head is a *bookmark*, a signed record (@sec:primitives) of three fields: the *bookmark seed* $s$, fixed once per list; its *index* $i$ in the list; and its *reference*, the head id $k$ it records. The signature proves the authorship of the bookmark's creator (@sec:authenticity).
+$cal(U)_"hist"$, the *bookmark store*, holds all bookmarks under $op("id")_"seq"(i, s)$, sequentially addressed and possibly mutable. Every bookmark carries $s$, so the full list is reachable from any one of them.
+In a gapless list, the latest entry is found in $O(log n)$ lookups: doubling from a known index until a miss, then binary search between the last hit and the first miss.
 
 = Discharging the Desiderata <sec:emerges>
 
@@ -381,7 +376,7 @@ Anchoring bounds `created_at`, the time the archive witnessed.
 
 == Verifiability <sec:verifiability>
 
-The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. A `contribution/history` claim (@sec:head-index) is the one exception: its key $op("id")_"seq"(i, s)$ does not name its content, so integrity there instead checks the claim's declared $i$ against the slot it was fetched from, guarding against a validly-signed claim relocated to another. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity), unchanged either way. Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
+The Merkle-DAG id chain (@sec:merkle) witnesses *record integrity*: since $op("id")(v) = H(S("env"(v)))$, recomputing the hash over a stored record checks it against the id that names it. *Authenticity* is proved by checking the envelope's signature against the contributor's pubkey (@sec:authenticity). Each record's `content_hash` witnesses any external content bytes. Checking all three over the closure verifies the full Ranke-Graph.
 
 #dref[D5, this section]
 
@@ -436,11 +431,11 @@ Properties that follow from the structure beyond the desiderata.
 
 == Backup <sec:hash-backup>
 
-*Emerges from @sec:merkle + @sec:verifiability.* A single head id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$. $"hist"_0$ (@sec:head-index) recovers the sequence of pointers that reference the $k_i$ over time, which can each recover the referenced archives the same way.
+*Emerges from @sec:merkle + @sec:verifiability.* A single head id $k$ recovers and verifies $"RG"_k$ from any replica of $cal(U)$. One bookmark id (@sec:bookmarks) recovers the latest recorded head, and through the archive's provenance every state before it.
 
 == Composing the Universe <sec:composable>
 
-*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$'s keys, content hashes and $op("id")_"seq"(i, s)$ alike, are fixed independent of storage location, its physical form is free. Entries may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure; id and closure stay fixed regardless of where the bytes live.
+*Emerges from @sec:universe + @sec:merkle.* Because $cal(U)$'s keys are fixed independent of storage location, its physical form is free. Entries may be layered across storage backends, partitioned among them, or replicated many times, and any $"RG"_k$ still resolves against whatever composition holds its closure; id and closure stay fixed regardless of where the bytes live. The same freedom covers $cal(U)_"hist"$ (@sec:bookmarks): both stores key by fixed-size hashes, so one physical store can hold both,#footnote[One key can serve both stores at once: external content whose bytes equal $S([i, s])$ is stored at $H(c) = op("id")_"seq"(i, s)$, a bookmark's slot. Writing such bytes requires knowing $s$; a composition that separates the two keyspaces by a prefix rules the case out.] and since an advance appends at the next free index, an append-only store suffices.
 
 = Relation to Prior Work <sec:related-work>
 
@@ -521,7 +516,6 @@ The five concepts of @sec:everything-is-knowledge are encoded as five node class
 - *`contribution/branches`*: a branch-table claim indexing the archive's branches (see @sec:branches)
 - *`contribution/expiry`*: a claim that carries nothing but an expiry against a contributor's key
 - *`contribution/delete`*: a claim documenting that a referenced claim's bytes were physically removed
-- *`contribution/history`*: a head-history entry, addressed by $op("id")_"seq"(i, s)$ rather than its own content id (@sec:head-index)
 
 *Edge classes:*
 
