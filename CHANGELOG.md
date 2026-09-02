@@ -7,6 +7,16 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.2 — 2026-09-02
+
+**The fetcher's bootstrap carries an `upgrade` recipe.** `$(RANKE_FETCHER)` is a
+file target with no prerequisite, so make builds it once and the cached copy then
+stands for good: a consumer goes on running the script it first downloaded,
+missing every fix and every new document directory since. The BOOTSTRAP block in
+`scripts/fetch-ranke-docs.sh` now states the `rm -f` and re-make that makes
+`upgrade` mean what it says, for the fetcher and for every other script a
+consumer caches from here.
+
 ## v0.24.1 — 2026-09-02
 
 **`V-BMGAPLESS`: a bookmark list is gapless.** Its present indices form one
