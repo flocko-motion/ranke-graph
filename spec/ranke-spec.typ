@@ -256,7 +256,7 @@ resolving to the archive's initial claim, height 0. (foundation paper
 #rule("V-IDSEQ", FORCED)[$op("id")_"seq"(i, s) := H(S([i, s]))$: the CBOR
 Deterministic two-element array of $i$, an unsigned integer, and $s$, a byte
 string. A claim always serializes as a map (`V-SER`), never an array, so no
-claim's bytes can equal an $op("id")_"seq"$ input — CBOR's major type alone
+claim's bytes can equal an $op("id")_"seq"$ input: CBOR's major type alone
 separates the two, with no further convention to state. (foundation paper
 §Bookmarks)]
 
@@ -265,7 +265,7 @@ separates the two, with no further convention to state. (foundation paper
 three-element array of its index $i$ (unsigned integer), its seed $s$ (byte
 string), and the head id $k$ it records (byte string). The seed SHOULD carry at
 least 128 bits of entropy. The protected header MUST carry `alg` (label `1`)
-and `kid` (label `4`), the `kid` holding the id of a `contribution/contributor`
+and `kid` (label `4`, COSE's key identifier), the `kid` holding the id of a `contribution/contributor`
 claim, and nothing else; the unprotected header MUST be empty. The envelope's
 serialization is the record $cal(U)_"hist"$ holds under $op("id")_"seq"(i, s)$.
 (foundation paper §Bookmarks)]
@@ -280,6 +280,10 @@ slot. (foundation paper §Bookmarks)]
 
 #rule("V-BMREF", FORCED)[A bookmark's $k$ MUST resolve to a
 `contribution/branches` claim. (foundation paper §Bookmarks)]
+
+#rule("V-BMGAPLESS", FORCED)[A list MUST be gapless: its present indices form
+one contiguous range. The $O(log n)$ search depends on the contiguity.
+(foundation paper §Bookmarks)]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
@@ -361,8 +365,7 @@ they bind, the head claims of the contribution merged there. (RankeDB paper
 §Sequencer, step 6)]
 
 #rule("R-C7BOOKMARK", FREE)[Step 7, where the advance $k arrow.r k'$ takes
-effect, MUST write $k'$ as the next bookmark, at the next free index —
-RankeDB's list stays gapless, so the $O(log n)$ search applies. (RankeDB paper
+effect, MUST write $k'$ as the next bookmark (`V-BMGAPLESS`). (RankeDB paper
 §Sequencer, step 7; foundation paper §Bookmarks)]
 
 #rule("R-C6REQUEST", FREE)[Every request a merged contribution carries (`R-C2TYPE`)

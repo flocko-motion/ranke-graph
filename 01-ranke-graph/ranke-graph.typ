@@ -313,7 +313,7 @@ A new archive is created by writing the initial claim and an empty `contribution
 
 Each contribution to a Ranke-Archive advances $k arrow.r k'$. Without the latest $k$ the archive is unreachable: the DAG resolves only backwards, and a store that retrieves by key offers no enumeration to search. The locator for the moving head is a *bookmark*, a signed record (@sec:primitives) of three fields: the *bookmark seed* $s$, fixed once per list; its *index* $i$ in the list; and its *reference*, the head id $k$ it records. The signature proves the authorship of the bookmark's creator (@sec:authenticity).
 $cal(U)_"hist"$, the *bookmark store*, holds all bookmarks under $op("id")_"seq"(i, s)$, sequentially addressed and possibly mutable. Every bookmark carries $s$, so the full list is reachable from any one of them.
-In a gapless list, the latest entry is found in $O(log n)$ lookups: doubling from a known index until a miss, then binary search between the last hit and the first miss.
+A list is gapless: its present indices form one contiguous range. The latest entry is thus found in $O(log n)$ lookups: doubling from a known index until a miss, then binary search between the last hit and the first miss.
 
 = Discharging the Desiderata <sec:emerges>
 

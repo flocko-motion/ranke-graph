@@ -7,6 +7,12 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`V-BMGAPLESS`: a bookmark list is gapless.** Its present indices form one
+contiguous range, so the list is searchable in both directions from any entry
+and the $O(log n)$ search for the latest head stays correct. Contiguity was
+previously RankeDB's own discipline inside `R-C7BOOKMARK`; that rule now cites
+`V-BMGAPLESS` instead of carrying the clause itself.
+
 ## v0.24.0 — 2026-09-02
 
 **Bookmarks replace the Head History.** A bookmark is a signed record of seed,
