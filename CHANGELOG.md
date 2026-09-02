@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.0 — 2026-09-02
+
 **Conformance vectors.** Regenerated from ranke-go v0.27.0-rc.2, with a
 `bookmarks` array beside the claims. Two accepted cases sit at indices 0 and 1
 of one archive's list, recording the two branch tables; seven refusals give
