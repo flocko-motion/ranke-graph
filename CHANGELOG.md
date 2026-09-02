@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.2 — 2026-09-02
+
 **The fetcher's bootstrap carries an `upgrade` recipe.** `$(RANKE_FETCHER)` is a
 file target with no prerequisite, so make builds it once and the cached copy then
 stands for good: a consumer goes on running the script it first downloaded,
