@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.1 — 2026-09-02
+
 **`V-BMGAPLESS`: a bookmark list is gapless.** Its present indices form one
 contiguous range, so the list is searchable in both directions from any entry
 and the $O(log n)$ search for the latest head stays correct. Contiguity was
