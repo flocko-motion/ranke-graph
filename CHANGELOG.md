@@ -7,6 +7,19 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.1 — 2026-09-02
+
+**`release-cycle.sh` waits for the pull request's checks, and resumes an
+interrupted release.** The script merged the pull request seconds after opening
+it, so a base with required status checks refused the merge: ranke-ts's `test`
+check made every release there fail. It now waits for the checks and merges once
+they pass, stopping on the first red one. It waits rather than passing
+`gh pr merge --auto`, which needs "Allow auto-merge" enabled in each
+repository's own settings and is on in one of the six. Second fix: a run whose
+merge landed and whose tag did not left nothing to open a pull request from, so
+re-running failed at `gh pr create` on zero commits ahead. The script now
+recognises a branch already on the default branch and tags the merged tip.
+
 ## v0.25.0 — 2026-09-02
 
 **Conformance vectors.** Regenerated from ranke-go v0.27.0-rc.2, with a
