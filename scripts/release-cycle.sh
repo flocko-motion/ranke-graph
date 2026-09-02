@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Cut a release from the default branch as a self-contained cycle: resolve the
-# version; run a consumer's own pre-tag steps if it has any (changelog stamp,
-# compliance checks — anything that must be true or done once the version is
-# known and before it is merged); (if on a feature branch) rebase, push, open a
-# PR, wait for its checks, merge it into the default branch so the tag points at
-# MERGED code; tag
-# the merged tip; push the tag (which triggers the release workflow); then
-# return to the branch you started on. It never leaves you on — or commits
-# directly to — the default branch: you can't push to main, you only release
-# from it.
+# version; stamp the changelog; run a consumer's own pre-tag steps if it has any
+# (a generated file, a compliance check — anything that must be true or done once
+# the version is known and before it is merged); (if on a feature branch) rebase,
+# push, open a PR, wait for its checks, merge it into the default branch so the
+# tag points at MERGED code; tag the merged tip; push the tag (which triggers the
+# release workflow); then return to the branch you started on. It never leaves
+# you on — or commits directly to — the default branch: you can't push to main,
+# you only release from it.
 #
 # THIS SCRIPT IS THE SHARED ONE. It lives in ranke-graph and serves every
 # consumer — ranke-go, ranke-ts, ranke-db, ranke-tools, ranke-website — so the
@@ -33,9 +32,9 @@
 #   scripts/release-pretag.sh          executable, optional. Runs once the
 #                                       version is known and before the
 #                                       feature-branch merge, so anything it
-#                                       commits (a stamped changelog, a
-#                                       generated file) rides the same PR the
-#                                       tag is eventually cut from. Non-zero
+#                                       commits (a generated file, a signed
+#                                       artifact) rides the same PR the tag is
+#                                       eventually cut from. Non-zero
 #                                       exit aborts the release. Reads
 #                                       NEXT_VERSION, DEFAULT_BRANCH,
 #                                       START_BRANCH, LATEST_VERSION from the
@@ -131,6 +130,67 @@ default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null
 default="${default:-main}"
 start="$(git rev-parse --abbrev-ref HEAD)"
 
+# THE STAMP IS BUILT IN, not a hook each consumer copies: a changelog is a habit
+# the whole fleet keeps, so a per-repo copy would recreate the five forks this
+# script was extracted to end. A consumer's own pre-tag work still has the hook.
+#
+# A missing CHANGELOG.md is written rather than demanded, so adopting the habit
+# costs nothing. The emptiness check then refuses the release, because a fresh
+# file records nothing yet: write the entry and re-run.
+CHANGELOG="CHANGELOG.md"
+
+stamp_changelog() {
+	local head body tmp
+	if [ ! -f "$CHANGELOG" ]; then
+		cat > "$CHANGELOG" <<-'SEED'
+			# Changelog
+
+			What each release changed in the artifacts a reader depends on. A change
+			earns an entry when it alters what this repository requires, provides, or
+			removes; rewording does not.
+
+			## Unreleased
+		SEED
+		echo ">> wrote $CHANGELOG — record this release under '## Unreleased'"
+	fi
+
+	head="$(grep -m1 '^## ' "$CHANGELOG" 2>/dev/null || true)"
+	case "$head" in
+		"## $next"*) return 0 ;;
+		"## Unreleased"*) ;;
+		*)
+			echo "release-cycle: $CHANGELOG opens on '${head:-<none>}', so nothing is recorded" >&2
+			echo "  add an '## Unreleased' section, commit, then re-run" >&2
+			return 1 ;;
+	esac
+
+	if [ "$start" = "$default" ]; then
+		echo "release-cycle: a release from '$default' cannot commit the stamp" >&2
+		echo "  head the entry '## $next — $(date +%F)', push, then re-run" >&2
+		return 1
+	fi
+
+	body="$(awk '/^## Unreleased/{f=1;next} /^## /{f=0} f' "$CHANGELOG" | tr -d '[:space:]')"
+	if [ -z "$body" ]; then
+		echo "release-cycle: $CHANGELOG's '## Unreleased' section is empty, so nothing is recorded" >&2
+		echo "  write what changed under it, commit, then re-run" >&2
+		return 1
+	fi
+
+	# One awk pass, so no `sed -i` (which takes an argument on BSD): the heading
+	# becomes the version and a fresh section is left above it for what comes next.
+	echo "stamping the changelog: ## Unreleased -> ## $next"
+	tmp="$(mktemp)"
+	awk -v ver="## $next — $(date +%F)" 'BEGIN { done = 0 }
+	     /^## Unreleased/ && !done { print "## Unreleased"; print ""; print ver; done = 1; next }
+	     { print }' "$CHANGELOG" > "$tmp"
+	mv "$tmp" "$CHANGELOG"
+	git add "$CHANGELOG"
+	git commit --quiet -m "doc: changelog for $next"
+}
+
+stamp_changelog || exit 1
+
 if [ -x "$PRETAG_HOOK" ]; then
 	NEXT_VERSION="$next" DEFAULT_BRANCH="$default" START_BRANCH="$start" LATEST_VERSION="$latest" \
 		"./$PRETAG_HOOK"
@@ -211,22 +271,35 @@ fi
 
 echo "tagging ${latest} -> ${next} on ${default}"
 git tag -a "$next" "$target" -m "release $next"
+
+prev_run=0
+if command -v gh >/dev/null; then
+	prev_run="$(gh run list --workflow=release.yml --limit 1 --json databaseId \
+		--jq '.[0].databaseId // 0' 2>/dev/null || true)"
+	prev_run="${prev_run:-0}"
+fi
+
 git push origin "$next"
 
 # The tag-triggered workflow, so a failed publish surfaces here. Matched by the
-# tagged SHA, since headBranch is unset for a tag push.
+# tagged SHA, since headBranch is unset for a tag push, and by an id above the
+# pre-push mark, since a commit can carry several tags and older runs sit on it.
 if command -v gh >/dev/null; then
 	sha="$(git rev-parse "$target")"
 	echo "waiting for the release workflow…"
 	run_id=""
 	for _ in $(seq 1 30); do
 		run_id="$(gh run list --workflow=release.yml --json databaseId,headSha \
-			--jq "map(select(.headSha == \"$sha\"))[0].databaseId" 2>/dev/null || true)"
+			--jq "map(select(.headSha == \"$sha\" and .databaseId > $prev_run))[0].databaseId" \
+			2>/dev/null || true)"
 		[ -n "$run_id" ] && [ "$run_id" != "null" ] && break
 		sleep 2
 	done
 	if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
-		echo "  tag pushed, but no release run appeared — check: gh run list --workflow=release.yml" >&2
+		echo "tag pushed, but no release run appeared after 60s — check: gh run list --workflow=release.yml" >&2
+		echo "  if none shows up, the tag needs deleting and retrying:" >&2
+		echo "  git tag -d $next && git push origin --delete $next" >&2
+		exit 1
 	elif gh run watch "$run_id" --exit-status; then
 		echo "release ${next} published ✓ (back on '$start')"
 		exit 0
