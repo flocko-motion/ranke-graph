@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.1 — 2026-09-02
+
 **`release-cycle.sh` waits for the pull request's checks, and resumes an
 interrupted release.** The script merged the pull request seconds after opening
 it, so a base with required status checks refused the merge: ranke-ts's `test`
