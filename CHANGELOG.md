@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.3 — 2026-09-02
+
 **The bootstrap snippets build their URL from `RANKE_GRAPH_RAW`.** Both blocks
 carried the whole raw.githubusercontent URL on one line, 128 characters in
 `fetch-ranke-docs.sh` and 112 in `release-cycle.sh`, over brokkr's 110-character
