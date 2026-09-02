@@ -7,6 +7,19 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**`R-QTIMEOP` fixes the form of a time a query compares against.** The schema
+said the shape of a value a comparison tests was "unconstrained here", so an
+implementation had nothing to read and matched whatever the reference engine
+happened to accept. Where a comparison tests a time, that value MUST now be a
+`V-TIME` timestamp or an EDTF Level 1 value (`V-DATED`), and an engine MUST
+reject anything else.
+
+**`R-QTEMPORAL` compares midpoints in nanoseconds.** Its prose said
+milliseconds while `rql.schema.json` said nanoseconds, so the unit was the
+implementation's choice. `V-TIME` fixes timestamps at nanosecond precision, and
+a millisecond midpoint tied two `created_at` values microseconds apart,
+discarding a distinction the data model guarantees.
+
 **A tag with no release run fails the release.** The wait for the tag-triggered
 workflow reported a missing run and then exited 0, so a release that never built
 read as one that had. It now fails, and says how to delete the tag and retry.
