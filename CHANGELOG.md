@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.0 — 2026-09-02
+
 **Bookmarks replace the Head History.** A bookmark is a signed record of seed,
 index, and reference, held in the bookmark store $U_"hist"$: a store of its own
 beside the Universe, sequentially addressed by $op("id")_"seq"(i, s)$, may be mutable,
