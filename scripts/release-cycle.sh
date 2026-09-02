@@ -2,8 +2,9 @@
 # Cut a release from the default branch as a self-contained cycle: resolve the
 # version; run a consumer's own pre-tag steps if it has any (changelog stamp,
 # compliance checks — anything that must be true or done once the version is
-# known and before it is merged); (if on a feature branch) rebase, push, open
-# + merge a PR into the default branch so the tag points at MERGED code; tag
+# known and before it is merged); (if on a feature branch) rebase, push, open a
+# PR, wait for its checks, merge it into the default branch so the tag points at
+# MERGED code; tag
 # the merged tip; push the tag (which triggers the release workflow); then
 # return to the branch you started on. It never leaves you on — or commits
 # directly to — the default branch: you can't push to main, you only release
@@ -104,11 +105,8 @@ fi
 
 git fetch --tags --force origin >/dev/null 2>&1 || true
 
-# The version this run will cut, computed before anything is merged so a
-# pre-tag hook can check something (a changelog entry, say) against it.
-# `|| true`: on the first release there are no tags, so grep matches nothing
-# and exits 1; under `set -o pipefail` that would abort the assignment before
-# the `:-v0.0.0` fallback applies. Swallow it so the fallback works.
+# Computed before anything merges, so a pre-tag hook can check against it.
+# `|| true`: no tags yet means grep exits 1, which pipefail would make fatal.
 latest="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)"
 latest="${latest:-v0.0.0}"
 
@@ -140,41 +138,63 @@ fi
 # Always end back on the branch we started on — never park on the default branch.
 trap 'git checkout --quiet "$start" 2>/dev/null || true' EXIT
 
+# Waiting beats `--auto`, which needs "Allow auto-merge" on in each of six
+# repositories. gh says "no checks reported" where a base requires none, and
+# says it too in the seconds before checks register, hence the probes.
+await_checks() {
+	local pr="$1" out i
+	for i in 1 2 3 4 5; do
+		out="$(gh pr checks "$pr" 2>&1)" && return 0
+		case "$out" in *"no checks reported"*) sleep 3; continue ;; esac
+		echo "waiting for the pull request's checks…"
+		gh pr checks "$pr" --watch --fail-fast
+		return $?
+	done
+	return 0
+}
+
 if [ "$start" != "$default" ]; then
-	# Feature branch: push it, open a PR if there isn't one, and merge it into
-	# the default branch — without switching this checkout — so the tag comes
-	# off the merged tip.
+	# Feature branch: merge it into the default without switching this checkout.
 	if ! command -v gh >/dev/null; then
 		echo "on '$start' — releasing needs it merged to '$default'. Install gh (https://cli.github.com) or merge manually, then re-run." >&2
 		exit 1
 	fi
-	# Rebase onto the latest default first, so the PR is based on current
-	# '$default' and merges cleanly. Abort cleanly on conflict rather than
-	# leaving a half-finished rebase behind.
 	git fetch origin "$default" >/dev/null 2>&1
-	echo "rebasing '$start' onto origin/$default…"
-	if ! git rebase "origin/$default"; then
-		git rebase --abort 2>/dev/null || true
-		echo "rebase onto origin/$default hit conflicts — resolve them, then re-run" >&2
-		exit 1
-	fi
-	echo "pushing '$start' and merging it into '$default'…"
-	git push --force-with-lease -u origin "$start"
-	if [ -z "$(gh pr list --head "$start" --state open --json number --jq '.[0].number' 2>/dev/null)" ]; then
-		echo "opening a pull request…"
-		gh pr create --base "$default" --head "$start" --fill
-	fi
-	echo "merging the pull request…"
-	gh pr merge "$start" --merge
-	git fetch origin "$default" >/dev/null 2>&1
-	target="origin/$default"
 
-	# Bring the branch we started on up onto the merged default, so it's a
-	# clean base for the next round of work (the merge kept our commits, so
-	# this fast-forwards rather than replaying).
-	echo "rebasing '$start' onto origin/$default…"
-	git checkout --quiet "$start"
-	git rebase "origin/$default"
+	if git merge-base --is-ancestor "$start" "origin/$default"; then
+		# RESUME. A run whose merge landed and whose tag did not leaves nothing to
+		# open a PR from, and `gh pr create` on zero commits ahead fails.
+		echo "'$start' is already on '$default' — tagging the merged tip"
+		git rebase "origin/$default"
+	else
+		# Rebase first, so the PR is based on current '$default'. A conflict aborts
+		# rather than leaving a half-finished rebase behind.
+		echo "rebasing '$start' onto origin/$default…"
+		if ! git rebase "origin/$default"; then
+			git rebase --abort 2>/dev/null || true
+			echo "rebase onto origin/$default hit conflicts — resolve them, then re-run" >&2
+			exit 1
+		fi
+		echo "pushing '$start' and merging it into '$default'…"
+		git push --force-with-lease -u origin "$start"
+		if [ -z "$(gh pr list --head "$start" --state open --json number --jq '.[0].number' 2>/dev/null)" ]; then
+			echo "opening a pull request…"
+			gh pr create --base "$default" --head "$start" --fill
+		fi
+		await_checks "$start" || {
+			echo "release-cycle: '$start' has a failing check — fix it, then re-run" >&2
+			exit 1
+		}
+		echo "merging the pull request…"
+		gh pr merge "$start" --merge
+		git fetch origin "$default" >/dev/null 2>&1
+
+		# A clean base for the next round: the merge kept our commits, so this fast-forwards.
+		echo "rebasing '$start' onto origin/$default…"
+		git checkout --quiet "$start"
+		git rebase "origin/$default"
+	fi
+	target="origin/$default"
 elif [ ! -e "$FEATURE_ONLY_MARKER" ]; then
 	# Already on the default branch: require sync with origin so the tag
 	# points at pushed code (never release unpushed local commits).
@@ -192,9 +212,8 @@ echo "tagging ${latest} -> ${next} on ${default}"
 git tag -a "$next" "$target" -m "release $next"
 git push origin "$next"
 
-# Wait for the tag-triggered release workflow, so a failed build or publish
-# surfaces here instead of silently. Match the run by the tagged commit's SHA
-# (reliable for tag pushes, where headBranch is unset).
+# The tag-triggered workflow, so a failed publish surfaces here. Matched by the
+# tagged SHA, since headBranch is unset for a tag push.
 if command -v gh >/dev/null; then
 	sha="$(git rev-parse "$target")"
 	echo "waiting for the release workflow…"
