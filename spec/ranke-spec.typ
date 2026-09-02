@@ -663,15 +663,19 @@ remaining ties, and applies alone when `order` is absent, so the sort MUST alway
 resolve to a total order.]
 
 #rule("R-QTEMPORAL", FREE)[`compare: temporal` orders values by the span of time each denotes,
-taking that span's midpoint as milliseconds so a timestamp and a date sort on one axis. If the
+taking that span's midpoint as nanoseconds so a timestamp and a date sort on one axis. If the
 value is a timestamp (`V-TIME`), its span has no width, so the midpoint is the instant itself.
 If the value is EDTF (`V-DATED`), its span is the one its precision implies, `2014` covering the
 year and `201X` the decade; a bound left open or unknown adds a year to the span, so `..2005`
 reaches back to the start of 2004 and `2020..` on to the end of 2021. A value that is neither
-sorts with the claims that lack the field. A midpoint falling between milliseconds rounds down.
+sorts with the claims that lack the field. A midpoint falling between nanoseconds rounds down.
 The midpoint is the time a value makes likeliest, so `2010` precedes `201X`, whose decade centres
 five years later, and `2014` precedes `2014/2016`. Equal midpoints tie, and `R-QSORT` breaks the
 tie. The comparison is one value per claim, so a layer may store it and sort on it natively.]
+
+#rule("R-QTIMEOP", FREE)[Where a comparison tests a time (`compare: temporal`, or a field that
+`V-TIME` or `V-DATED` governs), its value MUST be a timestamp in `V-TIME` form or an EDTF Level 1
+value (`V-DATED`). Any other value MUST be rejected. (`R-QTEMPORAL`, `R-QEVAL`)]
 
 Because the order is total, paging is stable: carry the last row's key into a
 `where` on the next request.

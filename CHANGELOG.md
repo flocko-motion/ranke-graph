@@ -7,6 +7,36 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.3 — 2026-09-02
+
+**`R-QTIMEOP` fixes the form of a time a query compares against.** The schema
+said the shape of a value a comparison tests was "unconstrained here", so an
+implementation had nothing to read and matched whatever the reference engine
+happened to accept. Where a comparison tests a time, that value MUST now be a
+`V-TIME` timestamp or an EDTF Level 1 value (`V-DATED`), and an engine MUST
+reject anything else.
+
+**`R-QTEMPORAL` compares midpoints in nanoseconds.** Its prose said
+milliseconds while `rql.schema.json` said nanoseconds, so the unit was the
+implementation's choice. `V-TIME` fixes timestamps at nanosecond precision, and
+a millisecond midpoint tied two `created_at` values microseconds apart,
+discarding a distinction the data model guarantees.
+
+**A tag with no release run fails the release.** The wait for the tag-triggered
+workflow reported a missing run and then exited 0, so a release that never built
+read as one that had. It now fails, and says how to delete the tag and retry.
+The run is matched by an id above a pre-push mark as well, since a commit can
+carry several tags and the older runs sit on its SHA.
+
+**The changelog stamp moves into `release-cycle.sh`.** Stamping `## Unreleased`
+into `## vX.Y.Z — <date>` was each consumer's own `scripts/release-pretag.sh`,
+and a changelog every repository keeps is shared behaviour: a per-repo copy
+would recreate the forks this script was extracted to end. The script now
+stamps for every consumer, writes a `CHANGELOG.md` where none exists, and
+refuses a release whose `## Unreleased` section records nothing. The
+`release-pretag.sh` hook stays for pre-tag work that genuinely differs and runs
+after the stamp; this repository's own hook is gone, the built-in covering it.
+
 ## v0.25.2 — 2026-09-02
 
 **The Sequencer's thread note names step 7.** §Sequencer said step 6 was the
