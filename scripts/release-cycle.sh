@@ -24,11 +24,12 @@
 #   scripts/release-next-version.sh    executable, optional. Prints the next
 #                                       version (with the leading v) on stdout.
 #                                       Present: a bump word is refused rather
-#                                       than ignored, since a derived version
-#                                       (ranke-ts, from the ranke-go it mirrors)
-#                                       has nothing for one to mean. Absent:
-#                                       this script bumps the latest tag by the
-#                                       required bump word itself.
+#                                       than ignored, since a version derived
+#                                       from another source, a package mirroring
+#                                       an upstream say, has nothing for one to
+#                                       mean. Absent: this script bumps the
+#                                       latest tag by the required bump word
+#                                       itself.
 #   scripts/release-pretag.sh          executable, optional. Runs once the
 #                                       version is known and before the
 #                                       feature-branch merge, so anything it
