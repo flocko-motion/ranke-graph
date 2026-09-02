@@ -7,6 +7,12 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**The Sequencer's thread note names step 7.** §Sequencer said step 6 was the
+only step advancing the archive head and the only one needing the sequencing
+thread, which v0.24.0 made false when it inserted step 7: step 6 writes $k'$
+inert, and the advance takes effect at the bookmark. Steps 6 and 7 both run on
+the sequencing thread. (`R-C7BOOKMARK`, `R-ABOOKMARK`)
+
 ## v0.25.1 — 2026-09-02
 
 **`release-cycle.sh` waits for the pull request's checks, and resumes an
