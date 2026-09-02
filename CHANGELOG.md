@@ -7,6 +7,19 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.0 — 2026-09-02
+
+**Conformance vectors.** Regenerated from ranke-go v0.27.0-rc.2, with a
+`bookmarks` array beside the claims. Two accepted cases sit at indices 0 and 1
+of one archive's list, recording the two branch tables; seven refusals give
+every bookmark rule a case: `V-BMGAPLESS` (a list holding indices 0 and 2,
+offered at each end), `V-BMENV` (a two-element payload, and a `kid` naming a
+source/note claim), `V-BMSIG`, `V-BMSLOT`, and `V-BMREF`. Each case pairs its
+bytes with the `id_seq(i, s)` slot it is offered at, and names the list it
+belongs to and whether that list is open. The claims gain the empty initial
+branch table and its revision, both accepted, and `rejected-first-table-height`
+against `V-ARCHIVEHEIGHT` and `V-HEIGHT`.
+
 ## v0.24.3 — 2026-09-02
 
 **The bootstrap snippets build their URL from `RANKE_GRAPH_RAW`.** Both blocks
