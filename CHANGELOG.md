@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.3 — 2026-09-02
+
 **`R-QTIMEOP` fixes the form of a time a query compares against.** The schema
 said the shape of a value a comparison tests was "unconstrained here", so an
 implementation had nothing to read and matched whatever the reference engine
