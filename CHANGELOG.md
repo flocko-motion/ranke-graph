@@ -7,6 +7,19 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+**The bootstrap snippets build their URL from `RANKE_GRAPH_RAW`.** Both blocks
+carried the whole raw.githubusercontent URL on one line, 128 characters in
+`fetch-ranke-docs.sh` and 112 in `release-cycle.sh`, over brokkr's 110-character
+comment limit. A consumer caches these scripts into its own `bin/` and lints
+them there, so the width was a downstream build failure rather than a local
+style point: ranke-go's `make lint` broke on it. Each snippet now names the host
+once and builds its URL from that.
+
+**`make lint` runs brokkr, and `verify` runs it first.** The gate a release
+depends on now covers the scripts it ships, so a comment too wide for a
+consumer's linter fails here instead of there. brokkr is assumed present;
+a missing one fails with where to install it.
+
 ## v0.24.2 — 2026-09-02
 
 **The fetcher's bootstrap carries an `upgrade` recipe.** `$(RANKE_FETCHER)` is a

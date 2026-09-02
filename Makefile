@@ -70,7 +70,7 @@ PDFS := \
   $(PDF_DIR)/ranke-spec.pdf \
   $(PDF_DIR)/ranke-docs-spec.pdf
 
-.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle upgrade constructs schema watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle check-clean-tree check-release-bump release major minor patch breaking feature fix
+.PHONY: help all clean 01 02 03 04 05 glossary spec docs-spec example example-html docs-place docs-clean docs-bundle upgrade constructs schema lint watch-01 watch-02 watch-03 watch-04 watch-05 watch-glossary watch-spec watch-example verify update-testdata testdata-bundle check-clean-tree check-release-bump release major minor patch breaking feature fix
 
 ##@ Documents
 
@@ -221,11 +221,20 @@ schema: ## validate the RQL schema against the metaschema, and its examples agai
 	rm -rf "$$work"; \
 	exit $$status
 
-# Pre-release gate: every paper must compile and the schema must hold. Extend
-# with more checks later (linting, link-checking, …); release depends on this
-# passing.
-verify: all schema constructs example example-html ## the pre-release gate: every document compiles, the schema holds, both docs backends render
-	@echo "verify: all documents compiled, schema valid, both docs backends render."
+# brokkr's static-analysis gate. It runs inside verify, and first, because it is
+# the cheap check: a consumer caches scripts/ into its own bin/ and lints it
+# there, so a comment this repo ships too wide fails a build downstream — which
+# is how ranke-go's lint broke on release-cycle.sh's bootstrap block.
+lint: ## run brokkr's static-analysis gate over this repo
+	@command -v brokkr > /dev/null || \
+		{ echo "brokkr not found — install it from github.com/flocko-motion/sindri"; exit 1; }
+	@brokkr lint
+
+# Pre-release gate: the scripts must lint, every paper must compile, and the
+# schema must hold. Extend with more checks later (link-checking, …); release
+# depends on this passing.
+verify: lint all schema constructs example example-html ## the pre-release gate: scripts lint, every document compiles, the schema holds, both docs backends render
+	@echo "verify: scripts linted, all documents compiled, schema valid, both docs backends render."
 
 ##@ Conformance artifacts
 
