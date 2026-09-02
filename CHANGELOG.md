@@ -7,6 +7,31 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.24.0 — 2026-09-02
+
+**Bookmarks replace the Head History.** A bookmark is a signed record of seed,
+index, and reference, held in the bookmark store $U_"hist"$: a store of its own
+beside the Universe, sequentially addressed by $op("id")_"seq"(i, s)$, may be mutable,
+its guarantees deliberately weaker than a claim's. Every bookmark carries the
+seed, so any remembered bookmark id recovers the list. The Universe reverts to
+content-addressed keys, and `contribution/history` leaves the node classes.
+Glossary: bookmark, bookmark store, and bookmark seed replace head index and
+history seed. (foundation paper §Bookmarks)
+
+**The Sequencer bookmarks in a step of its own, and the spec fixes the bookmark's
+form.** The merge procedure gains step 7: step 6 writes the new branch table $k'$,
+inert until step 7 records it as the next bookmark — the advance takes effect
+there, so a failure at any step leaves the archive unchanged (RankeDB paper
+§Sequencer). In the spec, `V-BMENV` fixes the bookmark as a `COSE_Sign1` over the
+bare triplet $S([i, s, k])$ with a `kid` naming its signing contributor claim;
+`V-BMSIG`, `V-BMSLOT`, and `V-BMREF` fix its verification; `R-C7BOOKMARK` (gapless
+list), `R-ABOOKMARK` (Sequencer-only writes), and `R-BMPREFIX` (keyspace
+separation) carry RankeDB's choices. `V-HISTCLAIM`, `V-HISTCLAIM0`, `V-HISTCHAIN`,
+`V-HISTREF`, `V-IDSEQVERIFY`, `R-C2HISTORY`, and `R-C6HISTORY` are removed;
+`V-TABLEREF` reverts to branch-tables-only referrers; the `history_index`,
+`history_seed`, and `history` aliases are withdrawn — no released archive ever
+held a record using them.
+
 ## v0.23.8 — 2026-09-01
 
 **`V-HISTCHAIN` admits a Head History with gaps.** The walk-back from the

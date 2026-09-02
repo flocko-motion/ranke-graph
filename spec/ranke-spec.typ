@@ -249,39 +249,37 @@ have height 1: its `contribution/contributor` edge is its only reference,
 resolving to the archive's initial claim, height 0. (foundation paper
 §Ranke-Archive, §Nodes)]
 
-#rule("V-TABLEREF", FORCED)[A `contribution/branches` claim's only referrers
-are another `contribution/branches` claim, through its `contribution/diff` or
-`contribution/branches` edge (`R-C6MERGE`), and a `contribution/history`
-claim, through its `contribution/head` edge. (foundation paper §Branches,
-§Head Index)]
+#rule("V-TABLEREF", FORCED)[Only a `contribution/branches` claim may reference a
+`contribution/branches` claim, and only through its `contribution/diff` or
+`contribution/branches` edge (`R-C6MERGE`). (foundation paper §Branches)]
 
-#rule("V-IDSEQ", FORCED)[$op("id")_"seq"(i, s) := H(S([i, s]))$: $i$ and $s$,
-CBOR Deterministic Encoded as a two-element array. A claim always serializes
-as a map (`V-SER`), never an array, so no claim's bytes can equal an
-$op("id")_"seq"$ input — CBOR's major type alone separates the two, with no
-further convention to state. (foundation paper §Head Index)]
+#rule("V-IDSEQ", FORCED)[$op("id")_"seq"(i, s) := H(S([i, s]))$: the CBOR
+Deterministic two-element array of $i$, an unsigned integer, and $s$, a byte
+string. A claim always serializes as a map (`V-SER`), never an array, so no
+claim's bytes can equal an $op("id")_"seq"$ input — CBOR's major type alone
+separates the two, with no further convention to state. (foundation paper
+§Bookmarks)]
 
-#rule("V-HISTCLAIM", FORCED)[A `contribution/history` claim MUST carry
-`history_index` (the step $i$) and a `contribution/head` edge naming the head
-recorded at that step. (foundation paper §Head Index)]
+#rule("V-BMENV", FORCED)[A *bookmark* is stored as a tagged `COSE_Sign1`
+(RFC 9052, CBOR tag 18) whose payload is $S([i, s, k])$: the CBOR Deterministic
+three-element array of its index $i$ (unsigned integer), its seed $s$ (byte
+string), and the head id $k$ it records (byte string). The seed SHOULD carry at
+least 128 bits of entropy. The protected header MUST carry `alg` (label `1`)
+and `kid` (label `4`), the `kid` holding the id of a `contribution/contributor`
+claim, and nothing else; the unprotected header MUST be empty. The envelope's
+serialization is the record $cal(U)_"hist"$ holds under $op("id")_"seq"(i, s)$.
+(foundation paper §Bookmarks)]
 
-#rule("V-HISTCLAIM0", FORCED)[The claim at $i = 0$ MUST carry `history_seed`
-with the value $s$ its address scheme is keyed on, and MUST reference the
-archive's first branch-table claim, height 1 (`V-ARCHIVEHEIGHT`). (foundation
-paper §Head Index)]
+#rule("V-BMSIG", FORCED)[The bookmark's signature MUST verify against the
+`pubkey` of the `contribution/contributor` claim its `kid` names, signed as
+`V-SIGN` fixes. (foundation paper §Bookmarks)]
 
-#rule("V-HISTCHAIN", FORCED)[The head named by the `contribution/history`
-claim at $op("id")_"seq"(i, s)$, walked back along its own
-`contribution/diff`/`contribution/branches` predecessor edges, MUST reach the
-head named at $op("id")_"seq"(0, s)$. (foundation paper §Head Index)]
+#rule("V-BMSLOT", FORCED)[A bookmark fetched at $op("id")_"seq"(i, s)$ MUST
+carry that $i$ and $s$ in its payload; a mismatch is treated as absence at that
+slot. (foundation paper §Bookmarks)]
 
-#rule("V-HISTREF", FORCED)[An edge's `reference` MUST NOT resolve to a
-`contribution/history` claim (foundation paper §Head Index)]
-
-#rule("V-IDSEQVERIFY", FORCED)[A `contribution/history` claim fetched at
-$op("id")_"seq"(i, s)$ MUST carry `history_index` equal to $i$; a mismatch is
-treated as absence at that slot. `V-ID` and `V-SIG` otherwise apply
-unchanged. (foundation paper §Verifiability)]
+#rule("V-BMREF", FORCED)[A bookmark's $k$ MUST resolve to a
+`contribution/branches` claim. (foundation paper §Bookmarks)]
 
 #rule("V-REL", FORCED)[A `relation/*` edge MUST carry `relation_direction` of `1` (from)
 or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Relations)]
@@ -290,10 +288,14 @@ or `-1` (to); an edge of any other class MUST carry `0`. (foundation paper §Rel
 leading `_`; a value at most 64 KiB; a record at most 256 fields; inline content at most
 1 MiB. Larger data belongs in external content (`V-CONTENT`).]
 
+#rule("R-BMPREFIX", FREE)[A blob store holding both $cal(U)$ and
+$cal(U)_"hist"$ keys bookmark entries under a distinct prefix, separating the
+two keyspaces. (foundation paper §Composing the Universe)]
+
 == Contribution rules <sec:v-contribution>
 
 A *contribution* is a set of claims added to the archive in one transaction: all of
-them, or none. Its procedure is fixed by the RankeDB paper §Sequencer in six steps,
+them, or none. Its procedure is fixed by the RankeDB paper §Sequencer in seven steps,
 whose numbers the rule ids below carry:
 
 1. *Opening*: the base $(k, t)$ is taken.
@@ -302,8 +304,10 @@ whose numbers the rule ids below carry:
 4. *Verifying*: every claim is checked against the base, and the contribution
    sealed.
 5. *Persisting*: its whole closure is stored durably.
-6. *Merging*: the Sequencer contributes a new branch table claim referencing the
-   contribution's head claims, and the archive's head advances, $k arrow.r k'$.
+6. *Merging*: the Sequencer contributes a new branch table claim $k'$ referencing
+   the contribution's head claims.
+7. *Bookmarking*: the Sequencer records $k'$ as the next bookmark; the advance
+   $k arrow.r k'$ takes effect.
 
 Step 1's access check is the `R-A…` family of @sec:v-access.
 
@@ -322,10 +326,6 @@ A system account MAY commit a *request* instead (a
 `contribution/expires_after_request` or `contribution/delete_request` edge), which the
 Sequencer honours at merge (`R-C6REQUEST`). (RankeDB paper §Sequencer, step 2;
 §Contributor Keys Life Cycle)]
-
-#rule("R-C2HISTORY", FREE)[A contribution from a system account MUST NOT
-contain a `contribution/history` claim: it is created by the Sequencer alone,
-as part of merging (`R-C6HISTORY`). (RankeDB paper §Sequencer, step 2)]
 
 #rule("R-C3CLOSE", FREE)[Before verification a contribution MUST be *closed*: each
 claim's references are followed, drawing in every referenced claim outside the
@@ -360,10 +360,10 @@ chain beyond it stays reachable. Its `contribution/branch` edges MUST name, for 
 they bind, the head claims of the contribution merged there. (RankeDB paper
 §Sequencer, step 6)]
 
-#rule("R-C6HISTORY", FREE)[Step 6, where the archive advance $k arrow.r k'$
-happens, MUST also write the next Head History entry: a `contribution/history`
-claim naming $k'$ at the next index. (RankeDB paper §Sequencer, step 6;
-foundation paper §Head Index)]
+#rule("R-C7BOOKMARK", FREE)[Step 7, where the advance $k arrow.r k'$ takes
+effect, MUST write $k'$ as the next bookmark, at the next free index —
+RankeDB's list stays gapless, so the $O(log n)$ search applies. (RankeDB paper
+§Sequencer, step 7; foundation paper §Bookmarks)]
 
 #rule("R-C6REQUEST", FREE)[Every request a merged contribution carries (`R-C2TYPE`)
 MUST produce its limiting claim in the same merge. That claim MUST carry the same
@@ -436,6 +436,9 @@ table, *R* reads it, and *D* soft-deletes a branch by creating a new table that 
 
 #rule("R-AUNIVERSE", FREE)[On `$universe`: *R* alone, and *privileged*: a head id
 bypasses the branch table, so it reaches any graph the Universe holds.]
+
+#rule("R-ABOOKMARK", FREE)[Writing $cal(U)_"hist"$ is the Sequencer's alone; no
+access grant covers it. (RankeDB paper §Sequencer, step 7)]
 
 = RankeQL (RQL) <sec:rql>
 
@@ -788,8 +791,6 @@ the aliases its names and types may take.
     [`pubkey_valid_from`],    [`v`], [], [], [], [],                                  [`text`],        [`t`],
     [`pubkey_expires_after`], [`x`], [], [], [], [],                                  [`video`],       [`V`],
     [`delete_by`],            [`d`], [], [], [], [], [], [],
-    [`history_index`],       [`I`], [], [], [`history`],     [`y`], [], [],
-    [`history_seed`],        [`S`], [], [], [], [], [], [],
   ),
   caption: [Aliases, each serialized with the reserved `.`. `source` and `entity`
   are node classes alone, `prune` an edge subtype alone. Encoding subtypes are @tbl:encsub.],
