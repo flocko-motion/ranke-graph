@@ -91,6 +91,18 @@
 #   docs-release: $(RANKE_FETCHER)
 #   	@PAPERS_DIR=$(PAPERS_DIR) DOCS_DIR=docs $(RANKE_FETCHER) --release $(RANKE_GRAPH_RELEASE)
 #
+#   upgrade:
+#   	@rm -f $(RANKE_FETCHER)
+#   	@$(MAKE) $(RANKE_FETCHER)
+#
+# WHY UPGRADE REFRESHES IT: $(RANKE_FETCHER) is a file target with no prerequisite,
+# so make builds it once and the cached copy then stands for good. A consumer goes
+# on running the script it first downloaded, missing every fix and every new
+# document directory since. `upgrade` already means "bring everything to latest" in
+# a consumer, so refreshing the cached script there is what makes that sentence
+# true. The same holds for every script a consumer caches from here,
+# release-cycle.sh among them.
+#
 # bin/ is gitignored: the script is fetched infrastructure, never vendored, so a
 # consumer cannot drift from the shared one.
 
