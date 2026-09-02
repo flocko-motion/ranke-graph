@@ -7,6 +7,8 @@ requires, defines, or removes; rewording does not.
 
 ## Unreleased
 
+## v0.25.2 — 2026-09-02
+
 **The Sequencer's thread note names step 7.** §Sequencer said step 6 was the
 only step advancing the archive head and the only one needing the sequencing
 thread, which v0.24.0 made false when it inserted step 7: step 6 writes $k'$
